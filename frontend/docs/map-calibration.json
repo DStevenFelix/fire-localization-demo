@@ -1,0 +1,335 @@
+{
+  "image": {
+    "width": 1707,
+    "height": 1280
+  },
+  "referenceImage": {
+    "width": 1707,
+    "height": 1360
+  },
+  "referenceToBase": {
+    "x": 0,
+    "y": -80
+  },
+  "calibration": {
+    "left": 160,
+    "top": 70,
+    "width": 1385,
+    "height": 1120
+  },
+  "physicalExtent": {
+    "width": 30,
+    "height": 25
+  },
+  "method": "Measured red POI centers in the original annotated PNG, checked against JSON/Excel coordinates and matching JPEG features. Coordinates rounded to 0.001m in source.",
+  "anchors": [
+    {
+      "poi_id": "POI-JA-01",
+      "name": "锦安社区1号楼",
+      "x_m": 1.993,
+      "y_m": 16.629,
+      "png_x": 252,
+      "png_y": 525,
+      "jpeg_x": 252,
+      "jpeg_y": 445,
+      "residual_to_initial_px": 0.023
+    },
+    {
+      "poi_id": "POI-JA-02",
+      "name": "锦安社区2号楼",
+      "x_m": 1.993,
+      "y_m": 14.129,
+      "png_x": 252,
+      "png_y": 637,
+      "jpeg_x": 252,
+      "jpeg_y": 557,
+      "residual_to_initial_px": 0.023
+    },
+    {
+      "poi_id": "POI-JA-03",
+      "name": "锦安社区3号楼",
+      "x_m": 1.993,
+      "y_m": 11.607,
+      "png_x": 252,
+      "png_y": 750,
+      "jpeg_x": 252,
+      "jpeg_y": 670,
+      "residual_to_initial_px": 0.012
+    },
+    {
+      "poi_id": "POI-JA-04",
+      "name": "锦安社区4号楼",
+      "x_m": 1.993,
+      "y_m": 9.152,
+      "png_x": 252,
+      "png_y": 860,
+      "jpeg_x": 252,
+      "jpeg_y": 780,
+      "residual_to_initial_px": 0.014
+    },
+    {
+      "poi_id": "POI-HA-NW-01",
+      "name": "华安能源综合楼",
+      "x_m": 11.307,
+      "y_m": 16.964,
+      "png_x": 682,
+      "png_y": 510,
+      "jpeg_x": 682,
+      "jpeg_y": 430,
+      "residual_to_initial_px": 0.014
+    },
+    {
+      "poi_id": "POI-HA-NW-02",
+      "name": "华安能源检修车间",
+      "x_m": 10.744,
+      "y_m": 14.754,
+      "png_x": 656,
+      "png_y": 609,
+      "jpeg_x": 656,
+      "jpeg_y": 529,
+      "residual_to_initial_px": 0.025
+    },
+    {
+      "poi_id": "POI-HA-NW-03",
+      "name": "西北缓冲储罐",
+      "x_m": 13.69,
+      "y_m": 14.286,
+      "png_x": 792,
+      "png_y": 630,
+      "jpeg_x": 792,
+      "jpeg_y": 550,
+      "residual_to_initial_px": 0.025
+    },
+    {
+      "poi_id": "POI-HA-NE-01",
+      "name": "东北工艺罐组",
+      "x_m": 16.462,
+      "y_m": 16.741,
+      "png_x": 920,
+      "png_y": 520,
+      "jpeg_x": 920,
+      "jpeg_y": 440,
+      "residual_to_initial_px": 0.005
+    },
+    {
+      "poi_id": "POI-HA-NE-02",
+      "name": "动力控制楼",
+      "x_m": 19.755,
+      "y_m": 16.853,
+      "png_x": 1072,
+      "png_y": 515,
+      "jpeg_x": 1072,
+      "jpeg_y": 435,
+      "residual_to_initial_px": 0.027
+    },
+    {
+      "poi_id": "POI-HA-NE-03",
+      "name": "东北缓冲储罐",
+      "x_m": 17.004,
+      "y_m": 14.33,
+      "png_x": 945,
+      "png_y": 628,
+      "jpeg_x": 945,
+      "jpeg_y": 548,
+      "residual_to_initial_px": 0.024
+    },
+    {
+      "poi_id": "POI-HA-NE-04",
+      "name": "东北1号储罐",
+      "x_m": 18.953,
+      "y_m": 14.33,
+      "png_x": 1035,
+      "png_y": 628,
+      "jpeg_x": 1035,
+      "jpeg_y": 548,
+      "residual_to_initial_px": 0.016
+    },
+    {
+      "poi_id": "POI-HA-NE-05",
+      "name": "东北2号储罐",
+      "x_m": 20.469,
+      "y_m": 14.33,
+      "png_x": 1105,
+      "png_y": 628,
+      "jpeg_x": 1105,
+      "jpeg_y": 548,
+      "residual_to_initial_px": 0.022
+    },
+    {
+      "poi_id": "POI-HA-SW-01",
+      "name": "成品区缓冲罐",
+      "x_m": 9.487,
+      "y_m": 10.647,
+      "png_x": 598,
+      "png_y": 793,
+      "jpeg_x": 598,
+      "jpeg_y": 713,
+      "residual_to_initial_px": 0.022
+    },
+    {
+      "poi_id": "POI-HA-SW-02",
+      "name": "成品1号储罐",
+      "x_m": 11.22,
+      "y_m": 10.647,
+      "png_x": 678,
+      "png_y": 793,
+      "jpeg_x": 678,
+      "jpeg_y": 713,
+      "residual_to_initial_px": 0.018
+    },
+    {
+      "poi_id": "POI-HA-SW-03",
+      "name": "成品2号储罐",
+      "x_m": 12.866,
+      "y_m": 10.647,
+      "png_x": 754,
+      "png_y": 793,
+      "jpeg_x": 754,
+      "jpeg_y": 713,
+      "residual_to_initial_px": 0.024
+    },
+    {
+      "poi_id": "POI-HA-SW-04",
+      "name": "成品3号储罐",
+      "x_m": 11.22,
+      "y_m": 8.884,
+      "png_x": 678,
+      "png_y": 872,
+      "jpeg_x": 678,
+      "jpeg_y": 792,
+      "residual_to_initial_px": 0.01
+    },
+    {
+      "poi_id": "POI-HA-SW-05",
+      "name": "成品4号储罐",
+      "x_m": 12.866,
+      "y_m": 8.884,
+      "png_x": 754,
+      "png_y": 872,
+      "jpeg_x": 754,
+      "jpeg_y": 792,
+      "residual_to_initial_px": 0.02
+    },
+    {
+      "poi_id": "POI-HA-SW-06",
+      "name": "成品区西侧工艺罐组",
+      "x_m": 8.989,
+      "y_m": 7.545,
+      "png_x": 575,
+      "png_y": 932,
+      "jpeg_x": 575,
+      "jpeg_y": 852,
+      "residual_to_initial_px": 0.018
+    },
+    {
+      "poi_id": "POI-HA-SW-07",
+      "name": "成品区东侧工艺罐组",
+      "x_m": 12.043,
+      "y_m": 7.545,
+      "png_x": 716,
+      "png_y": 932,
+      "jpeg_x": 716,
+      "jpeg_y": 852,
+      "residual_to_initial_px": 0.022
+    },
+    {
+      "poi_id": "POI-HA-SE-01",
+      "name": "原料1号储罐",
+      "x_m": 16.462,
+      "y_m": 10.759,
+      "png_x": 920,
+      "png_y": 788,
+      "jpeg_x": 920,
+      "jpeg_y": 708,
+      "residual_to_initial_px": 0.005
+    },
+    {
+      "poi_id": "POI-HA-SE-02",
+      "name": "原料区缓冲罐",
+      "x_m": 18.433,
+      "y_m": 10.848,
+      "png_x": 1011,
+      "png_y": 784,
+      "jpeg_x": 1011,
+      "jpeg_y": 704,
+      "residual_to_initial_px": 0.014
+    },
+    {
+      "poi_id": "POI-HA-SE-03",
+      "name": "原料2号储罐",
+      "x_m": 19.971,
+      "y_m": 10.759,
+      "png_x": 1082,
+      "png_y": 788,
+      "jpeg_x": 1082,
+      "jpeg_y": 708,
+      "residual_to_initial_px": 0.006
+    },
+    {
+      "poi_id": "POI-HA-SE-04",
+      "name": "原料3号储罐",
+      "x_m": 16.462,
+      "y_m": 8.817,
+      "png_x": 920,
+      "png_y": 875,
+      "jpeg_x": 920,
+      "jpeg_y": 795,
+      "residual_to_initial_px": 0.005
+    },
+    {
+      "poi_id": "POI-HA-SE-05",
+      "name": "原料4号储罐",
+      "x_m": 19.971,
+      "y_m": 8.817,
+      "png_x": 1082,
+      "png_y": 875,
+      "jpeg_x": 1082,
+      "jpeg_y": 795,
+      "residual_to_initial_px": 0.006
+    },
+    {
+      "poi_id": "POI-DY-01",
+      "name": "东源社区1号楼",
+      "x_m": 27.986,
+      "y_m": 16.741,
+      "png_x": 1452,
+      "png_y": 520,
+      "jpeg_x": 1452,
+      "jpeg_y": 440,
+      "residual_to_initial_px": 0.021
+    },
+    {
+      "poi_id": "POI-DY-02",
+      "name": "东源应急服务中心",
+      "x_m": 28.159,
+      "y_m": 12.679,
+      "png_x": 1460,
+      "png_y": 702,
+      "jpeg_x": 1460,
+      "jpeg_y": 622,
+      "residual_to_initial_px": 0.02
+    },
+    {
+      "poi_id": "POI-DY-03",
+      "name": "东源社区2号楼",
+      "x_m": 27.986,
+      "y_m": 8.929,
+      "png_x": 1452,
+      "png_y": 870,
+      "jpeg_x": 1452,
+      "jpeg_y": 790,
+      "residual_to_initial_px": 0.028
+    },
+    {
+      "poi_id": "POI-FS-01",
+      "name": "滨河消防站",
+      "x_m": 1.733,
+      "y_m": 1.116,
+      "png_x": 240,
+      "png_y": 1220,
+      "jpeg_x": 240,
+      "jpeg_y": 1140,
+      "residual_to_initial_px": 0.008
+    }
+  ]
+}

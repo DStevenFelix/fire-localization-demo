@@ -1,0 +1,61 @@
+{
+  "method": "Mean absolute RGB difference on a spatial grid in the two original images. Annotation-colored samples were excluded. No image file was modified.",
+  "bestPngYOffset": 80,
+  "scores": [
+    {
+      "offset": 80,
+      "meanRgbDifference": 5.955,
+      "sampleCount": 749
+    },
+    {
+      "offset": 79,
+      "meanRgbDifference": 8.351,
+      "sampleCount": 749
+    },
+    {
+      "offset": 81,
+      "meanRgbDifference": 8.954,
+      "sampleCount": 747
+    },
+    {
+      "offset": 78,
+      "meanRgbDifference": 11.485,
+      "sampleCount": 748
+    },
+    {
+      "offset": 82,
+      "meanRgbDifference": 11.732,
+      "sampleCount": 749
+    },
+    {
+      "offset": 83,
+      "meanRgbDifference": 14.58,
+      "sampleCount": 749
+    },
+    {
+      "offset": 84,
+      "meanRgbDifference": 17.193,
+      "sampleCount": 749
+    },
+    {
+      "offset": 85,
+      "meanRgbDifference": 18.092,
+      "sampleCount": 750
+    },
+    {
+      "offset": 77,
+      "meanRgbDifference": 18.35,
+      "sampleCount": 748
+    },
+    {
+      "offset": 76,
+      "meanRgbDifference": 23.046,
+      "sampleCount": 747
+    },
+    {
+      "offset": 75,
+      "meanRgbDifference": 24.46,
+      "sampleCount": 719
+    }
+  ]
+}
