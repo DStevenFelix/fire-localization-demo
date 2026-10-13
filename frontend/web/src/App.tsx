@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Activity, AlertCircle, ArrowUpRight, Check, ChevronRight, CircleDot, Crosshair, Database, Flame, LoaderCircle, MapPin, Play, Radio, RotateCcw, ShieldCheck, Target, Wifi, WifiOff } from 'lucide-react';
+import { Activity, AlertCircle, ArrowRight, ArrowUpRight, BrainCircuit, Check, ChevronRight, CircleDot, Crosshair, Database, Flame, LoaderCircle, MapPin, MessagesSquare, Network, Play, RotateCcw, ShieldCheck, Target, Wifi, WifiOff } from 'lucide-react';
 import SandboxMap from './components/SandboxMap';
 import LiveConfirmation from './components/LiveConfirmation';
 import { api } from './services/api';
@@ -56,6 +56,7 @@ export default function App() {
   const top1 = candidates[0];
   const highlight: Candidate | null = candidates.find(c => c.rank === selectedRank) ?? null;
   const stage = preparing ? '准备场景' : running ? '正在定位' : session?.status === 'failed' ? '运行失败' : completed ? '定位完成' : session ? '场景就绪' : connected ? '等待准备' : '等待连接';
+  const buttonState = preparing ? 'Preparing...' : running ? 'Analyzing...' : session?.status === 'failed' ? 'Failed' : completed ? 'Completed' : session && connected ? 'Ready' : 'Waiting';
 
   useEffect(() => {
     if (starting || session?.status !== 'running') return;
@@ -106,49 +107,58 @@ export default function App() {
 
   return <div className="application-shell">
     <header className="topbar">
-      <div className="brand"><div className="brand-symbol"><Flame size={26} /></div><div><h1>火灾应急管理仿真沙盘系统</h1><span>FIRE EMERGENCY SIMULATION</span></div></div>
-      <div className="topbar-title"><span>研究演示</span><ChevronRight size={14} /><strong>火情智能定位</strong></div>
-      <div className="header-status"><span className={connected ? 'connection connected' : 'connection'}>{connected ? <Wifi size={14} /> : <WifiOff size={14} />}{connected ? '后端已连接' : '后端未连接'}</span><span className={`mode-badge ${mode}`}><i />{mode === 'offline' ? 'OFFLINE' : 'LIVE'}</span></div>
+      <div className="brand"><div className="brand-symbol"><Flame size={23} /></div><div><span className="brand-name">URBAN INTELLIGENCE LAB</span><span>城市异常定位 · 研究演示</span></div></div>
+      <div className="topbar-title"><span>数字孪生沙盘</span><ChevronRight size={14} /><strong>火情定位智能体</strong></div>
+      <div className="header-status"><span className={connected ? 'connection connected' : 'connection'}>{connected ? <Wifi size={14} /> : <WifiOff size={14} />}{connected ? 'Bridge 已连接' : 'Bridge 未连接'}</span><span className={`mode-badge ${mode}`}><i />{mode === 'offline' ? 'OFFLINE' : 'LIVE'}</span></div>
     </header>
     <main>
-      <div className="page-heading"><div><div className="eyebrow">INTELLIGENT FIRE LOCALIZATION</div><h2>让火情，从线索到坐标。</h2><p>多条火情证据融合 · POI 空间约束 · 原始算法实时回放</p></div><div className="research-label"><ShieldCheck size={17} /><span>研究仿真环境<small>原始后端 · 独立演示会话</small></span></div></div>
-      {error && <div className="error-banner" role="alert"><AlertCircle size={18} /><span>{error}</span><button onClick={() => { if (!connected) setReload(v => v+1); else setPrepareNonce(v => v+1); }}>重新准备</button></div>}
+      <div className="page-heading"><div><div className="eyebrow">Agent-based Urban Fire Localization System</div><h1>城市异常定位智能体系统</h1><p>基于多源火情信息理解与POI空间推理的火灾定位演示</p></div><div className="research-label"><ShieldCheck size={19} /><span>科研演示环境<small>多源信息 → 空间推理 → 定位评估</small></span></div></div>
+      {error && <div className="error-banner" role="alert"><AlertCircle size={18} /><div><strong>{connected ? '本次操作未完成' : '桥接服务未连接'}</strong><p>请检查本地 Bridge 服务，再重新准备场景。</p><details><summary>查看错误详情</summary><p>{error}</p></details></div><button disabled={busy} onClick={() => { if (!connected) setReload(v => v+1); else setPrepareNonce(v => v+1); }}>重新准备</button></div>}
+      <section className="pipeline-card" aria-label="Agent 定位流程">
+        <div className="pipeline-heading"><Network size={17} /><strong>Agent 定位流程</strong><span className={`status-pill ${completed ? 'success' : running ? 'active' : ''}`}>{stage}</span></div>
+        <div className="pipeline-steps">
+          <div><MessagesSquare size={19} /><span><strong>居民火情信息</strong><small>模拟帖子输入</small></span></div><ArrowRight className="pipeline-arrow" size={15} />
+          <div><BrainCircuit size={19} /><span><strong>语义理解 Agent</strong><small>{mode === 'offline' ? '规则提取 · 离线' : 'Chat 信息提取'}</small></span></div><ArrowRight className="pipeline-arrow" size={15} />
+          <div><Network size={19} /><span><strong>空间定位 Agent</strong><small>空间约束与证据聚合</small></span></div><ArrowRight className="pipeline-arrow" size={15} />
+          <div><MapPin size={19} /><span><strong>POI 匹配</strong><small>候选储罐排序</small></span></div><ArrowRight className="pipeline-arrow" size={15} />
+          <div><Target size={19} /><span><strong>火点预测</strong><small>Top3 与位置评估</small></span></div>
+        </div>
+        <p className="pipeline-note">原始 FireLocalizer 处理流程示意 · 运行状态按整轮任务展示</p>
+      </section>
       <div className="workspace-grid">
         <div className="map-column">
           <SandboxMap pois={pois} session={session} highlighted={highlight} />
           <div className="metrics-row">
-            <div><span className="metric-icon"><Database size={19} /></span><span><small>地图兴趣点</small><strong>{pois.length || '—'} <em>POI</em></strong></span></div>
-            <div><span className="metric-icon"><Activity size={19} /></span><span><small>已处理火情帖子</small><strong>{session?.processed_count ?? 0}<em> / {session?.post_count ?? 10} 条</em></strong></span></div>
-            <div><span className="metric-icon"><CircleDot size={19} /></span><span><small>活跃证据簇</small><strong>{prediction?.active_cluster_count ?? '—'}<em> 个</em></strong></span></div>
-            <div><span className="metric-icon"><Crosshair size={19} /></span><span><small>Top1 坐标距离误差</small><strong>{completed && session.evaluation?.distance_m != null ? session.evaluation.distance_m.toFixed(3) : '—'}<em> m</em></strong></span></div>
+            <div><span className="metric-icon"><Database size={18} /></span><span><small>地图兴趣点</small><strong>{pois.length || '—'} <em>POI</em></strong></span></div>
+            <div><span className="metric-icon"><Activity size={18} /></span><span><small>已处理火情信息</small><strong>{session?.processed_count ?? 0}<em> / {session?.post_count ?? 10} 条</em></strong></span></div>
+            <div><span className="metric-icon"><CircleDot size={18} /></span><span><small>活跃证据簇</small><strong>{prediction?.active_cluster_count ?? '—'}<em> 个</em></strong></span></div>
+            <div><span className="metric-icon"><Crosshair size={18} /></span><span><small>Top1 距离误差</small><strong>{completed && session.evaluation?.distance_m != null ? session.evaluation.distance_m.toFixed(3) : '—'}<em> m</em></strong></span></div>
           </div>
-          <section className="evidence-card"><div className="evidence-title"><Radio size={16} /><strong>演示运行记录</strong><span className={`status-pill ${completed ? 'success' : running ? 'active' : ''}`}>{stage}</span></div>
-            <div className="run-timeline"><div className={session ? 'done' : ''}><span>{session ? <Check size={13} /> : '1'}</span><strong>场景准备</strong><small>原始生成器 · 10 条帖子</small></div><div className={running ? 'active' : completed ? 'done' : ''}><span>{running ? <LoaderCircle size={13} className="spin" /> : completed ? <Check size={13} /> : '2'}</span><strong>原始算法定位</strong><small>{mode === 'offline' ? '规则提取 + 字符哈希向量' : 'Chat + Embedding 真实模型'}</small></div><div className={completed ? 'done' : ''}><span>{completed ? <Check size={13} /> : '3'}</span><strong>发布候选</strong><small>{completed ? `${session.batch_count} 批完成 · ${session.ignored_count} 条无储罐候选` : '等待实际算法结果'}</small></div></div>
-            <div className="session-footnote"><span>SESSION</span><code>{session ? session.session_id.slice(0, 12).toUpperCase() : '等待创建'}</code><p>真实标签仅用于展示与评估，不参与推理和排名。</p></div>
-          </section>
+          <p className="map-footnote"><ShieldCheck size={13} />真实火点仅用于展示与评估，不参与推理和候选排名。</p>
         </div>
         <aside className="control-column">
-          <section className="control-card"><div className="card-heading"><span><SlidersIcon /><h2>定位控制台</h2></span><span className="tag-muted">DEMO</span></div>
-            <div className="control-body"><label className="field-label" htmlFor="scenario">火情场景<span>{scenarios.length} 个独立储罐</span></label><select id="scenario" value={targetId} disabled={busy || !connected} onChange={e => setTargetId(e.target.value)}>{!scenarios.length && <option value="">等待场景加载</option>}{scenarios.map(p => <option value={p.poi_id} key={p.poi_id}>{p.name}</option>)}</select>
-              <div className="ground-truth-box"><MapPin size={17} /><div><small>真实着火位置</small><strong>{session?.ground_truth.name ?? (preparing ? '正在准备场景…' : '尚未准备')}</strong><span>{session ? `${session.ground_truth.poi_id} · (${session.ground_truth.coordinates.x_m.toFixed(3)}, ${session.ground_truth.coordinates.y_m.toFixed(3)}) m` : '灰黑色中心标记 · 与预测结果独立'}</span></div></div>
-              <div className="field-label">运行模式<span>固定种子 42 · 10 条帖子</span></div><div className="mode-switch" role="group" aria-label="运行模式"><button className={mode === 'offline' ? 'chosen' : ''} disabled={busy} onClick={() => setMode('offline')}>Offline <span>离线模拟</span></button><button className={mode === 'live' ? 'chosen live' : ''} disabled={busy} onClick={() => setMode('live')}>Live <span>付费模型</span></button></div>
-              <p className={`mode-note ${mode}`}>{mode === 'offline' ? '使用原始规则提取与字符哈希向量，不调用外部模型 API。' : '智增增真实模型 · 会产生 API 费用，启动前需要再次确认。'}</p>
-              <div className="run-buttons"><button className="primary-button" disabled={!connected || busy || session?.status !== 'prepared'} onClick={() => void run()}>{busy ? <LoaderCircle size={17} className="spin" /> : <Play size={16} fill="currentColor" />}{preparing ? '准备场景中' : running ? '正在定位' : completed ? '本轮已完成' : '开始定位'}</button><button className="secondary-button reset-button" aria-label="重置演示" disabled={!session || busy || !connected} onClick={() => void reset()}><RotateCcw size={17} />重置</button></div>
-              <div className="algorithm-status" role="status" aria-live="polite"><i className={running ? 'pulse-dot' : completed ? 'complete-dot' : ''} /><span>{stage}</span><small>{running ? '批次计算进行中' : completed ? '结果来自真实算法输出' : '结果将在计算完成后显示'}</small></div>
-              {session?.error && <div className="run-error" role="alert"><AlertCircle size={17} /><div><strong>{session.error.error_type}</strong><p>{session.error.message}</p></div></div>}
+          <section className="control-card"><div className="card-heading"><span><Activity size={17} /><h2>演示场景</h2></span><span className="tag-muted">DEMO CONTROL</span></div>
+            <div className="control-body"><label className="field-label" htmlFor="scenario">火情场景<span>{scenarios.length} 个储罐</span></label><select id="scenario" value={targetId} disabled={busy || !connected} onChange={e => setTargetId(e.target.value)}>{!scenarios.length && <option value="">等待场景加载</option>}{scenarios.map(p => <option value={p.poi_id} key={p.poi_id}>{p.name}</option>)}</select>
+              <div className="ground-truth-box"><MapPin size={16} /><div><small>GROUND TRUTH · 真实着火位置</small><strong>{session?.ground_truth.name ?? (preparing ? '正在准备场景…' : '尚未准备')}</strong><span>{session?.ground_truth.poi_id ?? '等待场景准备'}</span></div></div>
+              <div className="mode-switch" role="group" aria-label="运行模式"><button className={mode === 'offline' ? 'chosen' : ''} disabled={busy} onClick={() => setMode('offline')}>Offline <span>离线模拟</span></button><button className={mode === 'live' ? 'chosen live' : ''} disabled={busy} onClick={() => setMode('live')}>Live <span>付费模型</span></button></div>
+              <p className={`mode-note ${mode}`}>{mode === 'offline' ? '规则提取 + 字符哈希向量 · 无外部模型调用' : '真实 Chat + Embedding · 启动前确认 API 费用'}</p>
+              <div className="run-buttons"><button className={`primary-button ${completed ? 'is-completed' : ''}`} aria-label="开始定位" disabled={!connected || busy || session?.status !== 'prepared'} onClick={() => void run()}>{busy ? <LoaderCircle size={17} className="spin" /> : completed ? <Check size={17} /> : <Play size={15} fill="currentColor" />}<span>{preparing ? '准备场景中' : running ? '正在定位' : completed ? '定位完成' : session?.status === 'failed' ? '请重置后重试' : '开始定位'}<small data-testid="run-button-state">{buttonState}</small></span></button><button className="secondary-button reset-button" aria-label="重置演示" disabled={!session || busy || !connected} onClick={() => void reset()}><RotateCcw size={16} />重置</button></div>
+              <div className="algorithm-status" role="status" aria-live="polite"><i className={running ? 'pulse-dot' : completed ? 'complete-dot' : ''} /><span>{stage}</span><small>{running ? '计算进行中' : completed ? '实际算法结果' : '种子 42 · 10 条帖子'}</small></div>
+              {session?.error && <div className="run-error" role="alert"><AlertCircle size={17} /><div><strong>定位未完成，请重置后重试</strong><p>场景已保留，可重新运行当前演示。</p><details><summary>查看错误详情</summary><strong>{session.error.error_type}</strong><p>{session.error.message}</p></details></div></div>}
             </div>
           </section>
-          <section className="results-card"><div className="card-heading"><span><Target size={17} /><h2>定位结果</h2></span><span className="tag-muted">TOP 3</span></div>
-            {top1 ? <div className="result-body"><div className="top1-heading"><span className="top1-badge">TOP 1</span><span className={session?.evaluation?.top1_hit ? 'hit-badge' : 'miss-badge'}>{session?.evaluation?.top1_hit ? <><Check size={12} />命中真实火点</> : '未命中真实火点'}</span></div><h3 data-testid="top1-name">{top1.name}</h3><p className="poi-id">{top1.poi_id}</p><div className="result-coordinates"><span>X <strong>{top1.coordinates.x_m.toFixed(3)}</strong></span><span>Y <strong>{top1.coordinates.y_m.toFixed(3)}</strong></span><small>m</small></div><div className="candidate-heading">候选排名 <small>按原始算法得分排序</small></div><div className="candidate-list">{candidates.map(candidate => <button key={candidate.poi_id} className={`candidate-row ${selectedRank === candidate.rank ? 'selected' : ''}`} onClick={() => setSelectedRank(candidate.rank)} aria-label={`高亮候选 ${candidate.rank} ${candidate.name}`} aria-pressed={selectedRank === candidate.rank}><span className="rank-number">0{candidate.rank}</span><div><strong>{candidate.name}</strong><small>{candidate.poi_id}</small><i style={{ width: `${Math.min(100, Math.max(0, candidate.relative_score * 100))}%` }} /></div><span className="candidate-score">{candidate.score.toFixed(3)}<small>得分</small></span><ArrowUpRight size={14} /></button>)}</div><p className="score-note">相对得分用于候选比较，不代表火灾概率。</p></div>
-              : <div className="empty-results" data-testid="empty-results"><div><Crosshair size={32} /></div><h3>{completed ? '当前没有定位候选' : running ? '正在分析火情证据' : '等待算法定位'}</h3><p>{completed ? '算法未发现有效储罐证据。可重置或更换场景重试。' : running ? '完成本批计算后，显示实际 Top3 候选和坐标。' : '准备场景并开始定位，查看候选储罐、空间坐标与误差。'}</p><span>灰黑色真实点 · 红色预测圆环</span></div>}
+          <section className="results-card" aria-label="定位结果"><div className="card-heading"><span><Target size={17} /><h2>定位结果</h2></span><span className="tag-muted">AI PREDICTION</span></div>
+            {top1 ? <div className="result-body" key={session?.session_id}><div className="top1-heading"><span className="prediction-kicker">火灾预测位置</span><span className={session?.evaluation?.top1_hit ? 'hit-badge' : 'miss-badge'}>{session?.evaluation ? session.evaluation.top1_hit ? <><Check size={12} />命中真实火点</> : '未命中真实火点' : '暂无评估'}</span></div><h3 data-testid="top1-name">{top1.name}</h3><p className="poi-id">{top1.poi_id}<span>TOP 1</span></p>
+                <div className="error-metric"><div><Crosshair size={15} /><span>与真实火点的距离误差</span></div><strong data-testid="distance-error">{session?.evaluation?.distance_m != null ? session.evaluation.distance_m.toFixed(2) : '—'}<small>m</small></strong></div>
+                <div className="candidate-heading">Top3 候选位置<small>点击高亮地图</small></div><div className="candidate-list">{candidates.map(candidate => <button key={candidate.poi_id} className={`candidate-row ${selectedRank === candidate.rank ? 'selected' : ''}`} onClick={() => setSelectedRank(candidate.rank)} aria-label={`高亮候选 ${candidate.rank} ${candidate.name}`} aria-pressed={selectedRank === candidate.rank}><span className="rank-number">0{candidate.rank}</span><div><strong>{candidate.name}</strong><small>{candidate.poi_id}</small><i style={{ width: `${Math.min(100, Math.max(0, candidate.relative_score * 100))}%` }} /></div><span className="candidate-score">{candidate.score.toFixed(3)}<small>得分</small></span><ArrowUpRight size={14} /></button>)}</div><p className="score-note">原始算法得分排序 · 相对得分不代表火灾概率</p>
+              </div>
+              : <div className={`empty-results ${running ? 'analyzing' : ''}`} data-testid="empty-results"><div>{running ? <LoaderCircle size={28} className="spin" /> : <Crosshair size={30} />}</div><h3>{session?.status === 'failed' ? '本轮定位未完成' : completed ? '当前没有定位候选' : running ? '正在分析火情证据' : '等待算法定位'}</h3><p>{session?.status === 'failed' ? '请重置场景后重试，错误详情见上方提示。' : completed ? '算法未发现有效储罐证据。可重置或更换场景重试。' : running ? '正在执行原始定位流程，完成后展示预测位置、误差与 Top3。' : '选择火情场景，开始定位后查看空间推理结果。'}</p><span>{running ? 'ANALYZING...' : 'LOCATION INFERENCE'}</span></div>}
+            <details className="runtime-details"><summary>运行信息<span>{stage}</span></summary><dl><div><dt>运行模式</dt><dd>{mode === 'offline' ? 'Offline · 规则提取 / 字符哈希向量' : 'Live · Chat / Embedding'}</dd></div><div><dt>处理批次</dt><dd>{session?.batch_count ?? 0}</dd></div><div><dt>无候选信息</dt><dd>{session?.ignored_count ?? 0} 条</dd></div><div><dt>预测坐标</dt><dd>{top1 ? `(${top1.coordinates.x_m.toFixed(3)}, ${top1.coordinates.y_m.toFixed(3)}) m` : '—'}</dd></div><div><dt>真实坐标</dt><dd>{session ? `(${session.ground_truth.coordinates.x_m.toFixed(3)}, ${session.ground_truth.coordinates.y_m.toFixed(3)}) m` : '—'}</dd></div><div><dt>会话 ID</dt><dd>{session?.session_id ?? '等待创建'}</dd></div></dl></details>
           </section>
-          <div className="algorithm-caption"><ShieldCheck size={15} /><p>复用同门原始 FireLocalizer<br /><span>独立会话 · 缓存隔离 · 历史结果保护</span></p></div>
         </aside>
       </div>
-      <footer><span>火灾应急管理仿真沙盘 · 火情智能定位研究演示</span><span>{mode === 'offline' ? '离线模拟模式' : 'Live 模型模式'}<i />本地坐标系 / METERS</span></footer>
+      <footer><span>城市异常定位智能体系统 · 火灾定位研究演示</span><span>{mode === 'offline' ? 'Offline 演示' : 'Live 模型模式'}<i />本地米制坐标 / METERS</span></footer>
     </main>
     {confirmLive && <LiveConfirmation onCancel={() => setConfirmLive(false)} onConfirm={() => void run(true)} />}
   </div>;
 }
-
-function SlidersIcon() { return <Activity size={17} />; }

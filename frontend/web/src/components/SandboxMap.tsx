@@ -45,7 +45,7 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
 
   return <section className="map-card" aria-label="火情沙盘地图">
     <div className="map-heading">
-      <div><div className="eyebrow">SANDBOX SITUATION</div><h2>城市火情态势<span className="tag-muted">云港新区</span></h2></div>
+      <div><div className="eyebrow">DIGITAL TWIN · SPATIAL LOCALIZATION</div><h2>城市火情空间态势<span className="tag-muted">云港新区</span></h2></div>
       <div className="map-heading-meta"><span className="tiny-dot" />本地米制坐标<span className="divider" />30 × 25 m</div>
     </div>
     <div className="map-canvas">
@@ -79,20 +79,28 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
         </g>; })}
         {candidatePoint && highlighted && <g data-testid="candidate-marker" pointerEvents="none">
           <circle cx={candidatePoint.x} cy={candidatePoint.y} r="22" fill="none" stroke="#e4b869" strokeWidth="3" strokeDasharray="5 5" />
-          <text x={candidatePoint.x} y={candidatePoint.y-60} textAnchor="middle" className="map-label">候选 #{highlighted.rank}</text>
+          <g transform={`translate(${Math.min(IMAGE_SIZE.width-120, candidatePoint.x+35)},${candidatePoint.y+60})`}>
+            <rect x="-6" y="-20" width="115" height="31" rx="6" fill="#242c31" fillOpacity=".96" stroke="#e4b869" />
+            <text x="51" y="2" textAnchor="middle" className="map-label">候选 #{highlighted.rank}</text>
+          </g>
         </g>}
         {truthPoint && truth && <g data-testid="truth-marker" data-poi-id={truth.poi_id} pointerEvents="none">
           <circle cx={truthPoint.x} cy={truthPoint.y} r="11" fill="#222831" stroke="#f1f5f9" strokeWidth="3" />
-          <g transform={`translate(${truthPoint.x-48},${truthPoint.y+31})`}>
-            <rect x="-4" y="-18" width="110" height="28" rx="6" fill="#18212d" fillOpacity=".94" />
-            <text x="51" y="2" textAnchor="middle" className="map-label">真实火点</text>
+          <path d={`M ${truthPoint.x} ${truthPoint.y+14} v 25`} stroke="#f1f5f9" strokeWidth="2" />
+          <g transform={`translate(${Math.max(90, Math.min(IMAGE_SIZE.width-90, truthPoint.x))},${truthPoint.y+57})`}>
+            <rect x="-87" y="-18" width="174" height="32" rx="6" fill="#18212d" fillOpacity=".96" stroke="#91a4b9" strokeWidth="1" />
+            <text x="0" y="4" textAnchor="middle" className="map-label truth-label">Ground Truth</text>
           </g>
         </g>}
         {predictionPoint && top1 && <g data-testid="prediction-marker" data-poi-id={top1.poi_id} pointerEvents="none" className="prediction-ring">
           <circle cx={predictionPoint.x} cy={predictionPoint.y} r="22" fill="none" stroke="#ff5a5f" strokeWidth="4" />
-          <circle cx={predictionPoint.x} cy={predictionPoint.y} r="29" fill="none" stroke="#ff5a5f" strokeOpacity=".3" strokeWidth="1.5" />
+          <circle cx={predictionPoint.x} cy={predictionPoint.y} r="32" fill="none" stroke="#ff5a5f" strokeOpacity=".55" strokeWidth="2" className="prediction-breath" />
           <path d={`M ${predictionPoint.x-36} ${predictionPoint.y} h 9 M ${predictionPoint.x+27} ${predictionPoint.y} h 9 M ${predictionPoint.x} ${predictionPoint.y-36} v 9 M ${predictionPoint.x} ${predictionPoint.y+27} v 9`} stroke="#ff5a5f" strokeWidth="2" />
-          <text x={predictionPoint.x+32} y={predictionPoint.y-25} className="map-label prediction-label">预测 Top1</text>
+          <path d={`M ${predictionPoint.x} ${predictionPoint.y-38} v -13`} stroke="#ff5a5f" strokeWidth="2" />
+          <g transform={`translate(${Math.max(90, Math.min(IMAGE_SIZE.width-90, predictionPoint.x))},${predictionPoint.y-70})`}>
+            <rect x="-87" y="-18" width="174" height="32" rx="6" fill="#321c29" fillOpacity=".96" stroke="#ff5a5f" strokeWidth="1.5" />
+            <text x="0" y="4" textAnchor="middle" className="map-label prediction-label">AI Prediction</text>
+          </g>
         </g>}
       </svg>
       <div className="north-compass" aria-label="地图北向"><span>N</span><span>↑</span></div>
@@ -114,6 +122,6 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
         <button onClick={() => { setCalibration(DEFAULT_CALIBRATION); localStorage.removeItem('fire-map-calibration-v1'); }}>恢复实测校准</button>
       </div>}
     </div>
-    <div className="map-legend"><span><i className="legend-truth" />真实火点</span><span><i className="legend-prediction" />Top1 预测</span><span><i className="legend-poi" />储罐 POI</span><span><i className="legend-node" />建筑 / 节点</span><small>西南原点 · X 向东 · Y 向北</small></div>
+    <div className="map-legend"><span><i className="legend-truth" />Ground Truth · 真实火点</span><span><i className="legend-prediction" />AI Prediction · Top1</span><span><i className="legend-poi" />储罐 POI</span><span><i className="legend-node" />建筑 / 节点</span><small>西南原点 · X 向东 · Y 向北</small></div>
   </section>;
 }
