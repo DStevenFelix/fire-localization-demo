@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "seed": 42,
+  "post_count": 100,
+  "single_fire_ground_truth": {
+    "poi_id": "POI-HA-SW-02",
+    "name": "成品1号储罐",
+    "coordinates": {
+      "x_m": 11.22,
+      "y_m": 10.647
+    }
+  },
+  "start_time": "2026-10-07T14:00:00+08:00",
+  "end_time": "2026-10-07T14:33:00+08:00",
+  "note": "真实标签仅在此文件用于测试评价，不送入模型或定位算法。"
+}
