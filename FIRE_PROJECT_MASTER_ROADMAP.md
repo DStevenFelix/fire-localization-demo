@@ -4,6 +4,8 @@
 
 首次建立日期：2026-10-13。当前状态：第一次 Demo 已完成并封存，等待导师汇报与后续阶段确认。本次封存不开发新功能，不修改已有代码。
 
+发布状态更新（2026-10-15）：第一次 Demo 已成功推送到 GitHub；当前主分支为 `main`，发布标签为 `demo-v1.0`，仓库为 Private。原封存阶段记录保留，GitHub 发布与后续待办见第 6 节。
+
 ## 1. 项目目标
 
 构建城市火灾异常定位与可视化系统，将多源居民火情信息转化为空间定位结果，并在二维数字沙盘中展示预测位置、候选 POI 与定位误差。
@@ -112,7 +114,7 @@ POI 匹配
 | --- | --- |
 | Demo commit | `3360f704e246d01bb89ad651c41b67b1b393beda` |
 | 提交信息 | `feat: complete first fire localization demo` |
-| 分支 | `feat/fire-visualization` |
+| Demo 提交时分支 | `feat/fire-visualization`（当前主分支已为 `main`） |
 | 提交文件数量 | 6 个 |
 | 代码修改范围 | 仅 `frontend/web/` |
 | 主线文档 | 本文件在 Demo 提交后创建并单独提交 |
@@ -137,14 +139,14 @@ POI 匹配
 Bridge：
 
 ```powershell
-cd F:\LUCK_Group\fire
+# 在克隆后的仓库根目录执行
 .\frontend\start-bridge.ps1
 ```
 
 Frontend：
 
 ```powershell
-cd F:\LUCK_Group\fire
+# 在另一个终端进入克隆后的仓库根目录执行
 .\frontend\start-web.ps1
 ```
 
@@ -202,3 +204,38 @@ Demo 提交仅包含以下文件：
 - 更多复杂场景。
 
 上述方向尚未进入开发，后续工作需先确认范围、前后端分工和验收标准，再更新本主线文档。第一次 Demo 封存完成后停止开发，等待后续确认。
+
+## 6. GitHub 发布记录
+
+记录日期：**2026-10-15**。
+
+| 项目 | 状态 |
+| --- | --- |
+| 远程仓库 | `DSTevenFelix/fire-localization-demo`（GitHub 仓库地址见下方） |
+| 仓库地址 | https://github.com/DStevenFelix/fire-localization-demo |
+| 主分支 | `main` |
+| 发布标签 | `demo-v1.0` |
+| 发布状态 | **第一次 Demo 已成功推送到 GitHub** |
+| 仓库可见性 | **Private**（按项目负责人提供的当前状态记录） |
+| Demo 功能提交 | `3360f704e246d01bb89ad651c41b67b1b393beda` |
+| 已发布主线文档提交 | `7a57fb5d2dc47ad3c8ddf436bfdca7d47be8bdeb` |
+| 远程 main / 标签指向的提交 | `7a57fb5d2dc47ad3c8ddf436bfdca7d47be8bdeb` |
+
+`demo-v1.0` 是附注标签：标签对象为 `977ddbfe42faed3c7d7dacf3f7d34ae7036975fc`，解引用后对应上表的已发布提交。本次通过只读查询核对了远程 `main` 与该标签，未修改标签或覆盖历史提交。后续文档完善通过新的正常提交进入 `main`，不移动既有标签。
+
+### 已完成事项
+
+- [x] 第一次 Demo 本地封存及主线文档建立。
+- [x] Demo 推送至 GitHub，主分支为 `main`，标签 `demo-v1.0` 可由远程引用读取。
+- [x] 本地完善根目录 README，增加面向新用户的介绍、架构、Windows 安装配置、启动、演示及排错说明。
+- [x] 同步本文件的 GitHub 发布状态，保留阶段历史及模块分工边界。
+
+### 待执行与待验证事项
+
+- [ ] 由项目负责人审阅本次文档修改，并执行提交、推送；本次任务未执行 Git 暂存、提交或推送。
+- [ ] 邀请同门加入 Private 仓库，验证其仓库访问权限。
+- [ ] 在全新克隆环境验证 Python 3.12、uv、前端依赖及 Windows `tzdata` 安装过程。
+- [ ] 按根目录 README 启动 Bridge 和 React，完成新环境下的 Offline 场景、真实点 / 预测点、Top3、误差和重置验收。
+- [ ] 若需 Live，由使用者配置自己的密钥、核对服务账户与模型权限，确认费用后再单独验证。
+
+本次工作只完善 `README.md` 和 `FIRE_PROJECT_MASTER_ROADMAP.md`。未修改业务代码、启动脚本、依赖文件、`.env`、API 配置或 POI 原始数据；未重装依赖、重新运行功能测试或开展全新克隆验收。此前机器的验收记录与新环境待验收状态分开记录。
