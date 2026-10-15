@@ -5,8 +5,8 @@
 ## 实现结果
 
 - `web/`：React + Vite + TypeScript + Tailwind CSS + Lucide。深色 Dashboard，地图为视觉中心，右侧场景与定位控制，顶部连接/模式状态，底部统计与运行记录。
-- `bridge/`：只读导入原始 `PoiRepository`、`demo.generate`、`Settings` 和 `FireLocalizer`。提供健康、POI、场景、准备、启动、会话查询、重置七类接口。
-- 原始数据为 52 个 POI、14 个独立储罐；全部 14 个储罐均已通过原始生成器的场景准备测试。
+- `bridge/`：只读导入核心定位模块 `PoiRepository`、`demo.generate`、`Settings` 和 `FireLocalizer`。提供健康、POI、场景、准备、启动、会话查询、重置七类接口。
+- 原始数据为 52 个 POI、14 个独立储罐；全部 14 个储罐均已通过模拟信息生成器的场景准备测试。
 - 每次准备/重置使用新 UUID，数据与 Memory 位于 `runtime/frontend/<session_id>/`；Live 的独立 `Settings.root` 和向量缓存同样在该目录内。
 - ground truth 与模型输入隔离：生成器元数据只用于前端展示和计算完成后的评估；推理只接收原始 `Post` 字段。
 - 灰黑色真实点与红色 Top1 圆环同时可辨；Top2/Top3 为独立虚线标记。空候选不画红环；错误预测按返回坐标绘制，未移动到真实点。
@@ -49,19 +49,19 @@ Bridge 测试覆盖真实 Offline 算法、标签隔离、历史缓存保护、1
 
 浏览器六项覆盖真实 Offline 操作；Live 确认框取消；空候选；错误坐标；失败重置；Bridge 不可用。后四项中相关异常结果使用响应夹具验证 UI，不代表真实算法效果。真实 Offline 首轮含鼠标悬停、图层、缩放、校准开关、Top2 高亮、重置、更换场景和刷新。
 
-开发过程中修复了测试基目录不存在、测试保护器误拦截新版本 TestClient 的 httpx2、Vitest 错误收集 Playwright 用例、源坐标舍入容差、favicon 404，以及 Windows PowerShell 5.1 对无 BOM 脚本中文路径的编码问题。浏览器启动请求有过一次未完成，最终复验通过；HTTP 超时和仅查询恢复机制已补齐。无需修改原始后端或依赖清单。
+开发过程中修复了测试基目录不存在、测试保护器误拦截新版本 TestClient 的 httpx2、Vitest 错误收集 Playwright 用例、源坐标舍入容差、favicon 404，以及 Windows PowerShell 5.1 对无 BOM 脚本中文路径的编码问题。浏览器启动请求有过一次未完成，最终复验通过；HTTP 超时和仅查询恢复机制已补齐。核心定位引擎和依赖清单保持不变。
 
 ## Offline 真实演示记录
 
 代表性实际会话：`runtime/frontend/14c9076f033744f2a0f05e4ed94b18b5/`。
 
-- 输入：原始生成器，seed 42，10 条模拟帖子。
-- 原始算法：处理 10 条、1 批；1 条因范围内无储罐而被忽略。
+- 输入：模拟信息生成器，seed 42，10 条模拟帖子。
+- 核心定位引擎：处理 10 条、1 批；1 条因范围内无储罐而被忽略。
 - Top1：`POI-HA-SW-02`，成品1号储罐。
 - Top2：`POI-HA-SW-03`，成品2号储罐。
 - Top3：`POI-HA-SW-04`，成品3号储罐。
 - 真实火点为 `POI-HA-SW-02`；Top1/Top3 均命中；Top1 欧氏距离误差 0 米。
-- 结果为原始 Offline 规则/字符哈希向量计算，不是本阶段付费大模型推理。
+- 结果为 Offline 规则/字符哈希向量计算，不是本阶段付费大模型推理。
 - 会话中已生成 `prediction.json`、`report.json`、`batch_results.json` 和 `memory.json`；没有覆盖历史文件。
 
 ## Git 与环境

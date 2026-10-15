@@ -1,12 +1,14 @@
 # 城市异常定位智能体系统 · Fire Localization Demo
 
-基于多源火情信息理解与 POI 空间推理的火灾定位研究演示。系统复用原始 Python / LangChain 定位后端，通过独立 FastAPI Bridge 将结果呈现在 React 二维沙盘中，面向科研汇报和同门协作。
+火灾应急管理仿真沙盘系统基于多源火情信息理解与 POI 空间推理，将 Python / LangChain 核心定位引擎、FastAPI Bridge 与 React 可视化前端集成为完整软件系统，支持火灾定位研究与数字沙盘演示。
+
+系统流程：**火情信息输入 → 语义理解 → 空间定位 → POI 匹配 → 定位结果 → 数字沙盘展示**。
 
 **第一次 Demo：`demo-v1.0` · 主分支：`main` · 当前仓库：Private。**
 
 仓库：[DStevenFelix/fire-localization-demo](https://github.com/DStevenFelix/fire-localization-demo)。私有仓库需要先获得访问权限并完成 GitHub 身份认证，才能克隆。
 
-[Windows 安装](#windows-安装与配置) · [启动演示](#启动演示) · [常见问题](#常见问题) · [原始后端说明](#原始后端说明) · [项目主线文档](FIRE_PROJECT_MASTER_ROADMAP.md)
+[Windows 安装](#windows-安装与配置) · [启动演示](#启动演示) · [常见问题](#常见问题) · [核心定位引擎说明](#核心定位引擎说明) · [项目主线文档](FIRE_PROJECT_MASTER_ROADMAP.md)
 
 ## 核心功能
 
@@ -21,8 +23,8 @@
 ```mermaid
 flowchart LR
   U["React 二维沙盘<br/>127.0.0.1:5173"] -->|"请求 /api · Vite 代理"| B["独立 FastAPI Bridge<br/>127.0.0.1:8080"]
-  B --> G["原始生成器<br/>10 条模拟火情帖子"]
-  G --> F["原始 Python FireLocalizer<br/>语义提取 → 空间解析 → POI 匹配 → 候选排名"]
+  B --> G["模拟信息生成器<br/>10 条模拟火情帖子"]
+  G --> F["Python 核心定位引擎 FireLocalizer<br/>语义提取 → 空间解析 → POI 匹配 → 候选排名"]
   D["Excel / JSON<br/>POI 与空间模型"] --> F
   F -. "仅 Live · 付费 API" .-> M["智增增 Chat / Embedding"]
   F --> R["Top3 / 坐标"]
@@ -31,15 +33,15 @@ flowchart LR
   B -->|"预测结果 / 误差 / 会话状态"| U
 ```
 
-Bridge 复用原始 `PoiRepository`、`demo.generate` 和 `FireLocalizer`，不替换定位算法。真实标签不进入推理或候选排名。前端 Agent 流程是现有处理流程的说明，运行状态来自整轮任务，不表示新增了独立 Agent 服务。
+FastAPI Bridge 调用 `PoiRepository`、`demo.generate` 和 `FireLocalizer`，连接 POI 空间模型、模拟信息生成与核心定位引擎，保持定位算法稳定。真实标签不进入推理或候选排名。前端 Agent 流程是现有处理流程的说明，运行状态来自整轮任务，不表示新增了独立 Agent 服务。
 
-原始后端的实时 API（`fire_locator.api:app`，端口 8000）是另一种集成入口；**启动本网页 Demo 只需 Bridge 和 React 两个进程**。
+Python 后端的实时 API（`fire_locator.api:app`，端口 8000）是另一种集成入口；**启动本网页 Demo 只需 Bridge 和 React 两个进程**。
 
 ## 项目目录
 
 ```text
 fire-localization-demo/
-├── fire_locator/                    # 同门原始 Python 定位后端
+├── fire_locator/                    # Python 后端与核心定位引擎
 ├── frontend/
 │   ├── bridge/                      # 独立 FastAPI Bridge 及其测试
 │   ├── web/                         # React + Vite + TypeScript + Tailwind
@@ -50,8 +52,8 @@ fire-localization-demo/
 │   ├── setup-node.ps1                # 可选：下载固定便携 Node 并安装前端依赖
 │   └── README.md                     # 前端实现与校准说明（含历史本机记录）
 ├── data/                            # 模拟帖子与独立真实标签
-├── experiments/                     # 原始实验脚本
-├── tests/                           # 原始后端测试
+├── experiments/                     # 定位实验脚本
+├── tests/                           # 核心定位引擎测试
 ├── city_localization_data_dictionary.xlsx
 ├── fire_sandbox_spatial_model.json
 ├── requirements.txt
@@ -165,7 +167,7 @@ BATCH_SIZE=10
 
 示例中的 Key 均为占位符。若账号使用同一密钥访问两类模型，可将自己的同一个 Key 分别填入两项；模型可用性、余额和 Base URL 以自己的账户及[智增增官方接口说明](https://doc.zhizengzeng.com/doc-4296789)为准。这里的 Base URL 包含 `/v1`，**不要**填完整的 `/chat/completions` 或 `/embeddings` 地址。
 
-Bridge 演示固定生成 10 条帖子、按 10 条执行一批；`BATCH_SIZE` 仍用于原始后端配置，不会改变网页演示的固定批量。环境变量优先于 `.env`，旧终端中的同名变量可能覆盖文件；修改后建议重新启动 Bridge。如果曾设置 `PYTHON_DOTENV_DISABLED=1`，需在启动 Live 的终端中先清除该禁用设置，例如：
+Bridge 演示固定生成 10 条帖子、按 10 条执行一批；`BATCH_SIZE` 用于核心定位引擎配置，不会改变网页演示的固定批量。环境变量优先于 `.env`，旧终端中的同名变量可能覆盖文件；修改后建议重新启动 Bridge。如果曾设置 `PYTHON_DOTENV_DISABLED=1`，需在启动 Live 的终端中先清除该禁用设置，例如：
 
 ```powershell
 Remove-Item Env:PYTHON_DOTENV_DISABLED -ErrorAction SilentlyContinue
@@ -258,7 +260,7 @@ Bridge API 文档：[http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)。V
 | 8080 或 5173 被占用 | 用下方只读命令确认所属进程，在原服务终端停止自己启动的旧进程；不要直接终止未知进程。Vite 使用固定端口，不会自动换端口。 |
 | Bridge 未连接 / `Failed to fetch` | 先看 Bridge 终端错误，分别访问两个健康检查地址；核对时区、依赖和 8080/5173 端口，修复后点击“重新准备”。 |
 | Live 报 401/403、余额或模型错误 | 核对自己的两组 Key、Base URL 和模型权限；检查是否仍为模板值、是否被旧环境变量覆盖。Base URL 包含 `/v1` 且不含具体接口路径。查看后端终端与页面错误详情，勿公开密钥。 |
-| Live 超时或失败 | 检查网络和服务账户，重置后由本人决定是否再次付费运行；不要将 Offline 成功视为 Live 配置已通过验证。 |
+| Live 超时或失败 | 检查网络和服务账户，重置后由使用者确认是否再次付费运行；不要将 Offline 成功视为 Live 配置已通过验证。 |
 
 端口诊断命令（只查看，不停止进程）：
 
@@ -267,28 +269,32 @@ Get-NetTCPConnection -State Listen -LocalPort 8080,5173 -ErrorAction SilentlyCon
     Select-Object LocalAddress,LocalPort,OwningProcess
 ```
 
-## 分工、贡献与当前限制
+## 模块说明与 Git 协作
 
-| 模块 | 负责人 | 范围 |
-| --- | --- | --- |
-| 原始后端 | 同门 | FireLocalizer、定位算法、POI 模型、模型调用 |
-| 前端展示 | 本人 | React 页面、二维沙盘、可视化、Demo 交互与展示 |
+| 模块 | 技术职责与边界 |
+| --- | --- |
+| 核心定位引擎（Python / LangChain） | 语义理解、空间关系解析、候选排序与状态管理；保持稳定，不随意改动定位算法 |
+| POI 空间模型 | 提供登记地点、坐标与空间关系，作为定位和地图展示的数据依据 |
+| FastAPI Bridge | 提供演示会话、场景准备、定位调用与结果评估接口；API 和数据结构变更需要评审 |
+| React 可视化前端 | 展示二维沙盘、火点、Top3、误差及运行状态；可在既有 API 边界内独立优化 |
 
-未经确认，不修改对方负责模块。参与协作时从主分支创建工作分支，先沟通范围；阶段目标、稳定版本与验收结果统一记录在 [FIRE_PROJECT_MASTER_ROADMAP.md](FIRE_PROJECT_MASTER_ROADMAP.md)。不要为前端展示直接修改后端数据结构，也不要提交密钥、依赖、缓存或截图。
+通过 Git 分支与 PR 协作：从 `main` 创建工作分支，说明范围与验证结果，评审后合并；阶段目标、稳定版本与验收结果统一记录在 [FIRE_PROJECT_MASTER_ROADMAP.md](FIRE_PROJECT_MASTER_ROADMAP.md)。前端展示优先兼容现有接口，API、POI 空间模型或定位算法的变更需单独评审，不为展示效果直接改动算法或后端数据结构。保留真实代码贡献记录、版权声明和第三方许可证；不要提交密钥、依赖、缓存或截图。
+
+## 当前限制
 
 当前使用**模拟帖子**，Offline 是规则与哈希向量替代模型，重点验证链路；Live 也不等同于真实居民数据评估。不保证所有场景均准确定位。当前 Bridge 为单进程本地演示，不使用多个 Uvicorn worker；本指引不是公网生产部署方案。
 
-第一次 Demo 已推送到 GitHub；**邀请同门协作、全新克隆环境的安装与启动验收仍待执行**。本次只完善文档，没有重新安装依赖、运行付费 API 或进行全新克隆验收。
+第一次 Demo 已推送到 GitHub；**邀请协作者、全新克隆环境的安装与启动验收仍待执行**。本次只完善文档，没有重新安装依赖、运行付费 API 或进行全新克隆验收。
 
-## 原始后端说明
+## 核心定位引擎说明
 
-以下保留原始项目的批处理、空间规则、聚类、接口和输出说明。原设计见 `note.txt`，技术学习资料见 [LANGCHAIN_TUTORIAL.md](LANGCHAIN_TUTORIAL.md)。教程中的 `learning/` 教学代码未包含在当前 Git 跟踪文件中，不作为本仓库启动依赖。
+以下说明核心定位引擎的批处理、空间规则、聚类、接口和输出。设计说明见 `note.txt`，技术学习资料见 [LANGCHAIN_TUTORIAL.md](LANGCHAIN_TUTORIAL.md)。教程中的 `learning/` 教学代码未包含在当前 Git 跟踪文件中，不作为本仓库启动依赖。
 
-原始项目曾完成模拟数据的真实 API 回放：100 条输入、10 个批次、90 条参与聚类、10 条空候选忽略，设定的唯一着火罐排名第一。这是历史验证记录，不能替代当前机器或新账户的验收，相关运行输出不随仓库提供。
+系统曾完成模拟数据的真实 API 回放：100 条输入、10 个批次、90 条参与聚类、10 条空候选忽略，设定的唯一着火罐排名第一。这是历史验证记录，不能替代当前机器或新账户的验收，相关运行输出不随仓库提供。
 
-### 原始命令行运行
+### 核心引擎命令行运行
 
-完成上文环境安装后，可在仓库根目录激活虚拟环境再使用原始 CLI；已有 Python 3.12 Conda 环境的维护者也可使用自己的环境，依赖需安装到相同解释器。
+完成上文环境安装后，可在仓库根目录激活虚拟环境再使用核心引擎 CLI；已有 Python 3.12 Conda 环境也可继续使用，依赖需安装到相同解释器。
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
@@ -305,7 +311,7 @@ python -m fire_locator generate --target POI-HA-SE-03 --seed 123 --output data/a
 python -m fire_locator replay --offline --input data/another.jsonl --output-dir runtime/another
 ```
 
-配置好自己的 API 并接受费用后，去掉 `--offline` 才使用真实模型；原始 CLI **没有网页的二次付费确认**：
+配置好自己的 API 并接受费用后，去掉 `--offline` 才使用真实模型；核心引擎 CLI **没有网页的二次付费确认**：
 
 ```powershell
 python -m fire_locator replay
@@ -317,7 +323,7 @@ python -m fire_locator replay
 python -m fire_locator replay --resume
 ```
 
-后端测试可运行 `python -m pytest -q`。原始 `python -m fire_locator.doctor` 会访问真实接口，包含 Embedding 请求，可能产生费用；其编码诊断输入采用 VL 格式示例，不作为当前非 VL 模型的通用验收步骤。真实运行出错不会自动改成离线模式。
+后端测试可运行 `python -m pytest -q`。诊断命令 `python -m fire_locator.doctor` 会访问真实接口，包含 Embedding 请求，可能产生费用；其编码诊断输入采用 VL 格式示例，不作为当前非 VL 模型的通用验收步骤。真实运行出错不会自动改成离线模式。
 
 ## 一批 10 条的含义
 
@@ -441,9 +447,9 @@ result = localizer.ingest(posts)   # list[Post] 或 list[dict]
 
 回放结果的 `current_time` 为模拟时间；实时查询使用上海当前时间。坐标是 30m × 25m 沙盘的本地米制坐标，原点在西南，x 向东、y 向北。
 
-## 原始实验与参考接口
+## 定位实验与参考接口
 
-原始十罐真实 API 模拟实验曾记录 Top1 命中 9/10、Top3 命中 10/10（每罐 100 条、十批）。这些是历史实验结果，输出未随仓库发布，也不代表新账户或真实火情下的效果。
+既有十罐真实 API 模拟实验曾记录 Top1 命中 9/10、Top3 命中 10/10（每罐 100 条、十批）。这些是历史实验结果，输出未随仓库发布，也不代表新账户或真实火情下的效果。
 
 用新目录复现实验：
 
