@@ -1,0 +1,712 @@
+{
+  "schema_version": "1.0",
+  "model_version": "1.1.0-confirmed-image5-20261023",
+  "crs": "LOCAL30x25",
+  "source_sha256": "300f7e00b2d285e98c146e2e5f43846e862e5cd3bec59377846c275a84449eea",
+  "geometry_precision_note": "坐标保留6位仅用于往返一致性，不代表测量精度；边界为图像人工描绘。",
+  "summary": {
+    "active_pois": 29,
+    "unchanged_centers": 28,
+    "merged_centroids": 1,
+    "all_per_object_crops_generated": true,
+    "geometric_accuracy": "manual_image_outline; not_ground_survey"
+  },
+  "items": [
+    {
+      "id": "T-NW-01",
+      "name": "华安能源西北罐区1号储罐",
+      "entity_type": "Tank",
+      "center": [
+        9.626524,
+        15.419447
+      ],
+      "display_pixel_center": [
+        420.999983,
+        402.000004
+      ],
+      "source_crop_box_px": [
+        354,
+        334,
+        488,
+        469
+      ],
+      "previous_id": "T-NW-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-NW-02",
+      "name": "华安能源西北罐区2号储罐",
+      "entity_type": "Tank",
+      "center": [
+        12.393293,
+        15.419447
+      ],
+      "display_pixel_center": [
+        542.000014,
+        402.000004
+      ],
+      "source_crop_box_px": [
+        475,
+        334,
+        609,
+        469
+      ],
+      "previous_id": "T-NW-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-NE-01",
+      "name": "华安能源东北罐区1号储罐",
+      "entity_type": "Tank",
+      "center": [
+        17.583841,
+        15.419447
+      ],
+      "display_pixel_center": [
+        768.99998,
+        402.000004
+      ],
+      "source_crop_box_px": [
+        702,
+        334,
+        836,
+        469
+      ],
+      "previous_id": "T-NE-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-NE-02",
+      "name": "华安能源东北罐区2号储罐",
+      "entity_type": "Tank",
+      "center": [
+        20.35061,
+        15.419447
+      ],
+      "display_pixel_center": [
+        890.000011,
+        402.000004
+      ],
+      "source_crop_box_px": [
+        825,
+        336,
+        956,
+        468
+      ],
+      "previous_id": "T-NE-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-SW-01",
+      "name": "华安能源西南罐区1号储罐",
+      "entity_type": "Tank",
+      "center": [
+        9.717988,
+        8.984747
+      ],
+      "display_pixel_center": [
+        425.000009,
+        672.000016
+      ],
+      "source_crop_box_px": [
+        357,
+        604,
+        493,
+        739
+      ],
+      "previous_id": "T-SW-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-SW-02",
+      "name": "华安能源西南罐区2号储罐",
+      "entity_type": "Tank",
+      "center": [
+        12.393293,
+        9.00858
+      ],
+      "display_pixel_center": [
+        542.000014,
+        670.999983
+      ],
+      "source_crop_box_px": [
+        476,
+        604,
+        609,
+        738
+      ],
+      "previous_id": "T-SW-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-SE-01",
+      "name": "华安能源东南罐区1号储罐",
+      "entity_type": "Tank",
+      "center": [
+        17.446646,
+        8.960915
+      ],
+      "display_pixel_center": [
+        762.999985,
+        673.000007
+      ],
+      "source_crop_box_px": [
+        696,
+        605,
+        829,
+        740
+      ],
+      "previous_id": "T-SE-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "T-SE-02",
+      "name": "华安能源东南罐区2号储罐",
+      "entity_type": "Tank",
+      "center": [
+        20.167683,
+        8.960915
+      ],
+      "display_pixel_center": [
+        882.000003,
+        673.000007
+      ],
+      "source_crop_box_px": [
+        815,
+        605,
+        949,
+        740
+      ],
+      "previous_id": "T-SE-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-D-01",
+      "name": "华安能源园1号附属楼",
+      "entity_type": "Building",
+      "center": [
+        9.798018,
+        17.635844
+      ],
+      "display_pixel_center": [
+        428.499987,
+        308.999986
+      ],
+      "source_crop_box_px": [
+        350,
+        261,
+        506,
+        356
+      ],
+      "previous_id": "B-D-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-D-02",
+      "name": "华安能源园2号附属楼",
+      "entity_type": "Building",
+      "center": [
+        12.65625,
+        17.635844
+      ],
+      "display_pixel_center": [
+        553.5,
+        308.999986
+      ],
+      "source_crop_box_px": [
+        476,
+        261,
+        631,
+        356
+      ],
+      "previous_id": "B-D-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-D-03",
+      "name": "华安能源园3号附属楼",
+      "entity_type": "Building",
+      "center": [
+        17.298018,
+        17.635844
+      ],
+      "display_pixel_center": [
+        756.499987,
+        308.999986
+      ],
+      "source_crop_box_px": [
+        678,
+        261,
+        834,
+        356
+      ],
+      "previous_id": "B-D-03",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-D-04",
+      "name": "华安能源园4号附属楼",
+      "entity_type": "Building",
+      "center": [
+        20.201982,
+        17.635844
+      ],
+      "display_pixel_center": [
+        883.500013,
+        308.999986
+      ],
+      "source_crop_box_px": [
+        805,
+        261,
+        963,
+        356
+      ],
+      "previous_id": "B-D-04",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-D-05",
+      "name": "华安能源园5号附属楼",
+      "entity_type": "Building",
+      "center": [
+        21.497451,
+        15.172085
+      ],
+      "display_pixel_center": [
+        940.15519,
+        412.379313
+      ],
+      "source_crop_box_px": [
+        906,
+        333,
+        975,
+        494
+      ],
+      "previous_id": "B-D-05",
+      "coordinate_change": "merged_building_centroid",
+      "delta_simulation_unit": 0.414203,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-W-01",
+      "name": "锦安社区1号楼",
+      "entity_type": "Building",
+      "center": [
+        1.806403,
+        17.040038
+      ],
+      "display_pixel_center": [
+        79.000025,
+        334.000006
+      ],
+      "source_crop_box_px": [
+        22,
+        296,
+        136,
+        373
+      ],
+      "previous_id": "B-W-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-W-02",
+      "name": "锦安社区2号楼",
+      "entity_type": "Building",
+      "center": [
+        1.79497,
+        15.181125
+      ],
+      "display_pixel_center": [
+        78.500021,
+        411.999995
+      ],
+      "source_crop_box_px": [
+        21,
+        373,
+        136,
+        450
+      ],
+      "previous_id": "B-W-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-W-03",
+      "name": "锦安社区3号楼",
+      "entity_type": "Building",
+      "center": [
+        1.783509,
+        12.495951
+      ],
+      "display_pixel_center": [
+        77.998794,
+        524.669896
+      ],
+      "source_crop_box_px": [
+        28,
+        467,
+        133,
+        582
+      ],
+      "previous_id": "B-W-03",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-W-04",
+      "name": "锦安社区4号楼",
+      "entity_type": "Building",
+      "center": [
+        1.806402,
+        9.902288
+      ],
+      "display_pixel_center": [
+        78.999981,
+        633.499996
+      ],
+      "source_crop_box_px": [
+        22,
+        595,
+        136,
+        671
+      ],
+      "previous_id": "B-W-04",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-W-05",
+      "name": "锦安社区5号楼",
+      "entity_type": "Building",
+      "center": [
+        1.806403,
+        8.067207
+      ],
+      "display_pixel_center": [
+        79.000025,
+        710.499994
+      ],
+      "source_crop_box_px": [
+        21,
+        672,
+        137,
+        748
+      ],
+      "previous_id": "B-W-05",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-E-01",
+      "name": "东源社区1号楼",
+      "entity_type": "Building",
+      "center": [
+        28.19446,
+        11.047808
+      ],
+      "display_pixel_center": [
+        1233.037717,
+        585.433976
+      ],
+      "source_crop_box_px": [
+        1186,
+        548,
+        1278,
+        625
+      ],
+      "previous_id": "B-E-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-S-01",
+      "name": "南庭社区1号楼",
+      "entity_type": "Building",
+      "center": [
+        9.615091,
+        1.143946
+      ],
+      "display_pixel_center": [
+        420.49998,
+        1001.000026
+      ],
+      "source_crop_box_px": [
+        362,
+        957,
+        479,
+        1045
+      ],
+      "previous_id": "B-S-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-S-02",
+      "name": "南庭社区2号楼",
+      "entity_type": "Building",
+      "center": [
+        12.073171,
+        1.143946
+      ],
+      "display_pixel_center": [
+        528.000012,
+        1001.000026
+      ],
+      "source_crop_box_px": [
+        470,
+        957,
+        587,
+        1045
+      ],
+      "previous_id": "B-S-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-E-02",
+      "name": "东源社区2号楼",
+      "entity_type": "Building",
+      "center": [
+        28.125,
+        16.062917
+      ],
+      "display_pixel_center": [
+        1230.0,
+        375.000003
+      ],
+      "source_crop_box_px": [
+        1174,
+        332,
+        1286,
+        418
+      ],
+      "previous_id": "U-E-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-E-03",
+      "name": "东源社区3号楼",
+      "entity_type": "Building",
+      "center": [
+        28.182164,
+        13.57245
+      ],
+      "display_pixel_center": [
+        1232.499972,
+        479.499998
+      ],
+      "source_crop_box_px": [
+        1190,
+        437,
+        1274,
+        522
+      ],
+      "previous_id": "U-E-02",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-E-04",
+      "name": "东源社区4号楼",
+      "entity_type": "Building",
+      "center": [
+        28.090702,
+        8.674929
+      ],
+      "display_pixel_center": [
+        1228.500034,
+        684.999979
+      ],
+      "source_crop_box_px": [
+        1175,
+        640,
+        1283,
+        730
+      ],
+      "previous_id": "U-E-03",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "B-S-03",
+      "name": "南苑社区1号楼",
+      "entity_type": "Building",
+      "center": [
+        19.177038,
+        0.971923
+      ],
+      "display_pixel_center": [
+        838.675795,
+        1008.218111
+      ],
+      "source_crop_box_px": [
+        773,
+        957,
+        909,
+        1050
+      ],
+      "previous_id": "U-S-01",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "F-PIPE-NW",
+      "name": "西北罐区管线设施组",
+      "entity_type": "Facility",
+      "center": [
+        10.918445,
+        15.371782
+      ],
+      "display_pixel_center": [
+        477.499995,
+        404.000027
+      ],
+      "source_crop_box_px": [
+        443,
+        340,
+        513,
+        468
+      ],
+      "previous_id": "F-PIPE-NW",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "F-PIPE-NE",
+      "name": "东北罐区管线设施组",
+      "entity_type": "Facility",
+      "center": [
+        19.001524,
+        15.34795
+      ],
+      "display_pixel_center": [
+        830.999983,
+        405.000018
+      ],
+      "source_crop_box_px": [
+        796,
+        341,
+        867,
+        469
+      ],
+      "previous_id": "F-PIPE-NE",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "F-PIPE-SW",
+      "name": "西南罐区管线设施组",
+      "entity_type": "Facility",
+      "center": [
+        11.192836,
+        7.614395
+      ],
+      "display_pixel_center": [
+        489.500028,
+        729.499986
+      ],
+      "source_crop_box_px": [
+        363,
+        694,
+        616,
+        765
+      ],
+      "previous_id": "F-PIPE-SW",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    },
+    {
+      "id": "F-PIPE-SE",
+      "name": "东南罐区管线设施组",
+      "entity_type": "Facility",
+      "center": [
+        18.692835,
+        7.62631
+      ],
+      "display_pixel_center": [
+        817.499984,
+        729.000032
+      ],
+      "source_crop_box_px": [
+        690,
+        694,
+        944,
+        765
+      ],
+      "previous_id": "F-PIPE-SE",
+      "coordinate_change": "unchanged",
+      "delta_simulation_unit": 0.0,
+      "image_correspondence_review": "source_crop_and_outline_visually_reviewed",
+      "shape_interpretation": "visible_roof_or_group_envelope_not_surveyed_footprint"
+    }
+  ]
+}

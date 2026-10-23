@@ -22,13 +22,14 @@ from fire_locator.config import Settings
 from fire_locator.demo import generate
 from fire_locator.engine import FireLocalizer
 from fire_locator.models import Post
-from fire_locator.poi import PoiRepository
+from fire_locator.poi import DEFAULT_TARGET_ID, PoiRepository
 from fire_locator.providers import atomic_json
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_ROOT = PROJECT_ROOT / "runtime" / "frontend"
 SESSION_ID = re.compile(r"^[0-9a-f]{32}$")
-DATA_FILES = ("city_localization_data_dictionary.xlsx", "fire_sandbox_spatial_model.json")
+DATA_FILES = ("fire_sandbox_spatial_model.json", "map_config.json", "map_original.png")
+DEMO_POST_COUNT = 100
 
 
 def now() -> str:
@@ -43,7 +44,7 @@ def poi_view(poi) -> dict:
 
 class PrepareRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    target_poi_id: str = "POI-HA-SW-02"
+    target_poi_id: str = DEFAULT_TARGET_ID
     mode: Literal["offline", "live"] = "offline"
     seed: int = Field(default=42, ge=0, le=2**31-1)
 
@@ -78,6 +79,8 @@ class SessionService:
             if not path.exists():
                 raise HTTPException(404, "演示会话不存在")
             session = json.loads(path.read_text(encoding="utf-8"))
+            if session.get("poi_fingerprint") != self.repository.fingerprint:
+                raise HTTPException(409, "会话属于其他地图版本，请重新准备场景")
             if session["status"] == "running":
                 session.update(status="failed", prediction=None, evaluation=None,
                     error={"error_type": "InterruptedRun", "message": "服务重启中断了本轮演示，请重置后重试。"}, completed_at=now())
@@ -97,14 +100,16 @@ class SessionService:
         folder.mkdir(parents=True, exist_ok=False)
         isolated_root = folder / "root"
         isolated_root.mkdir()
+        (isolated_root / "fire_poi").mkdir()
         for name in DATA_FILES:
-            shutil.copy2(PROJECT_ROOT / name, isolated_root / name)
+            shutil.copy2(self.repository.data_root / name, isolated_root / "fire_poi" / name)
         try:
             # Ground truth stays in .meta.json and the UI/session; inference receives Post only.
-            metadata = generate(self.repository, folder / "demo_posts.jsonl", 10, request.seed, request.target_poi_id)
+            metadata = generate(self.repository, folder / "demo_posts.jsonl", DEMO_POST_COUNT, request.seed, request.target_poi_id)
         except ValueError:
             raise HTTPException(422, "该储罐暂无可用的模拟观察点，请选择其他场景") from None
         session = {"session_id": session_id, "mode": request.mode, "status": "prepared",
+            "poi_fingerprint": self.repository.fingerprint,
             "target_poi_id": request.target_poi_id, "seed": request.seed, "post_count": metadata["post_count"],
             "ground_truth": metadata["single_fire_ground_truth"], "prediction": None, "evaluation": None,
             "processed_count": 0, "ignored_count": 0, "batch_count": 0, "error": None,
@@ -216,7 +221,7 @@ def create_app(runtime_root: Path = RUNTIME_ROOT) -> FastAPI:
     @api.get("/api/scenarios")
     def scenarios():
         return {"scenarios": [poi_view(poi) for poi in service.repository.tanks.values()],
-            "default_target_poi_id": "POI-HA-SW-02"}
+            "default_target_poi_id": DEFAULT_TARGET_ID}
 
     @api.post("/api/scenarios/prepare", status_code=201)
     def prepare(request: PrepareRequest):

@@ -1,10 +1,13 @@
 import type { Coordinates } from '../types';
+import mapConfig from '../../../../fire_poi/map_config.json';
 
 export type Calibration = { left: number; top: number; width: number; height: number };
-export const IMAGE_SIZE = { width: 1707, height: 1280 };
-export const WORLD_SIZE = { width: 30, height: 25 };
-// Measured against 28 annotated POIs; PNG -> JPEG is a vertical translation of -80px.
-export const DEFAULT_CALIBRATION: Calibration = { left: 160, top: 70, width: 1385, height: 1120 };
+export const IMAGE_SIZE = { width: mapConfig.source.width_px, height: mapConfig.source.height_px };
+export const WORLD_SIZE = { width: mapConfig.coordinate_system.extent[2], height: mapConfig.coordinate_system.extent[3] };
+// SVG image coordinates describe outer edges [0,W]×[0,H]. Source pixel centers
+// use [0,W-1]×[0,H-1]; converting between conventions cancels the W-1 factor.
+// The whole uncropped image represents the 30×25 map. 1 simulation unit = 1 m.
+export const DEFAULT_CALIBRATION: Calibration = { left: 0, top: 0, width: IMAGE_SIZE.width, height: IMAGE_SIZE.height };
 
 export function isValidCalibration(value: Calibration): boolean {
   return Object.values(value).every(Number.isFinite) && value.left >= 0 && value.top >= 0 &&

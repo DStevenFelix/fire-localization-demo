@@ -1,0 +1,201 @@
+{
+  "model_version": "1.1.0-confirmed-image5-20261023",
+  "coordinate_system": "LOCAL30x25",
+  "examples": [
+    {
+      "case_id": "exact-west",
+      "text": "锦安社区2号楼着火了。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "name_text": "锦安社区2号楼"
+        },
+        "raw_text": "锦安社区2号楼着火了。"
+      },
+      "expected_status": "located",
+      "expected_ids": [
+        "B-W-02"
+      ],
+      "location_expected_from_poi_json": "B-W-02"
+    },
+    {
+      "case_id": "confirmed-east",
+      "text": "东源社区2号楼发生火情。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "name_text": "东源社区2号楼"
+        },
+        "raw_text": "东源社区2号楼发生火情。"
+      },
+      "expected_status": "located",
+      "expected_ids": [
+        "B-E-02"
+      ],
+      "location_expected_from_poi_json": "B-E-02"
+    },
+    {
+      "case_id": "confirmed-south",
+      "text": "南苑社区1号楼着火。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "poi_id": "B-S-03"
+        },
+        "raw_text": "南苑社区1号楼着火。"
+      },
+      "expected_status": "located",
+      "expected_ids": [
+        "B-S-03"
+      ],
+      "location_expected_from_poi_json": "B-S-03"
+    },
+    {
+      "case_id": "legacy-merge",
+      "text": "原油库东侧两段屋面对应的同一栋附属建筑着火。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "poi_id": "B-D-06"
+        },
+        "raw_text": "原油库东侧两段屋面对应的同一栋附属建筑着火。"
+      },
+      "expected_status": "located",
+      "expected_ids": [
+        "B-D-05"
+      ],
+      "location_expected_from_poi_json": "B-D-05"
+    },
+    {
+      "case_id": "alias-chinese-number",
+      "text": "锦安二号楼起火。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "name_text": "锦安二号楼"
+        },
+        "raw_text": "锦安二号楼起火。"
+      },
+      "expected_status": "located",
+      "expected_ids": [
+        "B-W-02"
+      ],
+      "location_expected_from_poi_json": "B-W-02"
+    },
+    {
+      "case_id": "relative-opposite",
+      "text": "我在锦安社区2号楼，锦安路对面的储罐着火。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "target_type": "Tank"
+        },
+        "reference": {
+          "poi_id": "B-W-02"
+        },
+        "spatial_relation": "across_road",
+        "road_hint": "锦安路",
+        "raw_text": "我在锦安社区2号楼，锦安路对面的储罐着火。"
+      },
+      "expected_status": "ambiguous",
+      "expected_ids": [
+        "T-NW-01",
+        "T-NW-02"
+      ],
+      "location_expected_from_poi_json": null
+    },
+    {
+      "case_id": "area-direction",
+      "text": "油库东北方向的储罐出现烟雾。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "target_type": "Tank"
+        },
+        "reference": {
+          "poi_id": "A-DEPOT"
+        },
+        "spatial_relation": "northeast",
+        "raw_text": "油库东北方向的储罐出现烟雾。"
+      },
+      "expected_status": "ambiguous",
+      "expected_ids": [
+        "T-NE-01",
+        "T-NE-02"
+      ],
+      "location_expected_from_poi_json": null
+    },
+    {
+      "case_id": "only-area",
+      "text": "华安能源储运园里有烟。",
+      "normalized_query": {
+        "event_type": "fire",
+        "area_hint": "华安能源储运园",
+        "raw_text": "华安能源储运园里有烟。"
+      },
+      "expected_status": "ambiguous",
+      "expected_ids": [
+        "T-NW-01",
+        "T-NW-02",
+        "T-NE-01",
+        "T-NE-02",
+        "T-SW-01",
+        "T-SW-02",
+        "T-SE-01",
+        "T-SE-02",
+        "B-D-01",
+        "B-D-02",
+        "B-D-03",
+        "B-D-04",
+        "B-D-05",
+        "F-PIPE-NW",
+        "F-PIPE-NE",
+        "F-PIPE-SW",
+        "F-PIPE-SE"
+      ],
+      "location_expected_from_poi_json": null
+    },
+    {
+      "case_id": "missing-reference",
+      "text": "对面的楼着火了。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "target_type": "Building"
+        },
+        "spatial_relation": "opposite",
+        "raw_text": "对面的楼着火了。"
+      },
+      "expected_status": "ambiguous",
+      "expected_ids": [],
+      "location_expected_from_poi_json": null
+    },
+    {
+      "case_id": "unknown-place",
+      "text": "不存在的虚构消防站着火了。",
+      "normalized_query": {
+        "event_type": "fire",
+        "explicit_target": {
+          "name_text": "不存在的虚构消防站"
+        },
+        "raw_text": "不存在的虚构消防站着火了。"
+      },
+      "expected_status": "not_found",
+      "expected_ids": [],
+      "location_expected_from_poi_json": null
+    },
+    {
+      "case_id": "landscape-not-building",
+      "text": "北侧景观带有烟。",
+      "normalized_query": {
+        "event_type": "fire",
+        "area_hint": "北侧公共绿地",
+        "raw_text": "北侧景观带有烟。"
+      },
+      "expected_status": "ambiguous",
+      "expected_ids": [],
+      "location_expected_from_poi_json": null
+    }
+  ],
+  "note": "示例中的自然语言到query由人工编写；执行结果由确定性查询代码实际生成，未声称已实现通用自然语言解析器。"
+}

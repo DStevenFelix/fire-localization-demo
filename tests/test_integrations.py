@@ -69,7 +69,7 @@ def test_embedding_splits_into_eight_to_avoid_vl_index_reset(tmp_path, monkeypat
 def test_missing_model_id_rejects_entire_batch():
     engine = FireLocalizer(offline=True)
     now = datetime.now(SHANGHAI).replace(second=0, microsecond=0)
-    posts = [{"id": str(i), "timestamp": now.isoformat(), "text": "附近有浓烟", "location_poi_id": "POI-HA-NW-02", "urgency": "高"} for i in range(10)]
+    posts = [{"id": str(i), "timestamp": now.isoformat(), "text": "附近有浓烟", "location_poi_id": "B-D-01", "urgency": "高"} for i in range(10)]
     engine.extractor.chain = RunnableLambda(lambda _: BatchExtraction(items=[Extraction(post_id="0")]))
     with pytest.raises(ValueError, match="漏条"):
         engine.ingest(posts)
@@ -87,7 +87,7 @@ def test_http_accumulation_flush_and_prediction():
     try:
         client = TestClient(app)
         now = datetime.now(SHANGHAI).replace(second=0, microsecond=0)
-        posts = [{"id": str(i), "timestamp": now.isoformat(), "text": "检修车间南边有浓烟", "location_poi_id": "POI-HA-NW-02", "urgency": "高"} for i in range(11)]
+        posts = [{"id": str(i), "timestamp": now.isoformat(), "text": "华安能源园1号附属楼南边有浓烟", "location_poi_id": "B-D-01", "urgency": "高"} for i in range(11)]
         response = client.post("/posts", json={"posts": posts[:1]})
         assert response.status_code == 200 and response.json()["pending_count"] == 1
         response = client.post("/posts", json={"posts": posts[1:10]})
@@ -97,7 +97,7 @@ def test_http_accumulation_flush_and_prediction():
         assert any(p["type"] == "tank" and not p["can_post"] for p in client.get("/pois").json())
         assert client.post("/posts", json={"posts": posts[10:]}).json()["pending_count"] == 1
         assert client.post("/posts", json={"flush": True}).json()["processed_count"] == 11
-        response = client.post("/posts", json={"posts": [dict(posts[0], id="bad", location_poi_id="POI-HA-SW-02")]})
+        response = client.post("/posts", json={"posts": [dict(posts[0], id="bad", location_poi_id="T-SW-01")]})
         assert response.status_code == 422
     finally:
         api.get_engine = original

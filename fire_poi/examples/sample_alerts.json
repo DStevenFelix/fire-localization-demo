@@ -1,0 +1,112 @@
+[
+  {
+    "event_id": "exact-west",
+    "alert_level": "emergency",
+    "content": "锦安社区2号楼着火了。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "confirmed-east",
+    "alert_level": "emergency",
+    "content": "东源社区2号楼发生火情。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "confirmed-south",
+    "alert_level": "emergency",
+    "content": "南苑社区1号楼着火。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "legacy-merge",
+    "alert_level": "emergency",
+    "content": "原油库东侧两段屋面对应的同一栋附属建筑着火。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "alias-chinese-number",
+    "alert_level": "emergency",
+    "content": "锦安二号楼起火。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "relative-opposite",
+    "alert_level": "emergency",
+    "content": "我在锦安社区2号楼，锦安路对面的储罐着火。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": "B-W-02"
+    }
+  },
+  {
+    "event_id": "area-direction",
+    "alert_level": "emergency",
+    "content": "油库东北方向的储罐出现烟雾。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "only-area",
+    "alert_level": "suspected",
+    "content": "华安能源储运园里有烟。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "missing-reference",
+    "alert_level": "emergency",
+    "content": "对面的楼着火了。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "unknown-place",
+    "alert_level": "emergency",
+    "content": "不存在的虚构消防站着火了。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  },
+  {
+    "event_id": "landscape-not-building",
+    "alert_level": "emergency",
+    "content": "北侧景观带有烟。",
+    "timestamp": "2026-10-23T21:00:00+08:00",
+    "reporter": {
+      "resident_id": "simulated-resident-001",
+      "current_poi_id": null
+    }
+  }
+]

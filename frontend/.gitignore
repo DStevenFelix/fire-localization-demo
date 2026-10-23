@@ -3,6 +3,7 @@ web/node_modules/
 web/dist/
 web/test-results/
 web/playwright-report/
+web/screenshots/
 __pycache__/
 .pytest_cache/
 *.pyc

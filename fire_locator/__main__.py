@@ -6,7 +6,7 @@ from .config import Settings
 from .demo import generate
 from .engine import FireLocalizer
 from .models import Post
-from .poi import PoiRepository
+from .poi import DEFAULT_TARGET_ID, PoiRepository
 from .providers import atomic_json
 
 
@@ -16,7 +16,7 @@ def main():
     demo = commands.add_parser("generate", help="生成模拟帖子，真实着火标签单独保存")
     demo.add_argument("--count", type=int, default=100)
     demo.add_argument("--seed", type=int, default=42)
-    demo.add_argument("--target", default="POI-HA-SW-02")
+    demo.add_argument("--target", default=DEFAULT_TARGET_ID)
     demo.add_argument("--output", type=Path, default=Path("data/demo_posts.jsonl"))
     replay = commands.add_parser("replay", help="按时间回放帖子，每 10 条发布一次结果")
     replay.add_argument("--input", type=Path, default=Path("data/demo_posts.jsonl"))

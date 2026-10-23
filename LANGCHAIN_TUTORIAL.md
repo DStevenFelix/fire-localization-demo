@@ -281,7 +281,7 @@ chain = clean | measure
 输入：
 
 ```python
-{"text": "  浓烟  ", "location_poi_id": "POI-HA-NW-02"}
+{"text": "  浓烟  ", "location_poi_id": "B-D-01"}
 ```
 
 输出：
@@ -289,7 +289,7 @@ chain = clean | measure
 ```python
 {
     "text": "  浓烟  ",
-    "location_poi_id": "POI-HA-NW-02",
+    "location_poi_id": "B-D-01",
     "clean_text": "浓烟",
     "text_length": 2
 }
@@ -409,7 +409,7 @@ embeddings.embed_documents(["检修车间", "华安能源综合楼"])
 doc = Document(
     page_content="华安能源检修车间",
     metadata={
-        "poi_id": "POI-HA-NW-02",
+        "poi_id": "B-D-01",
         "x_m": 10.744,
         "y_m": 14.754
     }

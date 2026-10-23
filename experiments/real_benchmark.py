@@ -85,7 +85,7 @@ def write_summary(output, plan, reports):
                "posts_per_case": plan["posts_per_case"], "total_processed": sum(r["processed_count"] for r in complete),
                "top1_hits": sum(r["top1_hit"] for r in complete), "top3_hits": sum(r["top3_hit"] for r in complete),
                "case_results": reports,
-               "method": "固定种子从14只独立罐中无放回抽样；每罐独立生成100条模板帖子，独立Memory，真实DeepSeek及SiliconFlow，静态及重复文本向量允许复用真实编码缓存。"}
+               "method": "固定种子从当前地图独立罐中无放回抽样；每罐独立生成100条模板帖子，独立Memory，真实DeepSeek及SiliconFlow，静态及重复文本向量允许复用真实编码缓存。"}
     atomic_json(output/"summary.json", summary)
     lines = ["本次随机罐体真实 API 实验", "", f"抽样种子：{plan['selection_seed']}。每罐 {plan['posts_per_case']} 条，当前完成 {len(complete)}/{len(plan['cases'])} 个实验。",
              f"第一名命中 {summary['top1_hits']}/{len(complete)}，前三名命中 {summary['top3_hits']}/{len(complete)}。", "",
@@ -103,10 +103,10 @@ def write_summary(output, plan, reports):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--selection-seed", type=int, default=20261008)
-    parser.add_argument("--cases", type=int, default=10)
+    parser.add_argument("--selection-seed", type=int, default=20261023)
+    parser.add_argument("--cases", type=int, default=8)
     parser.add_argument("--posts-per-case", type=int, default=100)
-    parser.add_argument("--output-dir", type=Path, default=Path("runtime/benchmarks/20261008_10tanks_seed20261008"))
+    parser.add_argument("--output-dir", type=Path, default=Path("runtime/benchmarks/20261023_8tanks_seed20261023"))
     parser.add_argument("--prepare-only", action="store_true", help="只固定抽样并生成输入，不启动API")
     parser.add_argument("--resume", action="store_true", help="保留已完成实验，并恢复未完成批次")
     args = parser.parse_args()
@@ -139,7 +139,7 @@ def main():
         if args.resume and report_path.exists() and read_json(report_path).get("status") == "completed":
             reports.append(read_json(report_path))
             write_summary(output, plan, reports)
-            print(f"Case {index}/10 {case['target_name']}: already completed", flush=True)
+            print(f"Case {index}/{len(selected)} {case['target_name']}: already completed", flush=True)
             continue
         if not args.resume and (case_dir/"memory.json").exists():
             raise ValueError("结果目录已有实验状态，继续请加 --resume 或换目录")

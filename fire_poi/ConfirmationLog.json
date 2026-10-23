@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "model_version": "1.1.0-confirmed-image5-20261023",
+  "crs": "LOCAL30x25",
+  "source_sha256": "300f7e00b2d285e98c146e2e5f43846e862e5cd3bec59377846c275a84449eea",
+  "geometry_precision_note": "坐标保留6位仅用于往返一致性，不代表测量精度；边界为图像人工描绘。",
+  "remaining_unknown_attributes": [
+    "floor_count",
+    "tank_contents",
+    "engineering_pipeline_process",
+    "lane_level_restrictions",
+    "entry_gates"
+  ],
+  "items": [
+    {
+      "id": "C-U-E-01",
+      "old_object_id": "U-E-01",
+      "object_id": "B-E-02",
+      "decision": "小区建筑",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-U-E-02",
+      "old_object_id": "U-E-02",
+      "object_id": "B-E-03",
+      "decision": "小区建筑",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-U-E-03",
+      "old_object_id": "U-E-03",
+      "object_id": "B-E-04",
+      "decision": "小区建筑",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-U-S-01",
+      "old_object_id": "U-S-01",
+      "object_id": "B-S-03",
+      "decision": "小区建筑",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-B-D-06",
+      "old_object_id": "B-D-06",
+      "object_id": "B-D-05",
+      "decision": "合并为同一栋罐区附属建筑",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-R-08",
+      "object_id": "R-08",
+      "decision": "仅限人通行；机动车禁止",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-R-09",
+      "object_id": "R-09",
+      "decision": "仅限人通行；机动车禁止",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-R-10",
+      "object_id": "R-10",
+      "decision": "仅限人通行；机动车禁止",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-R-11",
+      "object_id": "R-11",
+      "decision": "仅限人通行；机动车禁止",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    },
+    {
+      "id": "C-BUILDING-USES",
+      "object_id": "A-CITY",
+      "decision": "外围建筑为小区建筑；储罐周围建筑为罐区附属建筑",
+      "status": "resolved",
+      "source": "user_message_2026-10-23"
+    }
+  ]
+}

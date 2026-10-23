@@ -10,6 +10,12 @@
 
 [Windows 安装](#windows-安装与配置) · [启动演示](#启动演示) · [常见问题](#常见问题) · [核心定位引擎说明](#核心定位引擎说明) · [项目主线文档](FIRE_PROJECT_MASTER_ROADMAP.md)
 
+## 当前地图（2026-10-23）
+
+当前统一使用 `fire_poi/` 的新地图，旧 Excel、旧空间模型和旧底图已删除。默认目标为 `T-SW-01`。前端底图为 1313×1050 原图，完整显示，不裁剪、不旋转。按用户确认 **1 仿真单位 = 1 米**，仍为 30m×25m，半径 10m、扇形 45°；西南原点、X 向东、Y 向北。数据包中“非实测”说明保留，单位约定不代表测绘精度。
+
+旧地图帖子不可直接复用，默认 `data/demo_posts.jsonl` 已重新生成。旧 Memory 和前端会话由地图指纹隔离，请重新准备场景；不能恢复旧地图结果。详见 [地图迁移记录](MAP_MIGRATION.md)。
+
 ## 核心功能
 
 - **火情语义定位**：从居民火情信息中提取参照物和方向，结合空间约束推断火点。
@@ -23,9 +29,9 @@
 ```mermaid
 flowchart LR
   U["React 二维沙盘<br/>127.0.0.1:5173"] -->|"请求 /api · Vite 代理"| B["独立 FastAPI Bridge<br/>127.0.0.1:8080"]
-  B --> G["模拟信息生成器<br/>10 条模拟火情帖子"]
+  B --> G["模拟信息生成器<br/>100 条模拟火情帖子"]
   G --> F["Python 核心定位引擎 FireLocalizer<br/>语义提取 → 空间解析 → POI 匹配 → 候选排名"]
-  D["Excel / JSON<br/>POI 与空间模型"] --> F
+  D["fire_poi JSON<br/>POI 与空间模型"] --> F
   F -. "仅 Live · 付费 API" .-> M["智增增 Chat / Embedding"]
   F --> R["Top3 / 坐标"]
   R --> B
@@ -45,17 +51,14 @@ fire-localization-demo/
 ├── frontend/
 │   ├── bridge/                      # 独立 FastAPI Bridge 及其测试
 │   ├── web/                         # React + Vite + TypeScript + Tailwind
-│   ├── assets/                      # 沙盘底图
-│   ├── docs/                        # 地图校准与保护基线资料
-│   ├── start-bridge.ps1              # 从根目录 .venv 启动 Bridge
+│   ├── start-bridge.ps1              # 从 Anaconda agent 环境启动 Bridge
 │   ├── start-web.ps1                 # 启动 React；支持已安装 Node 或本地便携 Node
 │   ├── setup-node.ps1                # 可选：下载固定便携 Node 并安装前端依赖
-│   └── README.md                     # 前端实现与校准说明（含历史本机记录）
+│   └── README.md                     # 前端实现与新地图坐标说明
 ├── data/                            # 模拟帖子与独立真实标签
 ├── experiments/                     # 定位实验脚本
 ├── tests/                           # 核心定位引擎测试
-├── city_localization_data_dictionary.xlsx
-├── fire_sandbox_spatial_model.json
+├── fire_poi/                        # 新地图、规范 JSON、核对表、图层与验证工具
 ├── requirements.txt
 ├── pyproject.toml
 ├── .env.example                     # 环境变量模板，不含真实密钥
@@ -63,7 +66,7 @@ fire-localization-demo/
 └── README.md
 ```
 
-安装和运行后会生成 `.venv/`、`frontend/web/node_modules/`、`frontend/web/dist/`、`frontend/.tools/` 或 `runtime/` 等本地目录；它们不是克隆后即有的运行环境。请勿将依赖、构建产物、缓存、截图或 `.env` 加入提交。
+安装和运行后会生成 `frontend/web/node_modules/`、`frontend/web/dist/`、`frontend/.tools/` 或 `runtime/` 等本地目录；它们不是克隆后即有的运行环境。请勿将依赖、构建产物、缓存、截图或 `.env` 加入提交。
 
 ## Windows 安装与配置
 
@@ -73,11 +76,10 @@ fire-localization-demo/
 | --- | --- |
 | Windows PowerShell | 运行仓库现有 `.ps1` 启动脚本 |
 | Git | 克隆私有仓库，使用自己的 GitHub 访问权限 |
-| Python 3.12 | 本 Demo 的安装指引版本；`pyproject.toml` 声明的包下限为 3.11 |
-| uv | 创建 Python 虚拟环境并安装依赖；无需 Anaconda |
+| Anaconda / Python >=3.11 | 本项目已确认使用 `agent` 环境 |
 | Node.js / npm | 本前端 `package.json` 要求 Node **>=22.12.0**；使用符合该要求且与锁文件内 Vite 兼容的版本 |
 
-安装工具可参考 [Git](https://git-scm.com/downloads/win)、[uv 官方安装文档](https://docs.astral.sh/uv/getting-started/installation/) 和 [Node.js](https://nodejs.org/)。uv 可以安装 Python 3.12；后面的命令不依赖虚拟环境激活或全局 Python 包。
+本机使用 Anaconda `agent` 环境；不需要另建虚拟环境。首次接触其他项目时先确认环境。
 
 ### 2. 克隆项目
 
@@ -100,23 +102,18 @@ git switch --detach demo-v1.0
 
 ### 3. 安装 Python 依赖
 
-以下命令在克隆后的**仓库根目录**执行：
+本机 `agent` 环境依赖已齐全，无需重复安装。先激活环境再运行 Python：
 
 ```powershell
-uv python install 3.12
-uv venv --python 3.12 .venv
-uv pip install --python .\.venv\Scripts\python.exe -r requirements.txt tzdata
-.\.venv\Scripts\python.exe --version
-.\.venv\Scripts\python.exe -c "from zoneinfo import ZoneInfo; print(ZoneInfo('Asia/Shanghai'))"
+conda activate agent
+python --version
 ```
 
-**Windows 时区数据**：项目在导入时使用 `ZoneInfo("Asia/Shanghai")`。Windows 通常不提供 Python 所需的 IANA 时区数据库，因此安装命令额外加入 `tzdata`；当前 `requirements.txt` 未列出它。若出现 `ZoneInfoNotFoundError`，请将 `tzdata` 安装到上述同一个 `.venv`，不能只修改 Windows 系统时区。参见 [Python zoneinfo 数据来源说明](https://docs.python.org/3.12/library/zoneinfo.html#data-sources)。
-
-本项目当前提供 `requirements.txt`，没有随仓库发布 `uv.lock`；前述安装使用现有依赖约束，不意味着 Python 依赖已完全锁定。
+启动脚本默认使用 `D:/Anaconda/envs/agent/python.exe`，也可通过 `FIRE_PYTHON` 指向已确认环境的解释器。更换电脑时，先检查目标环境，再按需安装 `requirements.txt`；Windows 缺少时区数据时再补充 `tzdata`。
 
 ### 4. 安装前端依赖
 
-如果已安装满足要求的 Node/npm：
+仅当 `frontend/web/node_modules` 缺失或依赖发生变化时才需要安装：
 
 ```powershell
 node --version
@@ -167,7 +164,7 @@ BATCH_SIZE=10
 
 示例中的 Key 均为占位符。若账号使用同一密钥访问两类模型，可将自己的同一个 Key 分别填入两项；模型可用性、余额和 Base URL 以自己的账户及[智增增官方接口说明](https://doc.zhizengzeng.com/doc-4296789)为准。这里的 Base URL 包含 `/v1`，**不要**填完整的 `/chat/completions` 或 `/embeddings` 地址。
 
-Bridge 演示固定生成 10 条帖子、按 10 条执行一批；`BATCH_SIZE` 用于核心定位引擎配置，不会改变网页演示的固定批量。环境变量优先于 `.env`，旧终端中的同名变量可能覆盖文件；修改后建议重新启动 Bridge。如果曾设置 `PYTHON_DOTENV_DISABLED=1`，需在启动 Live 的终端中先清除该禁用设置，例如：
+Bridge 演示固定生成 100 条帖子、按 10 条执行一批，共 10 批；`BATCH_SIZE` 用于核心定位引擎配置，不会改变网页演示的固定批量。环境变量优先于 `.env`，旧终端中的同名变量可能覆盖文件；修改后建议重新启动 Bridge。如果曾设置 `PYTHON_DOTENV_DISABLED=1`，需在启动 Live 的终端中先清除该禁用设置，例如：
 
 ```powershell
 Remove-Item Env:PYTHON_DOTENV_DISABLED -ErrorAction SilentlyContinue
@@ -181,7 +178,7 @@ Remove-Item Env:PYTHON_DOTENV_DISABLED -ErrorAction SilentlyContinue
 | --- | --- | --- |
 | 信息提取 | 原始规则提取替身 | 真实 Chat 模型 |
 | 向量 | 字符哈希向量替身 | 真实 Embedding 模型 |
-| 输入 | 10 条模拟火情帖子 | 同样是 10 条模拟火情帖子 |
+| 输入 | 100 条模拟火情帖子 | 同样是 100 条模拟火情帖子 |
 | API Key | 不需要 | 需要自己的有效配置 |
 | 模型 API 费用 | 无 | **会产生费用**，包括 POI 名称与文本编码 |
 | 启动方式 | 直接点击开始定位 | 勾选付费确认后再次确认 |
@@ -214,7 +211,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\frontend\start-web.ps1
 终端 1：在仓库根目录，直接使用刚安装依赖的虚拟环境。
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn frontend.bridge.server:app --host 127.0.0.1 --port 8080
+& D:/Anaconda/envs/agent/python.exe -m uvicorn frontend.bridge.server:app --host 127.0.0.1 --port 8080
 ```
 
 终端 2：使用当前终端可访问的兼容 Node/npm。
@@ -238,14 +235,14 @@ Bridge API 文档：[http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)。V
 ## Demo 操作流程
 
 1. 等待页面显示 Bridge 已连接、场景就绪及 **Ready**。
-2. 选择火情场景；默认成品1号储罐（`POI-HA-SW-02`），种子 42，10 条模拟帖子。
+2. 选择火情场景；默认华安能源西南罐区1号储罐（`T-SW-01`），种子 42，100 条模拟帖子。
 3. 先使用 **Offline**，点击“开始定位”，状态变为 **Analyzing...**。
 4. 状态为 **Completed** 后，查看 Ground Truth（深色中心、白色描边）与 AI Prediction（红色外环），以及 Top3 和距离误差。
 5. 点击候选列表高亮其他候选。红色预测外环始终表示算法 Top1，真实点仅用于展示与评估。
 6. 点击“重置”或切换场景开始下一轮；刷新会准备新的会话，不沿用旧预测。
 7. 需要 Live 时先完成自己的配置，阅读付费提示并主动确认调用。
 
-默认场景曾验收 Top1 为 `POI-HA-SW-02`、误差 0 m；这只是既有模拟场景记录，不是所有场景的准确率承诺。得分和相对得分也不是经校准的着火概率。
+默认场景曾验收 Top1 为 `T-SW-01`、误差 0 m；这只是既有模拟场景记录，不是所有场景的准确率承诺。得分和相对得分也不是经校准的着火概率。
 
 ## 常见问题
 
@@ -253,8 +250,8 @@ Bridge API 文档：[http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)。V
 | --- | --- |
 | 克隆提示无权限 / Repository not found | 当前为 Private；先接受协作邀请，用有权限的 GitHub 账户认证，再检查仓库地址。 |
 | `uv`、`node` 或 `npm` 找不到 | 安装对应工具后重开终端；前端启动脚本也支持已安装的便携 Node。检查 PATH，PowerShell 下可用 `npm.cmd` 避免 npm 脚本执行策略问题。 |
-| `ModuleNotFoundError` / `No module named uvicorn` | 确认从仓库根目录启动，依赖安装目标是 `.venv/Scripts/python.exe`，不要混用系统 Python 或旧 Conda 环境。按安装章节重新安装依赖。 |
-| `ZoneInfoNotFoundError: Asia/Shanghai` | 使用 `uv pip install --python .\.venv\Scripts\python.exe tzdata`，再重启 Bridge。 |
+| `ModuleNotFoundError` / `No module named uvicorn` | 确认从仓库根目录启动，解释器是已确认的 Anaconda `agent` 环境；先检查环境依赖，按需安装。 |
+| `ZoneInfoNotFoundError: Asia/Shanghai` | 激活 `agent` 环境后按需使用 `python -m pip install tzdata`，再重启 Bridge。 |
 | Node engine 不符 / Vite 启动失败 | 检查 `node --version` 和 `Get-Command node,npm.cmd`；使用满足前端 `engines.node` 与 Vite 要求的版本，再在 `frontend/web` 执行 `npm.cmd ci`。 |
 | 便携 Node 下载失败 | 检查脚本固定版本和网络连接；可改用自己安装的兼容 Node/npm，无需修改业务代码。 |
 | 8080 或 5173 被占用 | 用下方只读命令确认所属进程，在原服务终端停止自己启动的旧进程；不要直接终止未知进程。Vite 使用固定端口，不会自动换端口。 |
@@ -294,20 +291,20 @@ Get-NetTCPConnection -State Listen -LocalPort 8080,5173 -ErrorAction SilentlyCon
 
 ### 核心引擎命令行运行
 
-完成上文环境安装后，可在仓库根目录激活虚拟环境再使用核心引擎 CLI；已有 Python 3.12 Conda 环境也可继续使用，依赖需安装到相同解释器。
+在仓库根目录激活已确认的 Anaconda `agent` 环境，再使用核心引擎 CLI。
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+conda activate agent
 python -m fire_locator generate --count 100
 python -m fire_locator replay --offline
 ```
 
-`generate` 指定唯一着火罐（默认成品1号储罐），依据地图几何关系生成观察帖子。100 条帖子在 34 分钟内出现，发帖点为 Excel 中的非罐位置。帖子写入 `data/demo_posts.jsonl`；真实标签单独写入 `data/demo_posts.meta.json`，不进入大模型提示词或定位过程。上述生成命令会覆盖默认模拟数据；仅体验网页 Demo 无需执行 CLI。
+`generate` 指定唯一着火罐（默认西南罐区1号储罐 `T-SW-01`），依据新地图几何关系生成观察帖子。100 条帖子在 34 分钟内出现，发帖点为 JSON 中的非罐位置。帖子写入 `data/demo_posts.jsonl`；真实标签单独写入 `data/demo_posts.meta.json`，不进入大模型提示词或定位过程。上述生成命令会覆盖默认模拟数据；仅体验网页 Demo 无需执行 CLI。
 
 使用新文件和新输出目录生成其他场景：
 
 ```powershell
-python -m fire_locator generate --target POI-HA-SE-03 --seed 123 --output data/another.jsonl
+python -m fire_locator generate --target T-SE-02 --seed 123 --output data/another.jsonl
 python -m fire_locator replay --offline --input data/another.jsonl --output-dir runtime/another
 ```
 
@@ -359,10 +356,10 @@ flowchart LR
 
 ## 定位和聚类规则
 
-1. Excel 为名称/坐标的来源；读取 28 个 POI、区域、道路、路口。JSON 用来核对 28 个 POI 的坐标并载入 1082 条预计算空间关系及邻居数据。JSON 里的 3.2m `near` 阈值不覆盖 note 的 10m 搜索规则。
+1. 唯一数据入口是 `fire_poi/fire_sandbox_spatial_model.json`：29 个实体 POI（8 罐、17 建筑、4 管线设施组）、18 区域、11 道路、32 节点，共 90 个可检索参照对象。载入 306 条空间关系，路口包含在节点内，不重复导入。启动时核对地图坐标元数据和底图 SHA-256。
 2. 只允许一个参照物、一个方位。没有参照物，直接采用发帖位置，跳过语义检索。提取到参照物时，编码原文名称并与登记名称做余弦匹配，最高值严格 **大于 0.7** 才接受，否则退回发帖位置。别名可以由模型原样提取，再进行语义匹配。
-3. 八方向使用半径 10m、总张角 45° 的扇形；附近使用半径 10m 的圆。边界包含在内。区域参照点采用 Excel 边界框中心，道路采用线段中点，路口采用登记坐标。
-4. 仅 `type == tank` 的 **14 只独立罐子** 可作为候选/答案，`tank_group` 不可。没有罐子落入范围的帖子忽略并记录原因。
+3. 八方向使用半径 10m、总张角 45° 的扇形；附近使用半径 10m 的圆。边界包含在内。区域和节点采用 JSON 登记中心，道路采用中心线的半程点。
+4. 仅 `type == tank` 的 **8 只独立罐子** 可作为候选/答案，管线设施不可。没有罐子落入范围的帖子忽略并记录原因。
 5. 新候选与活跃簇的候选集合相交则归入；都不相交则建新簇。若一条帖子同时连接多个簇，则合并这些簇再追加一次，避免重复投票。簇维护候选集合、各罐投票数和当前领先罐。
 6. 每条有效帖子给自己的每个候选罐投一票。紧急度保留供后续实验，当前不额外加权，因为高紧急度不等于高信息量或准确度。
 7. 超过 60 分钟无新帖子加入的簇变冷，保留历史状态，不再接收帖子，也不参与当前排名。恰好 60 分钟仍活跃。后续同位置新帖子可创建新簇。
@@ -402,8 +399,8 @@ response = requests.post("http://127.0.0.1:8000/posts", json={
     "posts": [{
         "id": "agent-post-001",
         "timestamp": now.isoformat(),
-        "text": "检修车间南边有浓烟，像是罐体那边冒出来的！",
-        "location_poi_id": "POI-HA-NW-02",
+        "text": "华安能源园1号附属楼南边有浓烟，像是罐体那边冒出来的！",
+        "location_poi_id": "B-D-01",
         "urgency": "高"
     }],
     "flush": False

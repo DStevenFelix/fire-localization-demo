@@ -1,3 +1,5 @@
+> 2026-10-23 更新：当前采用 `fire_poi/` 新地图，8 只储罐，默认 `T-SW-01`，Python 使用 Anaconda `agent`。旧地图实验数字只作历史记录；详见 [地图迁移记录](MAP_MIGRATION.md)。
+
 # 火灾应急管理仿真沙盘系统项目主线文档
 
 本文件是以后项目开发的唯一主线文档，用于记录项目目标、系统架构、阶段成果、稳定版本、Demo 状态与后续方向。阶段推进、任务范围变更和验收结果统一更新到本文件；其他说明文件作为运行或技术细节的补充。
@@ -163,7 +165,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\frontend\start-bridge.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\frontend\start-web.ps1
 ```
 
-以上两条启动命令仍需在两个独立终端中分别执行。当前机器使用项目 `.venv` Python 环境及 `frontend/.tools/` 下的便携 Node；使用现有启动脚本即可，无需修改配置。
+以上两条启动命令仍需在两个独立终端中分别执行。当前机器使用 Anaconda `agent` Python 环境及系统已有 Node；使用现有启动脚本即可，无需修改配置。
 
 #### Demo 演示流程
 

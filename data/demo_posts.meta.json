@@ -2,15 +2,19 @@
   "synthetic": true,
   "seed": 42,
   "post_count": 100,
+  "poi_fingerprint": "3fb5378c417029a55d3a3c97aa8463d39c156c812e5b3220cecf8fc13e7d1889",
+  "meters_per_simulation_unit": 1,
+  "search_radius_m": 10,
+  "sector_degrees": 45,
   "single_fire_ground_truth": {
-    "poi_id": "POI-HA-SW-02",
-    "name": "成品1号储罐",
+    "poi_id": "T-SW-01",
+    "name": "华安能源西南罐区1号储罐",
     "coordinates": {
-      "x_m": 11.22,
-      "y_m": 10.647
+      "x_m": 9.717988,
+      "y_m": 8.984747
     }
   },
-  "start_time": "2026-10-07T14:00:00+08:00",
-  "end_time": "2026-10-07T14:33:00+08:00",
+  "start_time": "2026-10-23T14:00:00+08:00",
+  "end_time": "2026-10-23T14:33:00+08:00",
   "note": "真实标签仅在此文件用于测试评价，不送入模型或定位算法。"
 }

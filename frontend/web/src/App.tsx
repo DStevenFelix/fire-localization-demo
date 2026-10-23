@@ -129,8 +129,8 @@ export default function App() {
         <div className="map-column">
           <SandboxMap pois={pois} session={session} highlighted={highlight} />
           <div className="metrics-row">
-            <div><span className="metric-icon"><Database size={18} /></span><span><small>地图兴趣点</small><strong>{pois.length || '—'} <em>POI</em></strong></span></div>
-            <div><span className="metric-icon"><Activity size={18} /></span><span><small>已处理火情信息</small><strong>{session?.processed_count ?? 0}<em> / {session?.post_count ?? 10} 条</em></strong></span></div>
+            <div><span className="metric-icon"><Database size={18} /></span><span><small>地图兴趣点</small><strong>{pois.filter(p => ['tank', 'building', 'facility'].includes(p.type)).length || '—'} <em>POI</em></strong></span></div>
+            <div><span className="metric-icon"><Activity size={18} /></span><span><small>已处理火情信息</small><strong>{session?.processed_count ?? 0}<em> / {session?.post_count ?? 100} 条</em></strong></span></div>
             <div><span className="metric-icon"><CircleDot size={18} /></span><span><small>活跃证据簇</small><strong>{prediction?.active_cluster_count ?? '—'}<em> 个</em></strong></span></div>
             <div><span className="metric-icon"><Crosshair size={18} /></span><span><small>Top1 距离误差</small><strong>{completed && session.evaluation?.distance_m != null ? session.evaluation.distance_m.toFixed(3) : '—'}<em> m</em></strong></span></div>
           </div>
@@ -143,7 +143,7 @@ export default function App() {
               <div className="mode-switch" role="group" aria-label="运行模式"><button className={mode === 'offline' ? 'chosen' : ''} disabled={busy} onClick={() => setMode('offline')}>Offline <span>离线模拟</span></button><button className={mode === 'live' ? 'chosen live' : ''} disabled={busy} onClick={() => setMode('live')}>Live <span>付费模型</span></button></div>
               <p className={`mode-note ${mode}`}>{mode === 'offline' ? '规则提取 + 字符哈希向量 · 无外部模型调用' : '真实 Chat + Embedding · 启动前确认 API 费用'}</p>
               <div className="run-buttons"><button className={`primary-button ${completed ? 'is-completed' : ''}`} aria-label="开始定位" disabled={!connected || busy || session?.status !== 'prepared'} onClick={() => void run()}>{busy ? <LoaderCircle size={17} className="spin" /> : completed ? <Check size={17} /> : <Play size={15} fill="currentColor" />}<span>{preparing ? '准备场景中' : running ? '正在定位' : completed ? '定位完成' : session?.status === 'failed' ? '请重置后重试' : '开始定位'}<small data-testid="run-button-state">{buttonState}</small></span></button><button className="secondary-button reset-button" aria-label="重置演示" disabled={!session || busy || !connected} onClick={() => void reset()}><RotateCcw size={16} />重置</button></div>
-              <div className="algorithm-status" role="status" aria-live="polite"><i className={running ? 'pulse-dot' : completed ? 'complete-dot' : ''} /><span>{stage}</span><small>{running ? '计算进行中' : completed ? '实际算法结果' : '种子 42 · 10 条帖子'}</small></div>
+              <div className="algorithm-status" role="status" aria-live="polite"><i className={running ? 'pulse-dot' : completed ? 'complete-dot' : ''} /><span>{stage}</span><small>{running ? '计算进行中' : completed ? '实际算法结果' : `种子 ${seed} · ${session?.post_count ?? 100} 条帖子`}</small></div>
               {session?.error && <div className="run-error" role="alert"><AlertCircle size={17} /><div><strong>定位未完成，请重置后重试</strong><p>场景已保留，可重新运行当前演示。</p><details><summary>查看错误详情</summary><strong>{session.error.error_type}</strong><p>{session.error.message}</p></details></div></div>}
             </div>
           </section>
@@ -159,6 +159,6 @@ export default function App() {
       </div>
       <footer><span>城市异常定位智能体系统 · 火灾定位研究演示</span><span>{mode === 'offline' ? 'Offline 演示' : 'Live 模型模式'}<i />本地米制坐标 / METERS</span></footer>
     </main>
-    {confirmLive && <LiveConfirmation onCancel={() => setConfirmLive(false)} onConfirm={() => void run(true)} />}
+    {confirmLive && <LiveConfirmation postCount={session?.post_count ?? 100} onCancel={() => setConfirmLive(false)} onConfirm={() => void run(true)} />}
   </div>;
 }

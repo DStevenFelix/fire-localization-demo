@@ -1,0 +1,468 @@
+[
+  {
+    "event_id": "exact-west",
+    "status": "located",
+    "confidence": 0.99,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": {
+      "poi_id": "B-W-02",
+      "name": "锦安社区2号楼",
+      "x": 1.79497,
+      "y": 15.181125,
+      "area_id": "A-WEST"
+    },
+    "candidates": [
+      {
+        "poi_id": "B-W-02",
+        "name": "锦安社区2号楼",
+        "x": 1.79497,
+        "y": 15.181125,
+        "score": 1.0
+      }
+    ],
+    "evidence": [
+      "名称/旧ID归一化检索：锦安社区2号楼",
+      "坐标直接读取当前版本规范POI，未由语言模型生成"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "name_text": "锦安社区2号楼"
+      },
+      "raw_text": "锦安社区2号楼着火了。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit"
+  },
+  {
+    "event_id": "confirmed-east",
+    "status": "located",
+    "confidence": 0.99,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": {
+      "poi_id": "B-E-02",
+      "name": "东源社区2号楼",
+      "x": 28.125,
+      "y": 16.062917,
+      "area_id": "A-EAST"
+    },
+    "candidates": [
+      {
+        "poi_id": "B-E-02",
+        "name": "东源社区2号楼",
+        "x": 28.125,
+        "y": 16.062917,
+        "score": 1.0
+      }
+    ],
+    "evidence": [
+      "名称/旧ID归一化检索：东源社区2号楼",
+      "坐标直接读取当前版本规范POI，未由语言模型生成"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "name_text": "东源社区2号楼"
+      },
+      "raw_text": "东源社区2号楼发生火情。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit"
+  },
+  {
+    "event_id": "confirmed-south",
+    "status": "located",
+    "confidence": 0.99,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": {
+      "poi_id": "B-S-03",
+      "name": "南苑社区1号楼",
+      "x": 19.177038,
+      "y": 0.971923,
+      "area_id": "A-SOUTH-E"
+    },
+    "candidates": [
+      {
+        "poi_id": "B-S-03",
+        "name": "南苑社区1号楼",
+        "x": 19.177038,
+        "y": 0.971923,
+        "score": 1.0
+      }
+    ],
+    "evidence": [
+      "名称/旧ID归一化检索：B-S-03",
+      "坐标直接读取当前版本规范POI，未由语言模型生成"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "poi_id": "B-S-03"
+      },
+      "raw_text": "南苑社区1号楼着火。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit"
+  },
+  {
+    "event_id": "legacy-merge",
+    "status": "located",
+    "confidence": 0.99,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": {
+      "poi_id": "B-D-05",
+      "name": "华安能源园5号附属楼",
+      "x": 21.497451,
+      "y": 15.172085,
+      "area_id": "A-TANK-NE"
+    },
+    "candidates": [
+      {
+        "poi_id": "B-D-05",
+        "name": "华安能源园5号附属楼",
+        "x": 21.497451,
+        "y": 15.172085,
+        "score": 1.0
+      }
+    ],
+    "evidence": [
+      "名称/旧ID归一化检索：B-D-06",
+      "坐标直接读取当前版本规范POI，未由语言模型生成"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "poi_id": "B-D-06"
+      },
+      "raw_text": "原油库东侧两段屋面对应的同一栋附属建筑着火。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit"
+  },
+  {
+    "event_id": "alias-chinese-number",
+    "status": "located",
+    "confidence": 0.99,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": {
+      "poi_id": "B-W-02",
+      "name": "锦安社区2号楼",
+      "x": 1.79497,
+      "y": 15.181125,
+      "area_id": "A-WEST"
+    },
+    "candidates": [
+      {
+        "poi_id": "B-W-02",
+        "name": "锦安社区2号楼",
+        "x": 1.79497,
+        "y": 15.181125,
+        "score": 1.0
+      }
+    ],
+    "evidence": [
+      "名称/旧ID归一化检索：锦安二号楼",
+      "坐标直接读取当前版本规范POI，未由语言模型生成"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "name_text": "锦安二号楼"
+      },
+      "raw_text": "锦安二号楼起火。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit"
+  },
+  {
+    "event_id": "relative-opposite",
+    "status": "ambiguous",
+    "confidence": 0.5,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": null,
+    "candidates": [
+      {
+        "poi_id": "T-NW-01",
+        "name": "华安能源西北罐区1号储罐",
+        "x": 9.626524,
+        "y": 15.419447,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-NW-02",
+        "name": "华安能源西北罐区2号储罐",
+        "x": 12.393293,
+        "y": 15.419447,
+        "score": 0.5
+      }
+    ],
+    "evidence": [
+      "参照B-W-02，关系across_road，道路R-03"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "target_type": "Tank"
+      },
+      "reference": {
+        "poi_id": "B-W-02"
+      },
+      "spatial_relation": "across_road",
+      "road_hint": "锦安路",
+      "raw_text": "我在锦安社区2号楼，锦安路对面的储罐着火。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit",
+    "message": "多个合理候选，不强行给出唯一坐标"
+  },
+  {
+    "event_id": "area-direction",
+    "status": "ambiguous",
+    "confidence": 0.5,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": null,
+    "candidates": [
+      {
+        "poi_id": "T-NE-01",
+        "name": "华安能源东北罐区1号储罐",
+        "x": 17.583841,
+        "y": 15.419447,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-NE-02",
+        "name": "华安能源东北罐区2号储罐",
+        "x": 20.35061,
+        "y": 15.419447,
+        "score": 0.5
+      }
+    ],
+    "evidence": [
+      "参照A-DEPOT，关系northeast_of"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "target_type": "Tank"
+      },
+      "reference": {
+        "poi_id": "A-DEPOT"
+      },
+      "spatial_relation": "northeast",
+      "raw_text": "油库东北方向的储罐出现烟雾。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit",
+    "message": "多个合理候选，不强行给出唯一坐标"
+  },
+  {
+    "event_id": "only-area",
+    "status": "ambiguous",
+    "confidence": 0.3,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": null,
+    "candidates": [
+      {
+        "poi_id": "T-NW-01",
+        "name": "华安能源西北罐区1号储罐",
+        "x": 9.626524,
+        "y": 15.419447,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-NW-02",
+        "name": "华安能源西北罐区2号储罐",
+        "x": 12.393293,
+        "y": 15.419447,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-NE-01",
+        "name": "华安能源东北罐区1号储罐",
+        "x": 17.583841,
+        "y": 15.419447,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-NE-02",
+        "name": "华安能源东北罐区2号储罐",
+        "x": 20.35061,
+        "y": 15.419447,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-SW-01",
+        "name": "华安能源西南罐区1号储罐",
+        "x": 9.717988,
+        "y": 8.984747,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-SW-02",
+        "name": "华安能源西南罐区2号储罐",
+        "x": 12.393293,
+        "y": 9.00858,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-SE-01",
+        "name": "华安能源东南罐区1号储罐",
+        "x": 17.446646,
+        "y": 8.960915,
+        "score": 0.5
+      },
+      {
+        "poi_id": "T-SE-02",
+        "name": "华安能源东南罐区2号储罐",
+        "x": 20.167683,
+        "y": 8.960915,
+        "score": 0.5
+      },
+      {
+        "poi_id": "B-D-01",
+        "name": "华安能源园1号附属楼",
+        "x": 9.798018,
+        "y": 17.635844,
+        "score": 0.5
+      },
+      {
+        "poi_id": "B-D-02",
+        "name": "华安能源园2号附属楼",
+        "x": 12.65625,
+        "y": 17.635844,
+        "score": 0.5
+      },
+      {
+        "poi_id": "B-D-03",
+        "name": "华安能源园3号附属楼",
+        "x": 17.298018,
+        "y": 17.635844,
+        "score": 0.5
+      },
+      {
+        "poi_id": "B-D-04",
+        "name": "华安能源园4号附属楼",
+        "x": 20.201982,
+        "y": 17.635844,
+        "score": 0.5
+      },
+      {
+        "poi_id": "B-D-05",
+        "name": "华安能源园5号附属楼",
+        "x": 21.497451,
+        "y": 15.172085,
+        "score": 0.5
+      },
+      {
+        "poi_id": "F-PIPE-NW",
+        "name": "西北罐区管线设施组",
+        "x": 10.918445,
+        "y": 15.371782,
+        "score": 0.5
+      },
+      {
+        "poi_id": "F-PIPE-NE",
+        "name": "东北罐区管线设施组",
+        "x": 19.001524,
+        "y": 15.34795,
+        "score": 0.5
+      },
+      {
+        "poi_id": "F-PIPE-SW",
+        "name": "西南罐区管线设施组",
+        "x": 11.192836,
+        "y": 7.614395,
+        "score": 0.5
+      },
+      {
+        "poi_id": "F-PIPE-SE",
+        "name": "东南罐区管线设施组",
+        "x": 18.692835,
+        "y": 7.62631,
+        "score": 0.5
+      }
+    ],
+    "evidence": [
+      "区域提示仅形成候选范围，不生成区域中心火点"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "area_hint": "华安能源储运园",
+      "raw_text": "华安能源储运园里有烟。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit",
+    "message": "只确定区域或道路范围，location保持null"
+  },
+  {
+    "event_id": "missing-reference",
+    "status": "ambiguous",
+    "confidence": 0.0,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": null,
+    "candidates": [],
+    "evidence": [],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "target_type": "Building"
+      },
+      "spatial_relation": "opposite",
+      "raw_text": "对面的楼着火了。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit",
+    "message": "缺少报告人位置或参照实体，不能把报告人当作着火目标"
+  },
+  {
+    "event_id": "unknown-place",
+    "status": "not_found",
+    "confidence": 0.0,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": null,
+    "candidates": [],
+    "evidence": [
+      "名称/旧ID归一化检索：不存在的虚构消防站"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "explicit_target": {
+        "name_text": "不存在的虚构消防站"
+      },
+      "raw_text": "不存在的虚构消防站着火了。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit",
+    "message": "当前约束下未匹配到POI"
+  },
+  {
+    "event_id": "landscape-not-building",
+    "status": "ambiguous",
+    "confidence": 0.3,
+    "confidence_kind": "heuristic_not_calibrated",
+    "location": null,
+    "candidates": [],
+    "evidence": [
+      "区域提示仅形成候选范围，不生成区域中心火点"
+    ],
+    "normalized_query": {
+      "event_type": "fire",
+      "area_hint": "北侧公共绿地",
+      "raw_text": "北侧景观带有烟。"
+    },
+    "model_version": "1.1.0-confirmed-image5-20261023",
+    "coordinate_system": "LOCAL30x25",
+    "unit": "simulation_unit",
+    "message": "只确定区域或道路范围，location保持null"
+  }
+]

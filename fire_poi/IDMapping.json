@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "model_version": "1.1.0-confirmed-image5-20261023",
+  "crs": "LOCAL30x25",
+  "source_sha256": "300f7e00b2d285e98c146e2e5f43846e862e5cd3bec59377846c275a84449eea",
+  "geometry_precision_note": "坐标保留6位仅用于往返一致性，不代表测量精度；边界为图像人工描绘。",
+  "from_model_version": "1.0.0-image5-20261023",
+  "to_model_version": "1.1.0-confirmed-image5-20261023",
+  "deprecated_ids": [
+    "U-E-01",
+    "U-E-02",
+    "U-E-03",
+    "U-S-01",
+    "B-D-06"
+  ],
+  "semantics": "旧ID仅作为查询重定向，不作为第二个有效实体；坐标来自新规范实体。",
+  "mappings": [
+    {
+      "old_id": "U-E-01",
+      "new_id": "B-E-02",
+      "action": "reclassified_as_building"
+    },
+    {
+      "old_id": "U-E-02",
+      "new_id": "B-E-03",
+      "action": "reclassified_as_building"
+    },
+    {
+      "old_id": "U-E-03",
+      "new_id": "B-E-04",
+      "action": "reclassified_as_building"
+    },
+    {
+      "old_id": "U-S-01",
+      "new_id": "B-S-03",
+      "action": "reclassified_as_building"
+    },
+    {
+      "old_id": "B-D-06",
+      "new_id": "B-D-05",
+      "action": "merged_same_building"
+    }
+  ]
+}

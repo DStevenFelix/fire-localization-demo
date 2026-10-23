@@ -1,27 +1,11 @@
 $ErrorActionPreference = 'Stop'
-$frontendRoot = Split-Path -Parent $PSScriptRoot
-$projectRoot = Split-Path -Parent $frontendRoot
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location -LiteralPath $projectRoot
-$baseline = Get-Content -LiteralPath (Join-Path $frontendRoot 'docs/original-baseline.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-$changed = @()
-foreach ($entry in $baseline.files) {
-    if (-not (Test-Path -LiteralPath $entry.Path) -or (Get-FileHash -LiteralPath $entry.Path -Algorithm SHA256).Hash -ne $entry.Hash) {
-        $changed += $entry.Path
-    }
+$mapConfig = Get-Content -LiteralPath 'fire_poi/map_config.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+$imageHash = (Get-FileHash -LiteralPath 'fire_poi/map_original.png' -Algorithm SHA256).Hash.ToLower()
+if ($imageHash -ne $mapConfig.source.sha256) { throw 'Current map image SHA-256 mismatch' }
+foreach ($oldFile in @('city_localization_data_dictionary.xlsx', 'fire_sandbox_spatial_model.json', '沙盘俯视图.png', 'frontend/assets/沙盘原始底图.jpg')) {
+    if (Test-Path -LiteralPath $oldFile) { throw "Obsolete map file remains: $oldFile" }
 }
-if ($changed.Count -gt 0) { throw ('Protected original files changed: ' + ($changed -join ', ')) }
-if ((Get-FileHash -LiteralPath $baseline.base_map_path -Algorithm SHA256).Hash -ne $baseline.base_map_sha256) {
-    throw 'User-provided base map changed'
-}
-git merge-base --is-ancestor $baseline.commit HEAD
-if ($LASTEXITCODE -ne 0) { throw 'Original baseline is no longer an ancestor' }
-$envTracked = @(git ls-files -- .env)
-if ($envTracked.Count -gt 0) { throw '.env is tracked' }
-$changedNames = @(git -c core.quotepath=false diff --name-only) + @(git -c core.quotepath=false diff --cached --name-only)
-$untracked = @(git -c core.quotepath=false ls-files --others --exclude-standard)
-$outside = @($changedNames + $untracked | Where-Object { $_ -and $_ -notmatch '^frontend/' })
-if ($outside.Count -gt 0) { throw ('Unexpected changes outside frontend: ' + ($outside -join ', ')) }
-[pscustomobject]@{ ProtectedFilesVerified=$baseline.files.Count; BaseMapUnchanged=$true; EnvUntracked=$true; ChangesConfinedToFrontend=$true; UntrackedReviewFileCount=$untracked.Count } | ConvertTo-Json -Compress
-git status --short
-git diff --name-only
-git diff --cached --name-only
+if (@(git ls-files -- .env).Count -gt 0) { throw '.env is tracked' }
+[pscustomobject]@{ CurrentMapVerified=$true; OldMapRemoved=$true; EnvUntracked=$true } | ConvertTo-Json -Compress

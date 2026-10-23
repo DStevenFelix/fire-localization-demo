@@ -13,7 +13,7 @@ def read(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, default=Path("runtime/benchmarks/20261008_10tanks_seed20261008"))
+    parser.add_argument("--output-dir", type=Path, default=Path("runtime/benchmarks/20261023_8tanks_seed20261023"))
     args = parser.parse_args()
     root = args.output_dir
     summary = read(root/"summary.json")

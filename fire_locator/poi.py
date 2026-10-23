@@ -4,7 +4,7 @@ import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import openpyxl
+DEFAULT_TARGET_ID = "T-SW-01"
 
 ANGLES = {"东": 0, "东北": 45, "北": 90, "西北": 135, "西": 180, "西南": 225, "南": 270, "东南": 315}
 
@@ -20,44 +20,60 @@ class Poi:
 
 
 class PoiRepository:
-    """Excel 为坐标来源；JSON 用于核验和载入预计算邻居/空间关系。"""
+    """统一读取新地图的规范 JSON；按用户约定 1 仿真单位 = 1 米。"""
 
     def __init__(self, root: Path):
-        workbook = openpyxl.load_workbook(root / "city_localization_data_dictionary.xlsx", read_only=True, data_only=True)
+        self.data_root = root / "fire_poi"
+        spatial = json.loads((self.data_root / "fire_sandbox_spatial_model.json").read_text(encoding="utf-8"))
+        self.map_config = json.loads((self.data_root / "map_config.json").read_text(encoding="utf-8"))
+        self.coordinate_system = self.map_config["coordinate_system"]
+        if self.coordinate_system != spatial["coordinate_system"] or any(
+            self.coordinate_system.get(key) != value for key, value in
+            {"origin": "southwest", "x_axis": "east", "y_axis": "north", "unit": "simulation_unit",
+             "extent": [0, 0, 30, 25]}.items()
+        ):
+            raise ValueError("地图坐标约定不兼容：要求西南原点、东/北正方向的30×25仿真坐标")
+        if self.map_config["source"] != spatial["source"]:
+            raise ValueError("地图配置与空间模型的底图来源不一致")
+        source = self.map_config["source"]
+        if source["file"] != "map_original.png" or hashlib.sha256(
+            (self.data_root / "map_original.png").read_bytes()
+        ).hexdigest() != source["sha256"]:
+            raise ValueError("底图 SHA-256 与地图元数据不一致")
         self.pois: dict[str, Poi] = {}
-        try:
-            for r in list(workbook["POIs"].values)[1:]:
-                if r[0]:
-                    self._add(Poi(str(r[0]), str(r[1]), str(r[2]), float(r[4]), float(r[5]),
-                                  tuple(x.strip() for x in (r[6] or "").split("|") if x.strip())))
-            # 面/道路的参照坐标使用中心点；所有坐标仍来自 Excel。
-            for r in list(workbook["Areas"].values)[1:]:
-                if r[0]:
-                    self._add(Poi(str(r[0]), str(r[1]), str(r[2]), (float(r[4])+float(r[5]))/2,
-                                  (float(r[6])+float(r[7]))/2))
-            for r in list(workbook["Roads"].values)[1:]:
-                if r[0]:
-                    self._add(Poi(str(r[0]), str(r[1]), "road", (float(r[3])+float(r[5]))/2,
-                                  (float(r[4])+float(r[6]))/2))
-            for r in list(workbook["Intersections"].values)[1:]:
-                if r[0]:
-                    self._add(Poi(str(r[0]), str(r[1]), "intersection", float(r[2]), float(r[3])))
-        finally:
-            workbook.close()
-        spatial = json.loads((root / "fire_sandbox_spatial_model.json").read_text(encoding="utf-8"))
+        types = {"Tank": "tank", "Building": "building", "Facility": "facility",
+                 "Region": "region", "Green Area": "green_area", "Pavement": "pavement",
+                 "Road": "road", "Intersection": "intersection", "RoadNode": "node"}
+        # nodes 已包含 intersections，避免重复载入路口。道路以中心线的半程点为参照。
+        for collection in ("pois", "areas", "roads", "nodes"):
+            for item in spatial[collection]:
+                center = item.get("center")
+                if center is None and collection == "roads":
+                    center = self._line_midpoint(item["centerline"]["coordinates"])
+                self._add(Poi(item["id"], item["name"], types[item["entity_type"]],
+                              *map(float, center), tuple(item.get("aliases", []))))
         self.relations = spatial["relations"]
-        self.nearest_neighbors = {}
-        for item in spatial["pois"]:
-            poi = self.pois[item["id"]]
-            if any(abs(getattr(poi, key)-item["position"][key]) > 1e-6 for key in ("x_m", "y_m")):
-                raise ValueError(f"Excel/JSON 坐标不一致: {poi.id}")
-            self.nearest_neighbors[poi.id] = item.get("nearest_neighbors", [])
-        self.tanks = {k: p for k, p in self.pois.items() if p.type == "tank"}
-        self.fingerprint = hashlib.sha256(json.dumps([asdict(p) for p in self.pois.values()],
-                                                    sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        self.id_redirects = spatial.get("id_redirects", {})
+        self.tanks = {key: poi for key, poi in self.pois.items() if poi.type == "tank"}
+        self.fingerprint = hashlib.sha256(json.dumps(
+            {"pois": [asdict(p) for p in self.pois.values()], "coordinate_system": self.coordinate_system,
+             "meters_per_simulation_unit": 1,
+             "source": source, "model_version": spatial["model_version"]},
+            sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+    @staticmethod
+    def _line_midpoint(points):
+        lengths = [math.dist(a, b) for a, b in zip(points, points[1:])]
+        remaining = sum(lengths) / 2
+        for a, b, length in zip(points, points[1:], lengths):
+            if length and remaining <= length:
+                return [a[i] + (b[i] - a[i]) * remaining / length for i in (0, 1)]
+            remaining -= length
+        return points[-1]
 
     def _add(self, poi: Poi):
-        if poi.id in self.pois or not all(math.isfinite(v) for v in (poi.x_m, poi.y_m)):
+        if (poi.id in self.pois or not all(math.isfinite(v) for v in (poi.x_m, poi.y_m))
+                or not (0 <= poi.x_m <= 30 and 0 <= poi.y_m <= 25)):
             raise ValueError(f"POI 重复或坐标无效: {poi.id}")
         self.pois[poi.id] = poi
 

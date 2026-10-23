@@ -1,20 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Crosshair, Layers, Minus, Plus, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import type { Candidate, Poi, Session } from '../types';
-import { DEFAULT_CALIBRATION, IMAGE_SIZE, isValidCalibration, pixelToWorld, worldToPixel, type Calibration } from '../utils/mapCoordinates';
-import baseMap from '../../../assets/沙盘原始底图.jpg';
+import { DEFAULT_CALIBRATION, IMAGE_SIZE, pixelToWorld, worldToPixel } from '../utils/mapCoordinates';
+import baseMap from '../../../../fire_poi/map_original.png';
 
 type Props = { pois: Poi[]; session: Session | null; highlighted: Candidate | null };
-function readCalibration(): Calibration {
-  try { const value = JSON.parse(localStorage.getItem('fire-map-calibration-v1') || 'null'); if (value && isValidCalibration(value)) return value; } catch { /* measured default */ }
-  return DEFAULT_CALIBRATION;
-}
 
 export default function SandboxMap({ pois, session, highlighted }: Props) {
   const [showPois, setShowPois] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [calibration, setCalibration] = useState<Calibration>(readCalibration);
+  const calibration = DEFAULT_CALIBRATION;
   const [debug, setDebug] = useState(false);
   const [hover, setHover] = useState<Poi | null>(null);
   const [cursor, setCursor] = useState<{ x_m: number; y_m: number } | null>(null);
@@ -30,10 +26,6 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
   const predictionPoint = top1 ? toPoint(top1.coordinates) : null;
   const candidatePoint = highlighted && highlighted.rank !== 1 ? toPoint(highlighted.coordinates) : null;
 
-  function updateCalibration(key: keyof Calibration, value: number) {
-    const next = { ...calibration, [key]: value };
-    if (isValidCalibration(next)) { setCalibration(next); localStorage.setItem('fire-map-calibration-v1', JSON.stringify(next)); }
-  }
   function resetView() { setZoom(1); setPan({ x: 0, y: 0 }); }
 
   useEffect(() => {
@@ -48,7 +40,7 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
       <div><div className="eyebrow">DIGITAL TWIN · SPATIAL LOCALIZATION</div><h2>城市火情空间态势<span className="tag-muted">云港新区</span></h2></div>
       <div className="map-heading-meta"><span className="tiny-dot" />本地米制坐标<span className="divider" />30 × 25 m</div>
     </div>
-    <div className="map-canvas">
+    <div className="map-canvas" style={{ aspectRatio: `${IMAGE_SIZE.width}/${IMAGE_SIZE.height}` }}>
       <svg ref={svg} viewBox={`${viewLeft} ${viewTop} ${viewWidth} ${viewHeight}`} preserveAspectRatio="xMidYMid meet"
         role="img" aria-label="云港新区沙盘，真实火点与算法预测叠加地图" data-testid="sandbox-svg"
         onPointerDown={event => { if ((event.target as Element).closest('[data-poi]')) return;
@@ -70,7 +62,7 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
           {[0, 5, 10, 15, 20, 25, 30].map(x => { const p = toPoint({ x_m: x, y_m: 0 }); return <line key={`x${x}`} x1={p.x} x2={p.x} y1={calibration.top} y2={calibration.top+calibration.height} stroke="#e7cf75" strokeWidth="1" strokeDasharray="6 10" />; })}
           {[0, 5, 10, 15, 20, 25].map(y => { const p = toPoint({ x_m: 0, y_m: y }); return <line key={`y${y}`} x1={calibration.left} x2={calibration.left+calibration.width} y1={p.y} y2={p.y} stroke="#e7cf75" strokeWidth="1" strokeDasharray="6 10" />; })}
         </g>}
-        {showPois && pois.map(poi => { const point = toPoint(poi.coordinates); return <g key={poi.poi_id} data-poi={poi.poi_id}
+        {showPois && pois.filter(p => ['tank', 'building', 'facility'].includes(p.type)).map(poi => { const point = toPoint(poi.coordinates); return <g key={poi.poi_id} data-poi={poi.poi_id}
           tabIndex={0} onMouseEnter={() => setHover(poi)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(poi)} onBlur={() => setHover(null)}
           aria-label={`${poi.name}，坐标 ${poi.coordinates.x_m}，${poi.coordinates.y_m}`}>
           <circle cx={point.x} cy={point.y} r={poi.type === 'tank' ? 5 : 3.5} fill={poi.type === 'tank' ? '#e4b869' : '#c7d5e3'} stroke="#152132" strokeWidth="1.5" className="poi-dot" />
@@ -112,14 +104,13 @@ export default function SandboxMap({ pois, session, highlighted }: Props) {
         <button className="icon-button" aria-label="缩小地图" onClick={() => setZoom(z => Math.max(1, z-.25))}><Minus size={18} /></button>
         <button className="icon-button" aria-label="重置地图视图" onClick={resetView}><RotateCcw size={16} /></button>
         <span className="tool-divider" />
-        <button className={debug ? 'icon-button selected' : 'icon-button'} aria-label="坐标校准" aria-expanded={debug} onClick={() => setDebug(v => !v)}><SlidersHorizontal size={17} /></button>
+        <button className={debug ? 'icon-button selected' : 'icon-button'} aria-label="坐标网格" aria-expanded={debug} onClick={() => setDebug(v => !v)}><SlidersHorizontal size={17} /></button>
       </div>
       <div className="map-scale" style={{ width: `${calibration.width/30*5/viewWidth*100}%` }}><span /><p>5 m</p></div>
       {hover && <div className="poi-tooltip" role="status"><strong>{hover.name}</strong><span>{hover.poi_id}</span><span>X {hover.coordinates.x_m.toFixed(3)} · Y {hover.coordinates.y_m.toFixed(3)} m</span></div>}
-      {debug && <div className="calibration-panel"><strong><Crosshair size={14} /> 坐标校准 · 像素</strong>
-        <div>{(['left', 'top', 'width', 'height'] as const).map(key => <label key={key}>{key}<input type="number" aria-label={`校准 ${key}`} value={calibration[key]} onChange={e => updateCalibration(key, Number(e.target.value))} /></label>)}</div>
+      {debug && <div className="calibration-panel"><strong><Crosshair size={14} /> 坐标网格 · 30 × 25 m</strong>
         <small>{cursor ? `光标 X ${cursor.x_m.toFixed(3)} · Y ${cursor.y_m.toFixed(3)} m` : '移动鼠标查看地图米制坐标'}</small>
-        <button onClick={() => { setCalibration(DEFAULT_CALIBRATION); localStorage.removeItem('fire-map-calibration-v1'); }}>恢复实测校准</button>
+        <small>整幅原图映射 · 1 仿真单位 = 1 m</small>
       </div>}
     </div>
     <div className="map-legend"><span><i className="legend-truth" />Ground Truth · 真实火点</span><span><i className="legend-prediction" />AI Prediction · Top1</span><span><i className="legend-poi" />储罐 POI</span><span><i className="legend-node" />建筑 / 节点</span><small>西南原点 · X 向东 · Y 向北</small></div>

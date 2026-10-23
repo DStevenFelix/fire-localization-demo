@@ -52,9 +52,9 @@ def wait(client, session_id):
 def test_discovery_and_invalid_inputs(client):
     assert client.get("/api/health").json()["default_mode"] == "offline"
     pois = client.get("/api/pois").json()
-    assert len(pois) == 52 and all("coordinates" in p for p in pois)
-    assert len(client.get("/api/scenarios").json()["scenarios"]) == 14
-    assert client.post("/api/scenarios/prepare", json={"target_poi_id": "POI-JA-01"}).status_code == 422
+    assert len(pois) == 90 and all("coordinates" in p for p in pois)
+    assert len(client.get("/api/scenarios").json()["scenarios"]) == 8
+    assert client.post("/api/scenarios/prepare", json={"target_poi_id": "B-W-01"}).status_code == 422
     assert client.post("/api/scenarios/prepare", json={"mode": "unknown"}).status_code == 422
     assert client.get("/api/localization/bad-id").status_code == 404
     assert client.get("/api/localization/" + "0"*32).status_code == 404
@@ -62,22 +62,25 @@ def test_discovery_and_invalid_inputs(client):
 
 def test_original_offline_algorithm_and_labels_isolated(client):
     legacy = server.PROJECT_ROOT / "runtime/embedding_cache.json"
-    before = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    before = legacy.read_bytes() if legacy.exists() else None
     session = prepare(client)
     assert session["prediction"] is None and session["evaluation"] is None
     folder = client.app.state.service._folder(session["session_id"])
     posts = [json.loads(row) for row in (folder / "demo_posts.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert len(posts) == 10 and all(set(row) == {"id", "timestamp", "text", "location_poi_id", "urgency"} for row in posts)
+    assert len(posts) == 100 and all(set(row) == {"id", "timestamp", "text", "location_poi_id", "urgency"} for row in posts)
     assert client.post("/api/localization/run", json={"session_id": session["session_id"]}).status_code == 202
     done = wait(client, session["session_id"])
     assert done["status"] == "completed" and done["mode"] == "offline"
-    assert done["processed_count"] == 10 and done["batch_count"] == 1 and done["ignored_count"] == 1
-    assert done["prediction"]["candidates"][0]["poi_id"] == "POI-HA-SW-02"
+    assert done["processed_count"] == 100 and done["batch_count"] == 10 and done["ignored_count"] == 10
+    assert done["prediction"]["candidates"][0]["poi_id"] == "T-SW-01"
     assert done["evaluation"] == {"top1_hit": True, "top3_hit": True, "target_rank": 1, "distance_m": 0.0}
     assert json.loads((folder / "prediction.json").read_text(encoding="utf-8")) == done["prediction"]
     report = json.loads((folder / "report.json").read_text(encoding="utf-8"))
     assert report["embedding_requests"] == 0
-    assert hashlib.sha256(legacy.read_bytes()).hexdigest() == before
+    assert report["extractor_invocations"] == 10
+    batches = json.loads((folder / "batch_results.json").read_text(encoding="utf-8"))
+    assert len(batches) == 10 and all(batch["batch_size"] == 10 for batch in batches)
+    assert (legacy.read_bytes() if legacy.exists() else None) == before
     assert not (folder / "root/runtime/embedding_cache.json").exists()
 
 
@@ -94,7 +97,7 @@ def test_every_original_tank_can_prepare_a_scene(client):
     for poi in scenarios:
         scene = prepare(client, target_poi_id=poi["poi_id"])
         assert scene["ground_truth"]["poi_id"] == poi["poi_id"]
-        assert scene["prediction"] is None and scene["post_count"] == 10
+        assert scene["prediction"] is None and scene["post_count"] == 100
 
 
 def test_live_failure_never_falls_back_to_offline(client, monkeypatch):
@@ -152,12 +155,12 @@ def test_empty_evidence_uses_original_algorithm(client):
     path = folder / "demo_posts.jsonl"
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     for row in rows:
-        row.update(text="附近有烟味", location_poi_id="POI-FS-01")
+        row.update(text="附近有烟味", location_poi_id="N01")
     path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows), encoding="utf-8")
     client.post("/api/localization/run", json={"session_id": session["session_id"]})
     done = wait(client, session["session_id"])
     assert done["status"] == "completed" and done["prediction"]["candidates"] == []
-    assert done["processed_count"] == done["ignored_count"] == 10
+    assert done["processed_count"] == done["ignored_count"] == 100
     assert done["evaluation"]["distance_m"] is None and not done["evaluation"]["top1_hit"]
 
 
@@ -191,3 +194,14 @@ def test_sessions_restore_and_interrupted_run_never_restarts(client):
             another.executor.shutdown()
     finally:
         restored.executor.shutdown()
+
+
+def test_old_map_session_is_rejected(client):
+    session = prepare(client)
+    folder = client.app.state.service._folder(session["session_id"])
+    session["poi_fingerprint"] = "obsolete-map"
+    server.atomic_json(folder / "session.json", session)
+    client.app.state.service.sessions.clear()
+    response = client.get(f"/api/localization/{session['session_id']}")
+    assert response.status_code == 409
+    assert "地图版本" in response.json()["detail"]
