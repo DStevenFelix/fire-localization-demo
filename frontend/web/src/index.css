@@ -49,7 +49,7 @@ main { max-width: 1920px; padding: 22px 24px 0; }
 .map-label { font-size: 19px; letter-spacing: .25px; }
 .truth-label, .prediction-label { stroke: none; }
 .prediction-label { fill: #ffd7d8; }
-.prediction-breath { animation: prediction-breathe 2.8s ease-in-out infinite; }
+.prediction-breath { animation: prediction-breathe calc(2.8s / var(--simulation-speed, 1)) ease-in-out infinite; }
 /* Animate opacity only: marker centers and radii never move. */
 @keyframes prediction-breathe { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 .map-legend { gap: 16px; padding: 12px 18px; font-size: 10px; }
@@ -203,3 +203,21 @@ footer { color: #7591a8; padding: 18px 0; }
 .evidence-legend i { width: 55px; height: 7px; border-radius: 2px; background: linear-gradient(90deg, #ffde97, #f49337, #de4530, #991c29); }
 @media (prefers-reduced-motion: reduce) { .prediction-breath, .pulse-dot, .spin { animation: none !important; } .evidence-circle { transition: none; } }
 @media(max-width:540px) { .map-tools { left: 7px; top: 7px; } .map-text-button { padding: 4px; font-size: 10px; } .map-layer-panel { left: 7px; top: 44px; } .map-progress { right: 8px; bottom: 10px; font-size: 9px; } }
+.dispatch-controls{display:flex;align-items:center;gap:.55rem .8rem;flex-wrap:wrap;padding:.65rem 1rem;border-top:1px solid #374e57;background:#202f38;color:#e5eff2;font-size:.8rem}
+.dispatch-controls strong,.dispatch-controls label,.dispatch-controls button{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
+.dispatch-controls strong svg{color:#ff8c84}
+.dispatch-controls select,.dispatch-controls button{color:inherit;background:#18262d;border:1px solid #49616a;border-radius:.35rem;padding:.28rem .45rem;font:inherit}
+.dispatch-controls button:hover{background:#344953}
+[data-simulation-paused="true"] *{animation-play-state:paused!important}
+[data-simulation-speed="0.5"]{--simulation-speed:0.5}
+[data-simulation-speed="2"]{--simulation-speed:2}
+.fire-beacons{display:none;fill:#ff484c}
+[data-fire-truck][data-status="en-route"] .fire-beacons,[data-fire-truck][data-status="arrived"] .fire-beacons{display:inline}
+.fire-beacons circle{animation:fire-beacon calc(.8s / var(--simulation-speed, 1)) steps(1,end) infinite;filter:drop-shadow(0 0 .10px #ff563d)}
+.fire-beacons circle+circle{animation-delay:calc(-.4s / var(--simulation-speed, 1))}
+.water-jet-base,.water-jet{fill:none;stroke-linecap:round;stroke:#67bffa;stroke-width:4}
+.water-jet-base{opacity:.38}
+.water-jet{stroke:#c5f2ff;stroke-dasharray:8 13;animation:fire-spray calc(.48s / var(--simulation-speed, 1)) linear infinite}
+@keyframes fire-beacon{50%{fill:#fff2ae;opacity:.95}100%,0%{fill:#ff343e;opacity:.48}}
+@keyframes fire-spray{to{stroke-dashoffset:-21}}
+@media(prefers-reduced-motion:reduce){.fire-beacons circle,.water-jet{animation:none}}

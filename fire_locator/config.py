@@ -11,10 +11,10 @@ ROOT = Path(__file__).resolve().parent.parent
 class Settings:
     root: Path = ROOT
     batch_size: int = 10
-    radius_m: float = 10.0
+    radius_m: float = 15.0
     sector_degrees: float = 45.0
     match_threshold: float = 0.7
-    cold_minutes: int = 60
+    cold_minutes: int = 30
     embedding_model: str = "Qwen/Qwen3-VL-Embedding-8B"
     embedding_base: str = "https://api.siliconflow.cn/v1"
     deepseek_model: str = "deepseek-flash"

@@ -9,16 +9,19 @@ import numpy as np
 
 from .providers import atomic_json
 
+FULL_VOTE_UNITS = 100
+VAGUE_VOTE_UNITS = 34
+
 
 @dataclass
 class Cluster:
     id: str
+    poi_id: str
     last_timestamp: str
     count: int = 0
-    candidates: list[str] = field(default_factory=list)
-    votes: dict[str, int] = field(default_factory=dict)
     vector_sum: list[float] = field(default_factory=list)
     cold: bool = False
+    vote_units: int = 0
 
     @property
     def confidence(self) -> float:
@@ -29,30 +32,19 @@ class Cluster:
 
     @property
     def leading_poi_id(self):
-        return min(self.votes, key=lambda key: (-self.votes[key], key)) if self.votes else None
+        return self.poi_id
 
-    def append(self, candidates: list[str], vector: list[float], timestamp: datetime):
-        unit = np.asarray(vector, dtype=float)
-        norm = np.linalg.norm(unit)
-        if not np.isfinite(unit).all() or not np.isfinite(norm) or norm <= 0:
-            raise ValueError("无效帖子向量")
-        unit = unit/norm
+    @property
+    def votes(self):
+        return {self.poi_id: self.vote_units / FULL_VOTE_UNITS}
+
+    def append_unit(self, unit: np.ndarray, timestamp: datetime, vote_units: int):
         if self.vector_sum and len(unit) != len(self.vector_sum):
             raise ValueError("向量维度变化，不能混用不同 embedding 模型的状态")
         self.vector_sum = (np.asarray(self.vector_sum)+unit).tolist() if self.vector_sum else unit.tolist()
         self.count += 1
-        self.last_timestamp = max(self.last_timestamp, timestamp.isoformat())
-        self.candidates = sorted(set(self.candidates) | set(candidates))
-        for poi_id in candidates:
-            self.votes[poi_id] = self.votes.get(poi_id, 0)+1
-
-    def merge(self, other: "Cluster"):
-        self.count += other.count
-        self.last_timestamp = max(self.last_timestamp, other.last_timestamp)
-        self.vector_sum = (np.asarray(self.vector_sum)+np.asarray(other.vector_sum)).tolist()
-        self.candidates = sorted(set(self.candidates) | set(other.candidates))
-        for key, value in other.votes.items():
-            self.votes[key] = self.votes.get(key, 0)+value
+        self.vote_units += vote_units
+        self.last_timestamp = timestamp.isoformat()
 
 
 class LocalizationMemory:
@@ -70,7 +62,7 @@ class LocalizationMemory:
         self.last_batch: list[dict] = []
         if resume and path and path.exists():
             data = json.loads(path.read_text(encoding="utf-8"))
-            if data.get("signature") != signature or data.get("schema_version") != 1:
+            if data.get("signature") != signature or data.get("schema_version") != 3:
                 raise ValueError("Memory 的 POI、模型或规则不一致，请使用新的状态文件")
             for key in ("pending", "seen", "last_received", "next_cluster_id", "batch_count", "processed_count", "ignored_count", "last_batch"):
                 setattr(self, key, data[key])
@@ -84,27 +76,33 @@ class LocalizationMemory:
             atomic_json(self.path, self.to_dict())
 
     def to_dict(self):
-        return {"schema_version": 1, "signature": self.signature,
+        return {"schema_version": 3, "signature": self.signature,
                 "clusters": [asdict(c) for c in self.clusters],
                 **{key: getattr(self, key) for key in ("pending", "seen", "last_received", "next_cluster_id", "batch_count", "processed_count", "ignored_count", "last_batch")}}
 
     def expire(self, timestamp: datetime, cold_minutes: int):
         for cluster in self.clusters:
-            if timestamp-datetime.fromisoformat(cluster.last_timestamp) > timedelta(minutes=cold_minutes):
+            if not cluster.cold and timestamp-datetime.fromisoformat(cluster.last_timestamp) >= timedelta(minutes=cold_minutes):
                 cluster.cold = True
 
-    def add_evidence(self, candidates: list[str], vector: list[float], timestamp: datetime, cold_minutes: int) -> Cluster:
+    def add_evidence(self, candidates: list[str], vector: list[float], timestamp: datetime, cold_minutes: int,
+                     *, vote_units: int = FULL_VOTE_UNITS) -> list[Cluster]:
+        if vote_units not in (VAGUE_VOTE_UNITS, FULL_VOTE_UNITS):
+            raise ValueError("无效投票权重")
+        unit = np.asarray(vector, dtype=float)
+        norm = np.linalg.norm(unit)
+        if unit.ndim != 1 or not np.isfinite(unit).all() or not np.isfinite(norm) or norm <= 0:
+            raise ValueError("无效帖子向量")
+        unit = unit/norm
         self.expire(timestamp, cold_minutes)
-        overlap = [c for c in self.clusters if not c.cold and set(c.candidates).intersection(candidates)]
-        if overlap:
-            # 一条桥接帖子可能同时连接多个簇，合并后只计一次该帖子。
-            cluster = overlap[0]
-            for other in overlap[1:]:
-                cluster.merge(other)
-                self.clusters.remove(other)
-        else:
-            cluster = Cluster(f"C{self.next_cluster_id:04d}", timestamp.isoformat())
-            self.next_cluster_id += 1
-            self.clusters.append(cluster)
-        cluster.append(candidates, vector, timestamp)
-        return cluster
+        active = {c.poi_id: c for c in self.clusters if not c.cold}
+        updated = []
+        for poi_id in dict.fromkeys(candidates):
+            cluster = active.get(poi_id)
+            if cluster is None:
+                cluster = Cluster(f"C{self.next_cluster_id:04d}", poi_id, timestamp.isoformat())
+                self.next_cluster_id += 1
+                self.clusters.append(cluster)
+            cluster.append_unit(unit, timestamp, vote_units)
+            updated.append(cluster)
+        return updated

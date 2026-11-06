@@ -14,7 +14,7 @@ Python定位算法、FastAPI Bridge与React前端组成的城市火情定位工�
 | 目录 | 用途 |
 | --- | --- |
 | fire_locator/ | 原始定位算法；主要修改范围 |
-| fire_poi/ | 原始空间模型、底图、别名和关系，保持不变 |
+| fire_poi/ | 中央原图、原始空间模型，以及坐标校验和整城生成仍使用的数据 |
 | city_scene/ | city-full静态资源、扩展POI、道路/行人数据和Schema |
 | frontend/ | Bridge、React前端、启动脚本及原有项目测试 |
 | integration/ | API契约、Prediction Schema和算法接入说明 |
@@ -48,6 +48,10 @@ cd ../..
 ## 继续开发操作
 
 先读 [HANDOFF_README.md](HANDOFF_README.md)，再读 [算法适配说明](integration/ALGORITHM_ADAPTATION.md) 和 [API契约](integration/FRONTEND_API_CONTRACT.md)。通过GET /api/spatial-data读取原始与扩展数据，或在算法内读取settings.root/city_scene中的正式JSON。
+
+当前演示仍为每轮 100 条、每批 10 条。生成器使用整城坐标，火点 30 米以外不发帖；20 米以上至 30 米只生成模糊描述；20 米以内的帖子按每 11 条 4 条明确方向、3 条模糊、2 条低紧急度、2 条干扰循环。定位搜索半径为 15 米，方向扇形为 45°。
+
+算法将原图 POI 按地图配置偏移到整城坐标，与扩展 POI 一起匹配参照物；模拟火点候选仍为原来的 8 只储罐。正文既无明确方位、也无可匹配地点名的帖子，对每个命中的候选投 0.34 票；其余帖子投 1 票。每个候选独立维护票数与文本向量累计值，不合并，满 30 分钟没有收到新票即退出排名。每完成一批，Bridge 发布一次进度和预测。
 
 只修改fire_locator及对应算法测试。地图、POI、行人网络、前端和Bridge协议是已完成的工程基础，无需重新开发。社区入口是已有建筑入口引用，can_post仅表示发帖参照资格，不等于火灾候选资格。
 

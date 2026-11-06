@@ -9,6 +9,7 @@ import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
+from fire_locator.providers import BatchExtractor, OfflineEmbeddings, SiliconFlowEmbeddings
 from frontend.bridge import server
 
 
@@ -72,9 +73,18 @@ def test_original_offline_algorithm_and_labels_isolated(client):
     assert client.post("/api/localization/run", json={"session_id": session["session_id"]}).status_code == 202
     done = wait(client, session["session_id"])
     assert done["status"] == "completed" and done["mode"] == "offline"
-    assert done["processed_count"] == 100 and done["batch_count"] == 10 and done["ignored_count"] == 10
-    assert done["prediction"]["candidates"][0]["poi_id"] == "T-SW-01"
-    assert done["evaluation"] == {"top1_hit": True, "top3_hit": True, "target_rank": 1, "distance_m": 0.0}
+    assert done["processed_count"] == 100 and done["batch_count"] == 10 and 0 < done["ignored_count"] < 100
+    assert done["prediction"]["coordinate_system"] == "CITY90x75"
+    candidates = done["prediction"]["candidates"]
+    top1 = candidates[0]
+    truth = done["ground_truth"]
+    ids = [c["poi_id"] for c in candidates]
+    assert done["evaluation"] == {
+        "top1_hit": ids[0] == truth["poi_id"], "top3_hit": truth["poi_id"] in ids,
+        "target_rank": ids.index(truth["poi_id"])+1 if truth["poi_id"] in ids else None,
+        "distance_m": round(((top1["coordinates"]["x_m"]-truth["coordinates"]["x_m"]-30)**2
+                             +(top1["coordinates"]["y_m"]-truth["coordinates"]["y_m"]-25)**2)**0.5, 6),
+    }
     assert json.loads((folder / "prediction.json").read_text(encoding="utf-8")) == done["prediction"]
     report = json.loads((folder / "report.json").read_text(encoding="utf-8"))
     assert report["embedding_requests"] == 0
@@ -115,6 +125,46 @@ def test_live_failure_never_falls_back_to_offline(client, monkeypatch):
     assert done["error"]["error_type"] == "RuntimeError"
 
 
+def test_live_sessions_reuse_poi_embeddings(client, monkeypatch):
+    monkeypatch.setenv('SILICONFLOW_API_KEY', 'test-key')
+    monkeypatch.setattr(server.Settings, 'load', lambda: server.Settings())
+    init_extractor = BatchExtractor.__init__
+
+    def local_extractor(self, settings, repository, offline):
+        assert not offline
+        init_extractor(self, settings, repository, offline=True)
+
+    requests = []
+
+    def local_embeddings(self, texts):
+        self.request_count += 1
+        requests.extend(texts)
+        return OfflineEmbeddings().embed_documents(texts)
+
+    monkeypatch.setattr(BatchExtractor, '__init__', local_extractor)
+    monkeypatch.setattr(SiliconFlowEmbeddings, '_request', local_embeddings)
+
+    def run_live():
+        session_id = prepare(client, mode='live')['session_id']
+        response = client.post('/api/localization/run', json={'session_id': session_id, 'confirm_paid_api': True})
+        assert response.status_code == 202
+        done = wait(client, session_id)
+        assert done['status'] == 'completed' and done['processed_count'] == 100
+        return done
+
+    service = client.app.state.service
+    names = list(dict.fromkeys(poi.name for poi in service.repository.pois.values()))
+    cold = run_live()
+    assert requests[:len(names)] == names
+    cache_path = service.runtime_root / '_poi_embeddings.json'
+    assert len(json.loads(cache_path.read_text(encoding='utf-8'))) == len(names)
+    requests.clear()
+
+    warm = run_live()
+    assert requests and set(requests).isdisjoint(names)
+    assert warm['prediction'] == cold['prediction']
+
+
 def test_double_run_and_reset_during_work_are_rejected(client, monkeypatch):
     real_locator = server.FireLocalizer
     release = threading.Event()
@@ -150,13 +200,48 @@ def test_reset_creates_new_session_preserving_result(client):
     assert client.get(f"/api/localization/{old['session_id']}").json() == done
 
 
+def test_posts_are_reused_across_sessions_modes_and_restart(client, monkeypatch):
+    generated = []
+    real_generate = server.generate
+
+    def count_generation(repository, output, count, seed, target):
+        generated.append((target, seed))
+        return real_generate(repository, output, count, seed, target)
+
+    monkeypatch.setattr(server, 'generate', count_generation)
+    service = client.app.state.service
+    first = prepare(client)
+    original_path = service._folder(first['session_id']) / 'demo_posts.jsonl'
+    original_posts = original_path.read_bytes()
+    original_path.write_text('local edit', encoding='utf-8')
+
+    live = prepare(client, mode='live')
+    reset = client.post(f"/api/localization/{first['session_id']}/reset", json={})
+    assert reset.status_code == 201
+    restored = server.SessionService(service.runtime_root)
+    try:
+        after_restart = restored.prepare(server.PrepareRequest())
+    finally:
+        restored.executor.shutdown()
+    for session in (live, reset.json(), after_restart):
+        assert session['session_id'] != first['session_id']
+        assert session['ground_truth'] == first['ground_truth']
+        assert (service._folder(session['session_id']) / 'demo_posts.jsonl').read_bytes() == original_posts
+    assert generated == [(server.DEFAULT_TARGET_ID, 42)]
+
+    other_seed = prepare(client, seed=43)
+    other_tank = prepare(client, target_poi_id='T-NE-01')
+    assert other_seed['seed'] == 43 and other_tank['ground_truth']['poi_id'] == 'T-NE-01'
+    assert generated == [(server.DEFAULT_TARGET_ID, 42), (server.DEFAULT_TARGET_ID, 43), ('T-NE-01', 42)]
+
+
 def test_empty_evidence_uses_original_algorithm(client):
     session = prepare(client)
     folder = client.app.state.service._folder(session["session_id"])
     path = folder / "demo_posts.jsonl"
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     for row in rows:
-        row.update(text="附近有烟味", location_poi_id="N01")
+        row.update(text="附近有烟味", location_poi_id="EXT-C-001")
     path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows), encoding="utf-8")
     client.post("/api/localization/run", json={"session_id": session["session_id"]})
     done = wait(client, session["session_id"])

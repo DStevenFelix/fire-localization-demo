@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -67,8 +68,12 @@ class SessionService:
         self.extended_by_id = {poi['id']: poi for poi in self.extended_pois}
         self.city_offset = json.loads((PROJECT_ROOT / 'city_scene/city_scene.json').read_text(encoding='utf-8'))['original_map_placement']['offset']
         self.spatial_fingerprint = hashlib.sha256(b''.join((PROJECT_ROOT / 'city_scene' / name).read_bytes() for name in SPATIAL_FILES)).hexdigest()
+        self.post_rules_fingerprint = hashlib.sha256(b'\0'.join(
+            (PROJECT_ROOT / 'fire_locator' / name).read_bytes() for name in ('demo.py', 'poi.py')
+        )).hexdigest()
         self.sessions: dict[str, dict] = {}
         self.lock = threading.RLock()
+        self.post_cache_lock = threading.Lock()
         self.live_config_lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="fire-demo")
 
@@ -102,6 +107,39 @@ class SessionService:
         with self.lock:
             return json.loads(json.dumps(self._get_locked(session_id)))
 
+    def _post_cache_path(self, request: PrepareRequest) -> Path:
+        # Offline and Live use the same generated inputs. The seed and rules still matter.
+        identity = (request.target_poi_id, request.seed, DEMO_POST_COUNT, Settings.radius_m,
+                    self.repository.fingerprint, self.post_rules_fingerprint)
+        key = hashlib.sha256(json.dumps(identity).encode('utf-8')).hexdigest()
+        return self.runtime_root / '_demo_posts' / f'{key}.json'
+
+    def _publish_post_cache(self, cache_path: Path, posts: str, metadata: dict) -> None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        # Publish both artifacts together. A failed generator or writer leaves no cache hit.
+        with TemporaryDirectory(dir=cache_path.parent) as temporary:
+            staged = Path(temporary) / cache_path.name
+            atomic_json(staged, {'posts': posts, 'metadata': metadata})
+            staged.replace(cache_path)
+
+    def _prepare_posts(self, request: PrepareRequest, output: Path) -> dict:
+        cache_path = self._post_cache_path(request)
+        with self.post_cache_lock:
+            try:
+                cached = json.loads(cache_path.read_text(encoding='utf-8'))
+                posts, metadata = cached['posts'], cached['metadata']
+                if not isinstance(posts, str) or not isinstance(metadata, dict):
+                    raise ValueError('Invalid post cache')
+            except (FileNotFoundError, ValueError, KeyError, TypeError):
+                metadata = generate(self.repository, output, DEMO_POST_COUNT, request.seed, request.target_poi_id)
+                self._publish_post_cache(cache_path, output.read_text(encoding='utf-8'), metadata)
+                return metadata
+
+        # The runner still reads its own session files, so edits to one run cannot affect others.
+        output.write_text(posts, encoding='utf-8')
+        atomic_json(output.with_suffix('.meta.json'), metadata)
+        return metadata
+
     def prepare(self, request: PrepareRequest) -> dict:
         if request.target_poi_id not in self.repository.tanks:
             raise HTTPException(422, "真实火点必须是原始 POI 数据中的独立储罐")
@@ -119,7 +157,7 @@ class SessionService:
             shutil.copy2(PROJECT_ROOT / 'city_scene' / name, isolated_root / 'city_scene' / name)
         try:
             # Ground truth stays in .meta.json and the UI/session; inference receives Post only.
-            metadata = generate(self.repository, folder / "demo_posts.jsonl", DEMO_POST_COUNT, request.seed, request.target_poi_id)
+            metadata = self._prepare_posts(request, folder / "demo_posts.jsonl")
         except ValueError:
             raise HTTPException(422, "该储罐暂无可用的模拟观察点，请选择其他场景") from None
         session = {"session_id": session_id, "mode": request.mode, "status": "prepared",
@@ -162,7 +200,8 @@ class SessionService:
                 (folder / "demo_posts.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()],
                 key=lambda post: post.timestamp)
             engine = FireLocalizer(settings, offline=snapshot["mode"] == "offline",
-                state_path=folder / "memory.json", resume=False)
+                state_path=folder / "memory.json", resume=False,
+                poi_cache_path=self.runtime_root / "_poi_embeddings.json")
             updates = []
             # 离线批次耗时远低于轮询周期，展示间隔不参与算法时间或推理。
             interval = float(os.getenv("FIRE_OFFLINE_BATCH_INTERVAL", "0.4")) if snapshot["mode"] == "offline" else 0
@@ -257,11 +296,11 @@ def create_app(runtime_root: Path = RUNTIME_ROOT) -> FastAPI:
 
     @api.get("/api/pois")
     def pois():
-        return [poi_view(poi) for poi in service.repository.pois.values()]
+        return [poi_view(poi) for poi in service.repository.original_pois.values()]
 
     @api.get("/api/scenarios")
     def scenarios():
-        return {"scenarios": [poi_view(poi) for poi in service.repository.tanks.values()],
+        return {"scenarios": [poi_view(service.repository.original_pois[key]) for key in service.repository.tanks],
             "default_target_poi_id": DEFAULT_TARGET_ID}
 
     @api.get('/api/spatial-data')

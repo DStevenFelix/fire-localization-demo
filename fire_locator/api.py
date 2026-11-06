@@ -53,5 +53,6 @@ def prediction():
 @app.get("/pois")
 def pois():
     return [{"poi_id": poi.id, "name": poi.name, "type": poi.type,
-             "coordinates": {"x_m": poi.x_m, "y_m": poi.y_m}, "can_post": poi.type not in {"tank", "tank_group"}}
+             "coordinates": {"x_m": poi.x_m, "y_m": poi.y_m}, "can_post": poi.can_post,
+             "coordinate_system": get_engine().repository.coordinate_system["id"]}
             for poi in get_engine().repository.pois.values()]

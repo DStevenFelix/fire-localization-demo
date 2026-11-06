@@ -1,4 +1,6 @@
 import json
+import math
+from collections import Counter
 import re
 import shutil
 from datetime import datetime, timedelta
@@ -10,7 +12,7 @@ from fire_locator.math_utils import cosine_similarity
 from fire_locator.config import ROOT, Settings
 from fire_locator.demo import generate
 from fire_locator.engine import FireLocalizer
-from fire_locator.memory import Cluster, LocalizationMemory
+from fire_locator.memory import LocalizationMemory
 from fire_locator.models import Extraction, Post, SHANGHAI
 from fire_locator.poi import Poi, PoiRepository
 
@@ -25,7 +27,7 @@ def post(index=0, **kwargs):
 def test_current_map_json_and_output_types():
     repository = PoiRepository(ROOT)
     assert len(repository.tanks) == 8
-    assert len(repository.pois) == 90
+    assert len(repository.pois) == 415
     assert len(repository.relations) == 306
     assert all(p.type == "tank" for p in repository.tanks.values())
     with pytest.raises(ValueError):
@@ -39,8 +41,8 @@ def test_circle_sector_boundaries_and_angle_wrap():
     def polar(angle, radius):
         return radius*np.cos(np.deg2rad(angle)), radius*np.sin(np.deg2rad(angle))
     repository.tanks = {key: Poi(key, key, "tank", *polar(angle, radius))
-                        for key, angle, radius in [("edge", 22.5, 10), ("wrap", -22.5, 10), ("outside_angle", 22.6, 5),
-                                                  ("outside_radius", 0, 10.1), ("inside", 0, 2)]}
+                        for key, angle, radius in [("edge", 22.5, 15), ("wrap", -22.5, 15), ("outside_angle", 22.6, 5),
+                                                  ("outside_radius", 0, 15.1), ("inside", 0, 2)]}
     assert repository.candidates(origin, "东") == ["edge", "inside", "wrap"]
     assert repository.candidates(origin, "附近") == ["edge", "inside", "outside_angle", "wrap"]
 
@@ -50,7 +52,12 @@ def test_new_map_provenance_and_cardinal_directions():
     spatial = json.loads((ROOT / "fire_poi/fire_sandbox_spatial_model.json").read_text(encoding="utf-8"))
     for item in spatial["pois"]:
         poi = repository.pois[item["id"]]
+        assert [poi.x_m, poi.y_m] == [v + offset for v, offset in zip(item["center"], (30, 25))]
+    extended = json.loads((ROOT / "city_scene/poi_catalog.json").read_text(encoding="utf-8"))
+    for item in extended:
+        poi = repository.pois[item["id"]]
         assert [poi.x_m, poi.y_m] == item["center"]
+        assert poi.can_post == item["can_post"]
     assert repository.pois["T-NW-01"].y_m > repository.pois["T-SW-01"].y_m
     assert repository.pois["T-NE-01"].x_m > repository.pois["T-NW-01"].x_m
     assert "T-NW-01" in repository.candidates(repository.pois["B-W-02"], "东")
@@ -83,50 +90,86 @@ def test_all_current_tanks_generate_and_replay(tmp_path, target_id):
     output = tmp_path / "posts.jsonl"
     generate(repository, output, count=100, target_id=target_id)
     posts = [Post.model_validate_json(line) for line in output.read_text(encoding="utf-8").splitlines()]
-    for index, post_item in enumerate(posts):
+    kinds = []
+    target = repository.tanks[target_id]
+    for post_item in posts:
         repository.validate_location(post_item.location_poi_id)
-        if index % 10 < 6:
-            origin = repository.pois[post_item.location_poi_id]
-            reference = max((name for name in (origin.name, *origin.aliases) if name in post_item.text), key=len)
+        origin = repository.pois[post_item.location_poi_id]
+        distance = math.hypot(origin.x_m-target.x_m, origin.y_m-target.y_m)
+        assert distance <= 30
+        reference = max((name for name in (origin.name, *origin.aliases) if name in post_item.text), key=len, default=None)
+        if reference:
+            assert distance <= 20
             direction = re.search(r"(东北|西北|东南|西南|东|西|南|北)(?:边|侧|方向)", post_item.text.replace(reference, "")).group(1)
-            assert target_id in repository.candidates(repository.pois[post_item.location_poi_id], direction)
+            assert target_id in repository.candidates(origin, direction, 20)
+            kind = "directional"
+        elif post_item.urgency == "低":
+            kind = "low"
+        elif post_item.text.startswith("路过时闻到烟味"):
+            kind = "noise"
+        else:
+            kind = "vague"
+        if distance <= 20:
+            kinds.append(kind)
+        else:
+            assert kind == "vague"
+    assert len(kinds) >= 11
+    for start in range(0, len(kinds)-10, 11):
+        assert Counter(kinds[start:start+11]) == {"directional": 4, "vague": 3, "low": 2, "noise": 2}
     engine = FireLocalizer(offline=True)
     result = engine.ingest(posts)
     assert result["processed_count"] == 100 and not engine.memory.pending
     assert all(candidate["poi_id"] in repository.tanks for candidate in engine.prediction()["candidates"])
 
 
-def test_incremental_confidence_matches_pairwise_and_merge():
+def test_post_distance_boundaries(tmp_path):
+    repository = PoiRepository(ROOT)
+    target = repository.tanks["T-SW-01"]
+    points = [Poi(str(d), f"观测点{d}", "building", target.x_m+d, target.y_m)
+              for d in (20, 20.01, 30, 30.01)]
+    repository.pois = {p.id: p for p in points}
+    output = tmp_path / "posts.jsonl"
+    generate(repository, output, count=100)
+    rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert {r["location_poi_id"] for r in rows} == {"20", "20.01", "30"}
+    assert any("观测点20" in r["text"] for r in rows if r["location_poi_id"] == "20")
+    assert all("观测点" not in r["text"] and r["urgency"] != "低"
+               for r in rows if r["location_poi_id"] != "20")
+
+
+def test_incremental_confidence_matches_pairwise_for_each_poi():
     vectors = np.random.default_rng(42).normal(size=(30, 12))
-    cluster = Cluster("a", T0.isoformat())
+    memory = LocalizationMemory(None, "test")
     for n, vector in enumerate(vectors, 1):
-        cluster.append(["tank"], vector.tolist(), T0)
+        clusters = memory.add_evidence(["A", "A", "B"], vector.tolist(), T0, 30)
+        assert len(clusters) == 2 and all(c.count == n for c in clusters)
         if n > 1:
             matrix = cosine_similarity(vectors[:n], vectors[:n])
             expected = matrix[np.triu_indices(n, 1)].mean()
-            assert cluster.confidence == pytest.approx(expected, abs=1e-12)
-    left, right = Cluster("left", T0.isoformat()), Cluster("right", T0.isoformat())
-    for vector in vectors[:15]:
-        left.append(["tank"], vector.tolist(), T0)
-    for vector in vectors[15:]:
-        right.append(["tank"], vector.tolist(), T0)
-    left.merge(right)
-    assert left.confidence == pytest.approx(cluster.confidence)
+            assert all(c.confidence == pytest.approx(expected, abs=1e-12) for c in clusters)
+    assert all(set(c) == {"id", "poi_id", "last_timestamp", "count", "vector_sum", "cold", "vote_units"}
+               for c in memory.to_dict()["clusters"])
 
 
-def test_bridge_merge_and_cold_boundary():
+def test_shared_post_does_not_merge_or_keep_other_poi_alive():
     memory = LocalizationMemory(None, "test")
-    memory.add_evidence(["A"], [1, 0], T0, 60)
-    memory.add_evidence(["B"], [0, 1], T0, 60)
-    assert len(memory.clusters) == 2
-    cluster = memory.add_evidence(["A", "B"], [1, 1], T0, 60)
-    assert cluster.count == 3
-    assert cluster.votes == {"A": 2, "B": 2}
-    memory.expire(T0+timedelta(minutes=60), 60)
-    assert not cluster.cold
-    memory.add_evidence(["A"], [1, 0], T0+timedelta(minutes=61), 60)
-    assert cluster.cold and cluster.count == 3
-    assert len(memory.clusters) == 2
+    a, b = memory.add_evidence(["A", "B"], [1, 0], T0, 30)
+    memory.add_evidence(["A"], [1, 1], T0+timedelta(minutes=29), 30)
+    assert a.votes == {"A": 2} and b.votes == {"B": 1}
+    memory.expire(T0+timedelta(minutes=30), 30)
+    assert b.cold and not a.cold
+    replacement, = memory.add_evidence(["B"], [1, 0], T0+timedelta(minutes=30), 30)
+    assert replacement.id != b.id and replacement.votes == {"B": 1}
+
+
+def test_extended_alias_resolves_to_city_poi():
+    engine = FireLocalizer(offline=True)
+    origin, _, reason = engine.matcher.resolve(Extraction(post_id="a", reference="云栖苑"), "B-D-01")
+    assert origin.id == "EXT-C-001" and reason == "exact_name_or_alias"
+    assert origin.can_post
+    disallowed = next(p for p in engine.repository.pois.values() if p.id.startswith("EXT-") and not p.can_post)
+    with pytest.raises(ValueError, match="不允许"):
+        engine.repository.validate_location(disallowed.id)
 
 
 def test_batch_has_ten_independent_extractions_and_one_call():
@@ -156,9 +199,35 @@ def test_reference_fallback_and_strict_threshold():
 
 def test_no_candidates_is_ignored_and_single_post_flush():
     engine = FireLocalizer(offline=True)
-    response = engine.ingest([post(location_poi_id="N01", text="附近有烟味")], flush=True)
+    response = engine.ingest([post(location_poi_id="EXT-C-001", text="附近有烟味")], flush=True)
     assert response["ignored_count"] == 1
     assert response["updates"][0]["prediction"]["candidates"] == []
+
+
+def test_vague_posts_have_fractional_votes_without_changing_sample_count(tmp_path, monkeypatch):
+    path = tmp_path / "weighted-memory.json"
+    engine = FireLocalizer(offline=True, state_path=path)
+    candidates = ["T-SW-01", "T-SW-02"]
+    radii = []
+
+    def fixed_candidates(origin, direction, radius, sector):
+        radii.append(radius)
+        return candidates
+
+    monkeypatch.setattr(engine.repository, "candidates", fixed_candidates)
+    posts = [post(i, text="附近有烟味") for i in range(4)]
+    extracted = [Extraction(post_id=posts[0].id),
+                 Extraction(post_id=posts[1].id, reference="zzzzzz"),
+                 Extraction(post_id=posts[2].id, direction="南"),
+                 Extraction(post_id=posts[3].id, reference="华安能源园2号附属楼")]
+    monkeypatch.setattr(engine.extractor, "extract", lambda _: extracted)
+    update, = engine.ingest(posts, flush=True)["updates"]
+    assert radii == [15] * 4
+    assert [p["vote_weight"] for p in update["posts"]] == [0.34, 0.34, 1, 1]
+    assert [p["votes"] for p in update["prediction"]["candidates"]] == [2.68, 2.68]
+    assert [p["score"] for p in update["prediction"]["candidates"]] == [2.68, 2.68]
+    assert all(c.count == 4 for c in engine.memory.clusters)
+    assert FireLocalizer(offline=True, state_path=path, resume=True).prediction() == engine.prediction()
 
 
 def test_failure_queue_retry_restart_and_dedup(tmp_path, monkeypatch):
@@ -200,7 +269,7 @@ def test_invalid_batch_does_not_partially_enqueue():
 def test_100_synthetic_posts(tmp_path):
     repository = PoiRepository(ROOT)
     path = tmp_path/"posts.jsonl"
-    metadata = generate(repository, path)
+    generate(repository, path)
     posts = [Post.model_validate(json.loads(line)) for line in path.read_text(encoding="utf-8").splitlines()]
     assert len(posts) == 100
     assert all(repository.pois[p.location_poi_id].type not in {"tank", "tank_group"} for p in posts)
@@ -210,9 +279,12 @@ def test_100_synthetic_posts(tmp_path):
     assert engine.extractor.calls == 10
     assert len(result["updates"]) == 10
     assert result["processed_count"] == 100
-    assert result["ignored_count"] >= 10
+    assert result["ignored_count"] > 0
     prediction = engine.prediction()
     assert len(prediction["candidates"]) == 3
     assert all(item["poi_id"] in repository.tanks for item in prediction["candidates"])
-    assert metadata["single_fire_ground_truth"]["poi_id"] in [item["poi_id"] for item in prediction["candidates"]]
+    assert prediction["coordinate_system"] == "CITY90x75"
+    for item in prediction["candidates"]:
+        poi = repository.tanks[item["poi_id"]]
+        assert item["coordinates"] == {"x_m": poi.x_m, "y_m": poi.y_m}
     assert not engine.prediction(T0+timedelta(hours=3))["candidates"]

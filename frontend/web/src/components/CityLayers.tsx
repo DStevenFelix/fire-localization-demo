@@ -1,5 +1,4 @@
 import { memo, useEffect, useRef } from 'react';
-import { traffic_routes } from '../../../../city_scene/city_scene.json';
 import poiCatalog from '../../../../city_scene/poi_catalog.json';
 import pedestrianAnimation from '../../../../city_scene/pedestrian_animation.json';
 import roadsLayer from '../../../../city_scene/assets/sand-table-roads.png';
@@ -29,21 +28,21 @@ export function positionOnPath(points: number[][], distance: number) {
   for(let i=0;i<lengths.length;i++)if(remaining<=lengths[i]){const a=points[i],b=points[i+1],t=lengths[i]?remaining/lengths[i]:0;return {x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,angle:Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI};}else remaining-=lengths[i];
   return {x:points[0][0],y:points[0][1],angle:0};
 }
-export function CityMotion({vehicles,pedestrians}:{vehicles:boolean;pedestrians:boolean}) {
+export function CityMotion({pedestrians,paused,speed}:{pedestrians:boolean;paused:boolean;speed:number}) {
   const root=useRef<SVGGElement>(null);
+  const elapsed=useRef(0);
   useEffect(()=>{
-    const media=window.matchMedia('(prefers-reduced-motion: reduce)');let frame=0,last=0,elapsed=0;
+    const media=window.matchMedia('(prefers-reduced-motion: reduce)');let frame=0,last=0;
     const nodeMap=new Map(pedestrianAnimation.nodes.map(n=>[n.id,n.center]));
-    const moving=[...(vehicles?traffic_routes.map(r=>({...r,kind:'vehicle' as const})):[]),...(pedestrians?pedestrianAnimation.routes.map(r=>({...r,geometry:{coordinates:r.node_ids.map(id=>nodeMap.get(id)!)},kind:'pedestrian' as const})):[])];
-    const elements=moving.map(r=>({r,element:root.current?.querySelector(`[data-actor="${r.id}"]`),points:r.geometry.coordinates}));
-    const draw=()=>{for(const {r,element,points} of elements){const distance=elapsed*r.speed+r.phase*(r.kind==='vehicle'?100:r.length),p=positionOnPath(points,distance),q=point([p.x,p.y]);element?.setAttribute('transform',`translate(${q.x} ${q.y}) rotate(${-p.angle})`);if(r.kind==='pedestrian'){let rest=distance%r.length,index=0;while(index<points.length-2&&rest>Math.hypot(points[index+1][0]-points[index][0],points[index+1][1]-points[index][1])){rest-=Math.hypot(points[index+1][0]-points[index][0],points[index+1][1]-points[index][1]);index++;}element?.setAttribute('data-edge-id',r.edge_ids[index]);}}};
-    const tick=(time:number)=>{if(last)elapsed+=Math.min((time-last)/1000,.1);last=time;draw();frame=requestAnimationFrame(tick);};
-    const sync=()=>{cancelAnimationFrame(frame);last=0;draw();if(!media.matches&&!document.hidden&&(vehicles||pedestrians))frame=requestAnimationFrame(tick);};
+    const moving=pedestrians?pedestrianAnimation.routes.map(r=>({...r,points:r.node_ids.map(id=>nodeMap.get(id)!)})):[];
+    const elements=moving.map(r=>({r,element:root.current?.querySelector(`[data-actor="${r.id}"]`),points:r.points}));
+    const draw=()=>{for(const {r,element,points} of elements){const distance=elapsed.current*r.speed+r.phase*r.length,p=positionOnPath(points,distance),q=point([p.x,p.y]);element?.setAttribute('transform',`translate(${q.x} ${q.y}) rotate(${-p.angle})`);let rest=distance%r.length,index=0;while(index<points.length-2&&rest>Math.hypot(points[index+1][0]-points[index][0],points[index+1][1]-points[index][1])){rest-=Math.hypot(points[index+1][0]-points[index][0],points[index+1][1]-points[index][1]);index++;}element?.setAttribute('data-edge-id',r.edge_ids[index]);}};
+    const tick=(time:number)=>{if(last)elapsed.current+=Math.min((time-last)/1000,.1)*speed;last=time;draw();frame=requestAnimationFrame(tick);};
+    const sync=()=>{cancelAnimationFrame(frame);last=0;draw();if(!paused&&!media.matches&&!document.hidden&&pedestrians)frame=requestAnimationFrame(tick);};
     media.addEventListener('change',sync);document.addEventListener('visibilitychange',sync);sync();
     return()=>{cancelAnimationFrame(frame);media.removeEventListener('change',sync);document.removeEventListener('visibilitychange',sync);};
-  },[vehicles,pedestrians]);
+  },[pedestrians,paused,speed]);
   return <g ref={root} pointerEvents="none">
-    {vehicles&&<g data-layer="vehicles">{traffic_routes.map((r,i)=><g key={r.id} data-actor={r.id}><rect x="-14" y="-7" width="28" height="14" rx="4" fill={['#e9d3a6','#e4e8e0','#91b9c4','#ca7765'][i%4]} stroke="#263c43" strokeWidth="2"/><rect x="-6" y="-5" width="10" height="10" rx="2" fill="#395764"/><path d="M11 -5v3 M11 2v3" stroke="#ffefbd" strokeWidth="2"/></g>)}</g>}
     {pedestrians&&<g data-layer="pedestrians">{pedestrianAnimation.routes.map((r,i)=><g key={r.id} data-actor={r.id} data-pedestrian-route={r.id}><ellipse rx="3" ry="4" fill={['#ebc698','#a2b8d0','#c39ca4'][i%3]} stroke="#294343" strokeWidth=".8"/><circle cx="0" cy="0" r="2" fill="#ead9b9"/></g>)}</g>}
   </g>;
 }

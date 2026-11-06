@@ -7,7 +7,7 @@ from pathlib import Path
 from langchain_core.runnables import RunnableLambda
 
 from .config import Settings
-from .memory import LocalizationMemory
+from .memory import FULL_VOTE_UNITS, VAGUE_VOTE_UNITS, LocalizationMemory
 from .models import Post
 from .poi import PoiRepository
 from .providers import BatchExtractor, OfflineEmbeddings, PoiMatcher, SiliconFlowEmbeddings
@@ -15,13 +15,23 @@ from .providers import BatchExtractor, OfflineEmbeddings, PoiMatcher, SiliconFlo
 
 class FireLocalizer:
     def __init__(self, settings: Settings | None = None, offline: bool = False,
-                 state_path: Path | None = None, resume: bool = False):
+                 state_path: Path | None = None, resume: bool = False, *, poi_cache_path: Path | None = None):
         self.settings = settings or Settings.load()
         self.offline = offline
         self.repository = PoiRepository(self.settings.root)
-        self.embeddings = OfflineEmbeddings() if offline else SiliconFlowEmbeddings(self.settings, self.settings.root/"runtime"/"embedding_cache.json")
-        self.extractor = BatchExtractor(self.settings, self.repository, offline)
-        self.matcher = PoiMatcher(self.repository, self.embeddings, self.settings.match_threshold)
+        if offline:
+            self.embeddings = OfflineEmbeddings()
+        else:
+            self.embeddings = SiliconFlowEmbeddings(self.settings, self.settings.root / "runtime" / "embedding_cache.json")
+        try:
+            self.extractor = BatchExtractor(self.settings, self.repository, offline)
+            if poi_cache_path is not None and isinstance(self.embeddings, SiliconFlowEmbeddings):
+                self.embeddings.preload_poi_names([poi.name for poi in self.repository.pois.values()], poi_cache_path)
+            self.matcher = PoiMatcher(self.repository, self.embeddings, self.settings.match_threshold)
+        except Exception:
+            if isinstance(self.embeddings, SiliconFlowEmbeddings):
+                self.embeddings.client.close()
+            raise
         signature = hashlib.sha256(json.dumps({"poi": self.repository.fingerprint, "mode": offline,
                                               "model": self.embeddings.model, "base": self.embeddings.base_url,
                                               "llm": self.settings.deepseek_model, "batch": self.settings.batch_size,
@@ -70,7 +80,7 @@ class FireLocalizer:
         extractions = self.extractor.extract(posts)
         # 所有外部调用及验证完成后才修改簇，整批提交。
         resolved = []
-        references = [item.reference for item in extractions if item.reference]
+        references = [item.reference for item in extractions if self.matcher.needs_embedding(item.reference)]
         self.embeddings.embed_documents(references)
         for post, item in zip(posts, extractions, strict=True):
             origin, similarity, reason = self.matcher.resolve(item, post.location_poi_id)
@@ -87,10 +97,15 @@ class FireLocalizer:
                       "match_similarity": similarity, "reference_resolution": reason,
                       "candidate_poi_ids": candidates, "urgency": post.urgency}
             if candidates:
-                cluster = staging.add_evidence(candidates, next(vectors), post.timestamp, self.settings.cold_minutes)
-                detail.update(status="accepted", cluster_id=cluster.id)
+                # 发帖位置可用于几何回退，但不算正文提供的定位线索。
+                has_location = reason in {"exact_name_or_alias", "semantic_match"}
+                vote_units = FULL_VOTE_UNITS if item.direction != "附近" or has_location else VAGUE_VOTE_UNITS
+                clusters = staging.add_evidence(candidates, next(vectors), post.timestamp, self.settings.cold_minutes,
+                                                vote_units=vote_units)
+                detail.update(status="accepted", vote_weight=vote_units / FULL_VOTE_UNITS,
+                              cluster_ids=[cluster.id for cluster in clusters])
             else:
-                detail.update(status="ignored_no_tank_in_range", cluster_id=None)
+                detail.update(status="ignored_no_tank_in_range", vote_weight=0, cluster_ids=[])
                 staging.ignored_count += 1
             audit.append(detail)
         del staging.pending[:len(posts)]
@@ -109,7 +124,7 @@ class FireLocalizer:
             if at is None:
                 from .models import SHANGHAI
                 at = datetime.now(SHANGHAI)
-            eligible = [c for c in self.memory.clusters if not c.cold and at-datetime.fromisoformat(c.last_timestamp) <= timedelta(minutes=self.settings.cold_minutes)]
+            eligible = [c for c in self.memory.clusters if not c.cold and at-datetime.fromisoformat(c.last_timestamp) < timedelta(minutes=self.settings.cold_minutes)]
             aggregate = {}
             for cluster in eligible:
                 for poi_id, votes in cluster.votes.items():
@@ -130,7 +145,7 @@ class FireLocalizer:
                                    "score": round(info["score"], 6),
                                    "relative_score": round(info["score"]/total, 6) if total else 0,
                                    "cluster_ids": info["cluster_ids"]})
-            return {"current_time": at.isoformat(), "coordinate_system": "local_cartesian_meters",
+            return {"current_time": at.isoformat(), "coordinate_system": self.repository.coordinate_system["id"],
                     "candidates": candidates, "active_cluster_count": len(eligible),
                     "cold_cluster_count": len(self.memory.clusters)-len(eligible),
                     "processed_count": self.memory.processed_count, "pending_count": len(self.memory.pending),

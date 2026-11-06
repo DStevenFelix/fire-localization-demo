@@ -1,8 +1,10 @@
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+
+from .config import Settings
 
 DEFAULT_TARGET_ID = "T-SW-01"
 
@@ -17,6 +19,7 @@ class Poi:
     x_m: float
     y_m: float
     aliases: tuple[str, ...] = ()
+    can_post: bool = True
 
 
 class PoiRepository:
@@ -50,14 +53,34 @@ class PoiRepository:
                 center = item.get("center")
                 if center is None and collection == "roads":
                     center = self._line_midpoint(item["centerline"]["coordinates"])
-                self._add(Poi(item["id"], item["name"], types[item["entity_type"]],
-                              *map(float, center), tuple(item.get("aliases", []))))
+                kind = types[item["entity_type"]]
+                self._add(Poi(item["id"], item["name"], kind,
+                              *map(float, center), tuple(item.get("aliases", [])), kind != "tank"))
+        self.original_pois = self.pois.copy()
+        scene = json.loads((root / "city_scene/city_scene.json").read_text(encoding="utf-8"))
+        extended = json.loads((root / "city_scene/poi_catalog.json").read_text(encoding="utf-8"))
+        self.coordinate_system = scene["coordinate_system"]
+        placement = scene["original_map_placement"]
+        self.city_offset = tuple(placement["offset"])
+        dx, dy = self.city_offset
+        if (self.coordinate_system != {"id": "CITY90x75", "origin": "southwest", "x_axis": "east",
+                                      "y_axis": "north", "unit": "simulation_unit", "extent": [0, 0, 90, 75]}
+                or placement["coordinate_system"] != "LOCAL30x25" or placement["sha256"] != source["sha256"]
+                or placement["extent"] != [dx, dy, dx+30, dy+25]
+                or not (0 <= dx <= 60 and 0 <= dy <= 50)):
+            raise ValueError("整城坐标或原图放置不兼容")
+        self.pois = {key: replace(p, x_m=p.x_m+dx, y_m=p.y_m+dy) for key, p in self.original_pois.items()}
+        for item in extended:
+            if item["coordinate_system"] != self.coordinate_system["id"] or not isinstance(item["can_post"], bool):
+                raise ValueError(f"扩展 POI 坐标或发帖资格无效: {item['id']}")
+            self._add(Poi(item["id"], item["name"], item["type"], *map(float, item["center"]),
+                          tuple(item.get("aliases", [])), item["can_post"]))
         self.relations = spatial["relations"]
         self.id_redirects = spatial.get("id_redirects", {})
-        self.tanks = {key: poi for key, poi in self.pois.items() if poi.type == "tank"}
+        self.tanks = {key: self.pois[key] for key, poi in self.original_pois.items() if poi.type == "tank"}
         self.fingerprint = hashlib.sha256(json.dumps(
             {"pois": [asdict(p) for p in self.pois.values()], "coordinate_system": self.coordinate_system,
-             "meters_per_simulation_unit": 1,
+             "meters_per_simulation_unit": 1, "city_offset": self.city_offset,
              "source": source, "model_version": spatial["model_version"]},
             sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
@@ -72,18 +95,20 @@ class PoiRepository:
         return points[-1]
 
     def _add(self, poi: Poi):
+        xmin, ymin, xmax, ymax = self.coordinate_system["extent"]
         if (poi.id in self.pois or not all(math.isfinite(v) for v in (poi.x_m, poi.y_m))
-                or not (0 <= poi.x_m <= 30 and 0 <= poi.y_m <= 25)):
+                or not (xmin <= poi.x_m <= xmax and ymin <= poi.y_m <= ymax)):
             raise ValueError(f"POI 重复或坐标无效: {poi.id}")
         self.pois[poi.id] = poi
 
     def validate_location(self, poi_id: str):
         if poi_id not in self.pois:
             raise ValueError(f"未知发帖 POI: {poi_id}")
-        if self.pois[poi_id].type in {"tank", "tank_group"}:
-            raise ValueError("发帖位置必须是非罐 POI")
+        if not self.pois[poi_id].can_post:
+            raise ValueError(f"该 POI 不允许作为发帖位置: {poi_id}")
 
-    def candidates(self, origin: Poi, direction: str, radius: float = 10, sector: float = 45) -> list[str]:
+    def candidates(self, origin: Poi, direction: str, radius: float = Settings.radius_m,
+                   sector: float = Settings.sector_degrees) -> list[str]:
         result = []
         for poi in self.tanks.values():
             dx, dy = poi.x_m-origin.x_m, poi.y_m-origin.y_m

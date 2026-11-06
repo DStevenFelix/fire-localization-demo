@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -18,6 +19,9 @@ from .config import Settings
 from .models import BatchExtraction, Extraction, Post
 from .math_utils import cosine_similarity
 from .poi import PoiRepository
+
+
+_POI_CACHE_LOCK = threading.Lock()
 
 
 def atomic_json(path: Path, data):
@@ -38,6 +42,7 @@ class SiliconFlowEmbeddings(Embeddings):
             raise ValueError("请在 .env 配置 SILICONFLOW_API_KEY")
         self.path = cache_path
         self.cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+        self.poi_cache: dict[str, list[float]] = {}
         self.client = httpx.Client(timeout=90)
         self.request_count = 0
         self.cache_hits = 0
@@ -74,17 +79,37 @@ class SiliconFlowEmbeddings(Embeddings):
             return vectors
         raise RuntimeError("Embedding 重试失败")
 
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        missing = list(dict.fromkeys(text for text in texts if self._key(text) not in self.cache))
-        self.cache_hits += len(texts)-len(missing)
+    def _fill_cache(self, missing: dict[str, str], cache: dict[str, list[float]], path: Path) -> None:
         # 实测 VL 接口在一次超过 8 条时会在内部子批次重置 index。
         # 控制编码子批次为 8，保留可靠的全局一一对应；LLM 仍每次提取 10 条帖子。
-        for start in range(0, len(missing), 8):
-            batch = missing[start:start+8]
+        names = list(missing)
+        for start in range(0, len(names), 8):
+            batch = names[start:start+8]
             for text, vector in zip(batch, self._request(batch), strict=True):
-                self.cache[self._key(text)] = vector
-            atomic_json(self.path, self.cache)
-        return [self.cache[self._key(text)] for text in texts]
+                cache[missing[text]] = vector
+            atomic_json(path, cache)
+
+    def preload_poi_names(self, names: list[str], path: Path) -> None:
+        # 同时启动的会话共用首次填充。共享文件只接受地图里的 POI 名称。
+        keys = {name: self._key(name) for name in names}
+        with _POI_CACHE_LOCK:
+            try:
+                shared = json.loads(path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, ValueError):
+                shared = {}
+            if not isinstance(shared, dict):
+                shared = {}
+            missing = {name: key for name, key in keys.items() if key not in shared}
+            self._fill_cache(missing, shared, path)
+            self.poi_cache = {key: shared[key] for key in keys.values()}
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        keys = {text: self._key(text) for text in texts}
+        missing = {text: key for text, key in keys.items() if key not in self.poi_cache and key not in self.cache}
+        self.cache_hits += len(texts)-len(missing)
+        self._fill_cache(missing, self.cache, self.path)
+        return [self.poi_cache[key] if key in self.poi_cache else self.cache[key]
+                for key in (keys[text] for text in texts)]
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
@@ -174,18 +199,40 @@ class PoiMatcher:
         self.threshold = threshold
         self.store = InMemoryVectorStore(embeddings)
         pois = list(repository.pois.values())
+        self.labels: dict[str, set[str]] = {}
+        for poi in pois:
+            for label in (poi.id, poi.name, *poi.aliases):
+                self.labels.setdefault(self._normalize(label), set()).add(poi.id)
         self.store.add_texts([p.name for p in pois], metadatas=[{"poi_id": p.id} for p in pois], ids=[p.id for p in pois])
 
+    @staticmethod
+    def _normalize(label: str) -> str:
+        from unicodedata import normalize
+        return " ".join(normalize("NFKC", label).casefold().split())
+
+    def needs_embedding(self, reference: str | None) -> bool:
+        return bool(reference and self._normalize(reference) not in self.labels)
+
     def resolve(self, item: Extraction, location_poi_id: str):
+        fallback = self.repository.pois[location_poi_id]
         if not item.reference:
-            return self.repository.pois[location_poi_id], None, "posting_location_no_reference"
+            return fallback, None, "posting_location_no_reference"
+        exact = self.labels.get(self._normalize(item.reference))
+        if exact:
+            if len(exact) > 1:
+                return fallback, None, "posting_location_ambiguous_reference"
+            if 1.0 > self.threshold:
+                return self.repository.pois[next(iter(exact))], 1.0, "exact_name_or_alias"
+            return fallback, 1.0, "posting_location_below_threshold"
         vector = self.embeddings.embed_query(item.reference)
-        matches = self.store.similarity_search_with_score_by_vector(vector, k=1)
+        matches = self.store.similarity_search_with_score_by_vector(vector, k=2)
         document, score = matches[0]
         # 独立核对余弦值；避免依赖 LangChain 的私有数学函数。
         poi_id = document.metadata["poi_id"]
         stored = self.store.store[poi_id]["vector"]
         cosine = float(cosine_similarity([vector], [stored])[0, 0])
         if cosine > self.threshold:
+            if len(matches) > 1 and abs(score - matches[1][1]) <= 1e-9:
+                return fallback, cosine, "posting_location_ambiguous_reference"
             return self.repository.pois[poi_id], cosine, "semantic_match"
-        return self.repository.pois[location_poi_id], cosine, "posting_location_below_threshold"
+        return fallback, cosine, "posting_location_below_threshold"
