@@ -184,3 +184,22 @@ footer { color: #7591a8; padding: 18px 0; }
   .metrics-row > div { padding: 0 14px; }
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.base-map { filter: none; }
+.city-road-label { fill: #e1dfc4; font-size: 18px; letter-spacing: 3px; paint-order: stroke; stroke: #36454c; stroke-width: 4px; pointer-events: none; }
+.city-poi-label { fill: #f4e4af; font-size: 20px; paint-order: stroke; stroke: #465c52; stroke-width: 4px; pointer-events: none; }
+.map-text-button { display: flex; align-items: center; gap: 4px; padding: 5px 7px; font-size: 11px; border-radius: 4px; color: #bed5dd; background: transparent; white-space: nowrap; }
+.map-text-button:hover { background: #294553; }
+.map-layer-panel { position: absolute; top: 60px; left: 16px; padding: 12px 15px; display: grid; gap: 10px; z-index: 4; background: #122131f5; border: 1px solid #557176; border-radius: 7px; box-shadow: 0 8px 24px #07142166; }
+.map-layer-panel label { display: flex; align-items: center; gap: 10px; color: #c1d9dc; font-size: 12px; }
+.map-layer-panel input { accent-color: #9ecbb8; }
+.evidence-circle { transition: fill .3s, stroke .3s; cursor: pointer; }
+[data-candidate]:focus { outline: none; }
+[data-candidate]:focus .evidence-circle { stroke: #fff3b5; stroke-width: 5px; }
+.map-progress { position: absolute; right: 16px; bottom: 18px; background: #132632e8; color: #c6e0da; border: 1px solid #4c6a6e; border-radius: 5px; padding: 7px 10px; font-size: 11px; pointer-events: none; }
+.candidate-info { position: absolute; left: 16px; right: 16px; bottom: 55px; display: flex; align-items: center; gap: 12px; padding: 12px; background: #132632f5; border: 1px solid #719293; border-radius: 6px; color: #e5ebd9; font-size: 11px; }
+.candidate-info button { margin-left: auto; background: transparent; color: #d4e2d8; font-size: 20px; }
+.legend-history { border: 1px dashed #d3a76f; }
+.evidence-legend i { width: 55px; height: 7px; border-radius: 2px; background: linear-gradient(90deg, #ffde97, #f49337, #de4530, #991c29); }
+@media (prefers-reduced-motion: reduce) { .prediction-breath, .pulse-dot, .spin { animation: none !important; } .evidence-circle { transition: none; } }
+@media(max-width:540px) { .map-tools { left: 7px; top: 7px; } .map-text-button { padding: 4px; font-size: 10px; } .map-layer-panel { left: 7px; top: 44px; } .map-progress { right: 8px; bottom: 10px; font-size: 9px; } }

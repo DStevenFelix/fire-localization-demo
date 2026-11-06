@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 
 async function ready(page: Page) {
-  await page.addInitScript(() => localStorage.setItem('fire-map-calibration-v1', JSON.stringify({ left: 160, top: 70, width: 1385, height: 1120 })));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
   await expect(page.getByTestId('truth-marker')).toBeVisible();
@@ -13,7 +13,7 @@ async function ready(page: Page) {
 
 async function verifyOverlay(page: Page, withPrediction = true) {
   const measured = await page.getByTestId('sandbox-svg').evaluate(svg => {
-    const image = svg.querySelector('image')!.getBoundingClientRect();
+    const image = svg.querySelector('[data-layer="original-map"]')!.getBoundingClientRect();
     const truth = svg.querySelector('[data-testid="truth-marker"] circle')!;
     const prediction = svg.querySelector('[data-testid="prediction-marker"] circle');
     const poi = svg.querySelector('[data-poi="T-SW-01"] circle')!;
@@ -42,29 +42,31 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await expect(page.locator('g[data-poi]')).toHaveCount(29);
   await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', 'T-SW-01');
   const truth = page.getByTestId('truth-marker').locator('circle');
-  expect(Number(await truth.getAttribute('cx'))).toBeCloseTo(425.32394, 1);
-  expect(Number(await truth.getAttribute('cy'))).toBeCloseTo(672.641, 1);
+  expect(Number(await truth.getAttribute('cx'))).toBeCloseTo(1738.32394, 1);
+  expect(Number(await truth.getAttribute('cy'))).toBeCloseTo(1722.641, 1);
   await page.locator('[data-poi="T-SW-02"]').hover();
   await expect(page.locator('.poi-tooltip')).toContainText('华安能源西南罐区2号储罐');
-  await page.getByRole('button', { name: '显示或隐藏 POI' }).click();
+  await page.getByRole('button', { name: '地图图层', exact: true }).click();
+  await page.getByLabel('POI', { exact: true }).uncheck();
   await expect(page.locator('g[data-poi]')).toHaveCount(0);
-  await page.getByRole('button', { name: '显示或隐藏 POI' }).click();
+  await page.getByLabel('POI', { exact: true }).check();
+  await page.getByRole('button', { name: '地图图层', exact: true }).click();
   await page.getByRole('button', { name: '放大地图' }).click();
-  expect(Number(await truth.getAttribute('cx'))).toBeCloseTo(425.32394, 1);
+  expect(Number(await truth.getAttribute('cx'))).toBeCloseTo(1738.32394, 1);
   await page.getByTestId('sandbox-svg').hover();
   await page.mouse.wheel(0, -100);
   await page.getByRole('button', { name: '重置地图视图' }).click();
-  await expect(page.getByTestId('sandbox-svg')).toHaveAttribute('viewBox', '0 0 1313 1050');
-  await page.getByRole('button', { name: '坐标网格' }).click();
-  await expect(page.locator('.calibration-panel')).toContainText('1 仿真单位 = 1 m');
-  await page.getByRole('button', { name: '坐标网格' }).click();
-  // A short network delay makes the running presentation observable even in Offline.
+  await expect(page.getByTestId('sandbox-svg')).toHaveAttribute('viewBox', '1313 1050 1313 1050');
+  // 验证轮询期间真实批次候选可见。
   await page.route('**/api/localization/run', async route => {
     await new Promise(resolve => setTimeout(resolve, 600));
     await route.continue();
   });
   await page.getByRole('button', { name: '开始定位', exact: true }).click();
   await expect(page.getByTestId('run-button-state')).toHaveText('Analyzing...');
+  await expect(page.getByTestId('evidence-marker').first()).toBeVisible();
+  await expect(page.getByTestId('run-button-state')).toHaveText('Analyzing...');
+  await expect(page.locator('.candidate-row')).toHaveCount(3);
   await expect(page.getByTestId('prediction-marker')).toBeVisible();
   await expect(page.getByTestId('top1-name')).toHaveText('华安能源西南罐区1号储罐');
   await expect(page.locator('.candidate-row')).toHaveCount(3);
@@ -75,10 +77,10 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await expect(page.getByTestId('run-button-state')).toHaveText('Completed');
   await expect(page.locator('.metrics-row')).toContainText('100 / 100 条');
   await expect(page.getByTestId('truth-marker').locator('text')).toHaveText('Ground Truth');
-  await expect(page.getByTestId('prediction-marker').locator('text')).toHaveText('AI Prediction');
+  await expect(page.getByTestId('prediction-marker').locator('text')).toHaveText('最终定位 · Top1');
   const prediction = page.getByTestId('prediction-marker').locator('circle').first();
-  expect(Number(await prediction.getAttribute('cx'))).toBeCloseTo(425.32394, 1);
-  expect(Number(await prediction.getAttribute('cy'))).toBeCloseTo(672.641, 1);
+  expect(Number(await prediction.getAttribute('cx'))).toBeCloseTo(1738.32394, 1);
+  expect(Number(await prediction.getAttribute('cy'))).toBeCloseTo(1722.641, 1);
   const truthLabel = await page.getByTestId('truth-marker').locator('text').boundingBox();
   const predictionLabel = await page.getByTestId('prediction-marker').locator('text').boundingBox();
   expect(truthLabel!.y).toBeGreaterThan(predictionLabel!.y + predictionLabel!.height);
@@ -167,9 +169,9 @@ test('wrong prediction stays at its actual returned coordinates', async ({ page 
   await expect(page.getByTestId('prediction-marker')).toHaveAttribute('data-poi-id', 'T-SE-01');
   await expect(page.getByText('未命中真实火点', { exact: true })).toBeVisible();
   const circle = page.getByTestId('prediction-marker').locator('circle').first();
-  expect(Number(await circle.getAttribute('cx'))).toBeCloseTo(763.58154, 1);
-  expect(Number(await circle.getAttribute('cy'))).toBeCloseTo(673.642, 1);
-  expect(Number(await page.getByTestId('truth-marker').locator('circle').getAttribute('cx'))).toBeCloseTo(425.32394, 1);
+  expect(Number(await circle.getAttribute('cx'))).toBeCloseTo(2076.58154, 1);
+  expect(Number(await circle.getAttribute('cy'))).toBeCloseTo(1723.642, 1);
+  expect(Number(await page.getByTestId('truth-marker').locator('circle').getAttribute('cx'))).toBeCloseTo(1738.32394, 1);
 });
 
 test('worker errors expose a sanitized error state and permit reset', async ({ page }) => {

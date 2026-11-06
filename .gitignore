@@ -1,8 +1,51 @@
+# Local environments, credentials and personal configuration
 .env
-__pycache__/
-.pytest_cache/
-.idea/
-runtime/
-*.egg-info/
-
+.env.*
+!.env.example
 .venv/
+node_modules/
+.idea/
+.vscode/
+.aws/
+.codex/
+.agents/
+.DS_Store
+Thumbs.db
+
+# Reproducible caches and runtime outputs
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+*.tsbuildinfo
+*.tmp
+*.log
+runtime/
+.tools/
+pytest-cache*/
+test-results/
+playwright-report/
+browser-output/
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+junit*.xml
+coverage*.xml
+/frontend/web/dist/
+
+# Delivery archives live outside the source repository
+*.zip
+
+# Retired visual experiments and disposable captures; formal assets stay visible
+/artifacts/backups/
+/artifacts/residential-templates/
+/artifacts/west-residential/
+/artifacts/screenshots-v2/
+/artifacts/handoff/final/
+/artifacts/handoff/restored/
+/artifacts/handoff/retired-tests/
+/city_scene/templates/
+/city_scene/local_changes/

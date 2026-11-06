@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import re
 import shutil
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -30,6 +32,8 @@ RUNTIME_ROOT = PROJECT_ROOT / "runtime" / "frontend"
 SESSION_ID = re.compile(r"^[0-9a-f]{32}$")
 DATA_FILES = ("fire_sandbox_spatial_model.json", "map_config.json", "map_original.png")
 DEMO_POST_COUNT = 100
+SPATIAL_FILES = ('city_scene.json', 'poi_catalog.json', 'poi_hierarchy.json',
+                 'fire_resources.json', 'runtime-manifest.json', 'handoff_schema.json')
 
 
 def now() -> str:
@@ -59,6 +63,10 @@ class SessionService:
     def __init__(self, runtime_root: Path):
         self.runtime_root = runtime_root
         self.repository = PoiRepository(PROJECT_ROOT)
+        self.extended_pois = json.loads((PROJECT_ROOT / 'city_scene/poi_catalog.json').read_text(encoding='utf-8'))
+        self.extended_by_id = {poi['id']: poi for poi in self.extended_pois}
+        self.city_offset = json.loads((PROJECT_ROOT / 'city_scene/city_scene.json').read_text(encoding='utf-8'))['original_map_placement']['offset']
+        self.spatial_fingerprint = hashlib.sha256(b''.join((PROJECT_ROOT / 'city_scene' / name).read_bytes() for name in SPATIAL_FILES)).hexdigest()
         self.sessions: dict[str, dict] = {}
         self.lock = threading.RLock()
         self.live_config_lock = threading.Lock()
@@ -81,8 +89,10 @@ class SessionService:
             session = json.loads(path.read_text(encoding="utf-8"))
             if session.get("poi_fingerprint") != self.repository.fingerprint:
                 raise HTTPException(409, "会话属于其他地图版本，请重新准备场景")
+            if session.get('spatial_fingerprint') != self.spatial_fingerprint:
+                raise HTTPException(409, '扩展空间数据已变更，请重新准备场景')
             if session["status"] == "running":
-                session.update(status="failed", prediction=None, evaluation=None,
+                session.update(status="failed", evaluation=None,
                     error={"error_type": "InterruptedRun", "message": "服务重启中断了本轮演示，请重置后重试。"}, completed_at=now())
                 self._persist(session)
             self.sessions[session_id] = session
@@ -103,6 +113,10 @@ class SessionService:
         (isolated_root / "fire_poi").mkdir()
         for name in DATA_FILES:
             shutil.copy2(self.repository.data_root / name, isolated_root / "fire_poi" / name)
+        # The future algorithm receives the same stable data paths inside its existing isolated root.
+        (isolated_root / 'city_scene').mkdir()
+        for name in SPATIAL_FILES:
+            shutil.copy2(PROJECT_ROOT / 'city_scene' / name, isolated_root / 'city_scene' / name)
         try:
             # Ground truth stays in .meta.json and the UI/session; inference receives Post only.
             metadata = generate(self.repository, folder / "demo_posts.jsonl", DEMO_POST_COUNT, request.seed, request.target_poi_id)
@@ -110,9 +124,10 @@ class SessionService:
             raise HTTPException(422, "该储罐暂无可用的模拟观察点，请选择其他场景") from None
         session = {"session_id": session_id, "mode": request.mode, "status": "prepared",
             "poi_fingerprint": self.repository.fingerprint,
+            "spatial_fingerprint": self.spatial_fingerprint,
             "target_poi_id": request.target_poi_id, "seed": request.seed, "post_count": metadata["post_count"],
             "ground_truth": metadata["single_fire_ground_truth"], "prediction": None, "evaluation": None,
-            "processed_count": 0, "ignored_count": 0, "batch_count": 0, "error": None,
+            "processed_count": 0, "ignored_count": 0, "batch_count": 0, "batch_history": [], "error": None,
             "created_at": now(), "started_at": None, "completed_at": None}
         with self.lock:
             self.sessions[session_id] = session
@@ -148,17 +163,43 @@ class SessionService:
                 key=lambda post: post.timestamp)
             engine = FireLocalizer(settings, offline=snapshot["mode"] == "offline",
                 state_path=folder / "memory.json", resume=False)
-            response = engine.ingest(posts, flush=True)
+            updates = []
+            # 离线批次耗时远低于轮询周期，展示间隔不参与算法时间或推理。
+            interval = float(os.getenv("FIRE_OFFLINE_BATCH_INTERVAL", "0.4")) if snapshot["mode"] == "offline" else 0
+            if not math.isfinite(interval) or interval < 0:
+                raise ValueError("离线批次间隔必须是非负有限数")
+            for start in range(0, len(posts), settings.batch_size):
+                response = engine.ingest(posts[start:start+settings.batch_size], flush=True)
+                updates.extend(response["updates"])
+                prediction = response["updates"][-1]["prediction"]
+                with self.lock:
+                    session = self.sessions[session_id]
+                    session.update(prediction=prediction, processed_count=engine.memory.processed_count,
+                        ignored_count=engine.memory.ignored_count, batch_count=engine.memory.batch_count)
+                    session["batch_history"].append({"batch_number": engine.memory.batch_count,
+                        "processed_count": engine.memory.processed_count,
+                        "ignored_count": engine.memory.ignored_count, "prediction": prediction})
+                    # 先写完整批次审计，再发布同版本会话；API 读取始终受同一锁保护。
+                    atomic_json(folder / "batch_results.json", updates)
+                    self._persist(session)
+                if interval and start+settings.batch_size < len(posts):
+                    time.sleep(interval)
             prediction = engine.prediction()  # Uses original synthetic evidence time, not wall clock.
             truth = snapshot["ground_truth"]  # Evaluation happens only after inference.
             candidates = prediction["candidates"]
             ids = [item["poi_id"] for item in candidates]
-            top1 = candidates[0] if candidates else None
+            top1 = next((item for item in candidates if item['rank'] == 1), None)
+            top_coordinates = None
+            if top1:
+                extended = self.extended_by_id.get(top1['poi_id'])
+                top_coordinates = extended['center'] if extended else [
+                    top1['coordinates'][key] + (0 if prediction.get('coordinate_system') == 'CITY90x75' else self.city_offset[i])
+                    for i, key in enumerate(('x_m', 'y_m'))]
             evaluation = {"top1_hit": bool(top1 and top1["poi_id"] == truth["poi_id"]),
                 "top3_hit": truth["poi_id"] in ids,
                 "target_rank": ids.index(truth["poi_id"])+1 if truth["poi_id"] in ids else None,
-                "distance_m": round(math.hypot(top1["coordinates"]["x_m"]-truth["coordinates"]["x_m"],
-                    top1["coordinates"]["y_m"]-truth["coordinates"]["y_m"]), 6) if top1 else None}
+                "distance_m": round(math.hypot(top_coordinates[0]-truth['coordinates']['x_m']-self.city_offset[0],
+                    top_coordinates[1]-truth['coordinates']['y_m']-self.city_offset[1]), 6) if top_coordinates else None}
             report = {"mode": snapshot["mode"], "input_count": len(posts),
                 "processed_count": engine.memory.processed_count, "ignored_count": engine.memory.ignored_count,
                 "batch_count": engine.memory.batch_count, "extractor_invocations": engine.extractor.calls,
@@ -167,7 +208,7 @@ class SessionService:
                 "note": "模拟帖子用于流程演示；得分不是经校准的火灾概率。"}
             atomic_json(folder / "prediction.json", prediction)
             atomic_json(folder / "report.json", report)
-            atomic_json(folder / "batch_results.json", response["updates"])
+            atomic_json(folder / "batch_results.json", updates)
             with self.lock:
                 session = self.sessions[session_id]
                 session.update(status="completed", prediction=prediction, evaluation=evaluation,
@@ -180,8 +221,8 @@ class SessionService:
             atomic_json(folder / "failure.json", failure)
             with self.lock:
                 session = self.sessions[session_id]
-                session.update(status="failed", error=failure, prediction=None, evaluation=None,
-                    processed_count=engine.memory.processed_count if engine else 0, completed_at=now())
+                # 保留最近成功发布的预测、历史和进度，不暴露失败提供者的异常原文。
+                session.update(status="failed", error=failure, evaluation=None, completed_at=now())
                 self._persist(session)
         finally:
             if engine and hasattr(engine.embeddings, "client"):
@@ -222,6 +263,13 @@ def create_app(runtime_root: Path = RUNTIME_ROOT) -> FastAPI:
     def scenarios():
         return {"scenarios": [poi_view(poi) for poi in service.repository.tanks.values()],
             "default_target_poi_id": DEFAULT_TARGET_ID}
+
+    @api.get('/api/spatial-data')
+    def spatial_data():
+        return {'version': '1.0.0', 'original': json.loads((PROJECT_ROOT / 'fire_poi/fire_sandbox_spatial_model.json').read_text(encoding='utf-8')),
+                'extended': service.extended_pois,
+                'extended_relations': json.loads((PROJECT_ROOT / 'city_scene/poi_hierarchy.json').read_text(encoding='utf-8'))['relations'],
+                'city_offset': service.city_offset, 'spatial_fingerprint': service.spatial_fingerprint}
 
     @api.post("/api/scenarios/prepare", status_code=201)
     def prepare(request: PrepareRequest):

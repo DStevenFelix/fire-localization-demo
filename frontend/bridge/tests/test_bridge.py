@@ -14,6 +14,7 @@ from frontend.bridge import server
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("FIRE_OFFLINE_BATCH_INTERVAL", "0")
     def no_settings_load(*_args, **_kwargs):
         raise AssertionError("Offline must never load .env")
     monkeypatch.setattr(server.Settings, "load", no_settings_load)
@@ -205,3 +206,85 @@ def test_old_map_session_is_rejected(client):
     response = client.get(f"/api/localization/{session['session_id']}")
     assert response.status_code == 409
     assert "地图版本" in response.json()["detail"]
+
+
+def test_batch_published_and_persisted_before_next_ingest(client, monkeypatch):
+    real_locator = server.FireLocalizer
+    entered, release = threading.Event(), threading.Event()
+
+    def locator(*args, **kwargs):
+        engine = real_locator(*args, **kwargs)
+        ingest = engine.ingest
+        calls = 0
+        def gated(posts, **options):
+            nonlocal calls
+            calls += 1
+            assert len(posts) == 10
+            if calls == 2:
+                entered.set()
+                assert release.wait(10)
+            return ingest(posts, **options)
+        engine.ingest = gated
+        return engine
+
+    monkeypatch.setattr(server, "FireLocalizer", locator)
+    session = prepare(client)
+    service = client.app.state.service
+    folder = service._folder(session["session_id"])
+    try:
+        client.post("/api/localization/run", json={"session_id": session["session_id"]})
+        assert entered.wait(5)
+        current = client.get(f"/api/localization/{session['session_id']}").json()
+        disk = json.loads((folder / "session.json").read_text(encoding="utf-8"))
+        batches = json.loads((folder / "batch_results.json").read_text(encoding="utf-8"))
+        assert disk == current
+        assert current["status"] == "running" and current["processed_count"] == 10
+        assert current["batch_count"] == len(current["batch_history"]) == len(batches) == 1
+        assert current["prediction"] == batches[0]["prediction"] == current["batch_history"][0]["prediction"]
+        assert len(current["prediction"]["candidates"]) == 3
+    finally:
+        release.set()
+    done = wait(client, session["session_id"])
+    assert [b["processed_count"] for b in done["batch_history"]] == list(range(10,101,10))
+    assert [b["batch_number"] for b in done["batch_history"]] == list(range(1,11))
+    # 使用同一输入重放原先的单次 ingest，比较全部最终字段及评估所需排名。
+    posts = [server.Post.model_validate(json.loads(row)) for row in (folder / "demo_posts.jsonl").read_text(encoding="utf-8").splitlines()]
+    baseline = real_locator(server.Settings(root=folder / "root", batch_size=10), offline=True, state_path=folder / "comparison.json", resume=False)
+    baseline.ingest(sorted(posts, key=lambda p:p.timestamp), flush=True)
+    assert done["prediction"] == baseline.prediction()
+    assert done["prediction"] == done["batch_history"][-1]["prediction"]
+
+
+
+
+def test_failed_batch_preserves_published_history_and_restart(client, monkeypatch):
+    real_locator = server.FireLocalizer
+    def locator(*args, **kwargs):
+        engine = real_locator(*args, **kwargs)
+        ingest = engine.ingest
+        def fail_third(posts, **options):
+            if engine.memory.batch_count == 2:
+                raise RuntimeError("DO_NOT_EXPOSE_PROVIDER_KEY")
+            return ingest(posts, **options)
+        engine.ingest = fail_third
+        return engine
+    monkeypatch.setattr(server, "FireLocalizer", locator)
+    session = prepare(client)
+    client.post("/api/localization/run", json={"session_id": session["session_id"]})
+    done = wait(client, session["session_id"])
+    assert done["status"] == "failed" and done["processed_count"] == 20
+    assert done["batch_count"] == len(done["batch_history"]) == 2
+    assert done["prediction"] == done["batch_history"][-1]["prediction"]
+    assert "DO_NOT_EXPOSE" not in json.dumps(done)
+    service = client.app.state.service
+    restored = server.SessionService(service.runtime_root)
+    try:
+        assert restored.get(session["session_id"]) == done
+        interrupted = dict(done, status="running")
+        server.atomic_json(service._folder(session["session_id"])/"session.json", interrupted)
+        restored.sessions.clear()
+        result = restored.get(session["session_id"])
+        assert result["status"] == "failed" and result["error"]["error_type"] == "InterruptedRun"
+        assert result["prediction"] == done["prediction"] and result["batch_history"] == done["batch_history"]
+    finally:
+        restored.executor.shutdown()

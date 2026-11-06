@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "candidates",
+    "active_cluster_count",
+    "cold_cluster_count",
+    "processed_count",
+    "pending_count",
+    "status"
+  ],
+  "properties": {
+    "coordinate_system": {
+      "enum": [
+        "LOCAL30x25",
+        "local_cartesian_meters",
+        "CITY90x75"
+      ]
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rank",
+          "poi_id",
+          "name",
+          "coordinates",
+          "votes",
+          "confidence",
+          "score",
+          "relative_score",
+          "cluster_ids"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "poi_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "coordinates": {
+            "type": "object",
+            "required": [
+              "x_m",
+              "y_m"
+            ],
+            "properties": {
+              "x_m": {
+                "type": "number"
+              },
+              "y_m": {
+                "type": "number"
+              }
+            }
+          },
+          "votes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "score": {
+            "type": "number"
+          },
+          "relative_score": {
+            "type": "number"
+          },
+          "cluster_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "active_cluster_count": {
+      "type": "integer"
+    },
+    "cold_cluster_count": {
+      "type": "integer"
+    },
+    "processed_count": {
+      "type": "integer"
+    },
+    "pending_count": {
+      "type": "integer"
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "current_time": {
+      "type": "string"
+    }
+  }
+}

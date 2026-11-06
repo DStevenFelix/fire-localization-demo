@@ -1,0 +1,21 @@
+{
+  "scene_sha256": "f8c9b734a5ff06258709e217e876a9ef0d55a8cca930fd2ce2a50ee5d1923207",
+  "visual_source_sha256": "39da0e834ff11e7cb88c6c558b97e9b7d4a81b7b04689c0bff2e7fd4489f5264",
+  "texture_source_sha256": "ab34cdab7d2b9c7e7a0fb805913aaafae538bf21ad494d0bbb357a20ba32357d",
+  "size": [
+    3939,
+    3150
+  ],
+  "layers": {
+    "roads": {
+      "file": "assets/sand-table-roads.png",
+      "sha256": "271bb020d3d666596bda165085c5cfa82891ccf64e7b5396be63fc1cff967c14",
+      "bytes": 3333506
+    },
+    "buildings": {
+      "file": "assets/sand-table-buildings.png",
+      "sha256": "491522287104ed32b5884e9fae089df8afcdbc29d1e54d374d6fa63ddc53bb94",
+      "bytes": 5726978
+    }
+  }
+}

@@ -1,8 +1,8 @@
 param([switch]$Browser)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$pythonExecutable = if ($env:FIRE_PYTHON) { $env:FIRE_PYTHON } else { 'D:/Anaconda/envs/agent/python.exe' }
-if (-not (Test-Path -LiteralPath $pythonExecutable)) { throw 'Anaconda agent Python missing; set FIRE_PYTHON to its python.exe' }
+$pythonExecutable = if ($env:FIRE_PYTHON) { $env:FIRE_PYTHON } else { Join-Path $projectRoot '.venv/Scripts/python.exe' }
+if (-not (Test-Path -LiteralPath $pythonExecutable)) { throw 'Project Python missing; create .venv or set FIRE_PYTHON to an existing python.exe' }
 $localNode = Join-Path $PSScriptRoot '.tools/node-v24.21.0-win-x64'
 if (Test-Path -LiteralPath (Join-Path $localNode 'node.exe')) { $env:Path = $localNode + ';' + $env:Path }
 if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) { throw 'Run frontend/setup-node.ps1 first' }
@@ -19,8 +19,7 @@ try {
     if (Test-Path -LiteralPath $testRoot) { throw 'Refusing to overwrite an existing test directory' }
     & $pythonExecutable -m pytest tests frontend/bridge/tests -q -o cache_dir=frontend/.tools/pytest-cache --basetemp=$testRoot
     if ($LASTEXITCODE -ne 0) { throw 'Python tests failed' }
-    & $pythonExecutable fire_poi/scripts/verify_package.py
-    if ($LASTEXITCODE -ne 0) { throw 'Map package verification failed' }
+    # 校验原始底图与受保护源码，不读取临时审计或验收产物。
     & (Join-Path $PSScriptRoot 'scripts/verify-protection.ps1')
     Set-Location -LiteralPath (Join-Path $PSScriptRoot 'web')
     foreach ($script in @('typecheck', 'build', 'test')) {

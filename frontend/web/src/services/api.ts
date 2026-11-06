@@ -1,4 +1,5 @@
 import type { Health, Mode, Poi, Session } from '../types';
+import { normalizeSession } from '../utils/poiRegistry';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const timeout = AbortSignal.timeout(15000);
@@ -25,10 +26,10 @@ export const api = {
   scenarios: () => request<{ scenarios: Poi[]; default_target_poi_id: string }>('/scenarios'),
   prepare: (target_poi_id: string, mode: Mode, seed: number, signal?: AbortSignal) => request<Session>('/scenarios/prepare', {
     method: 'POST', body: JSON.stringify({ target_poi_id, mode, seed }), signal,
-  }),
+  }).then(normalizeSession),
   run: (session_id: string, confirm_paid_api = false) => request<Session>('/localization/run', {
     method: 'POST', body: JSON.stringify({ session_id, confirm_paid_api }),
-  }),
-  session: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}`),
-  reset: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}/reset`, { method: 'POST', body: '{}' }),
+  }).then(normalizeSession),
+  session: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}`).then(normalizeSession),
+  reset: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}/reset`, { method: 'POST', body: '{}' }).then(normalizeSession),
 };

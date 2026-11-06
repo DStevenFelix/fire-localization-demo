@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$pythonExecutable = if ($env:FIRE_PYTHON) { $env:FIRE_PYTHON } else { 'D:/Anaconda/envs/agent/python.exe' }
-if (-not (Test-Path -LiteralPath $pythonExecutable)) { throw 'Anaconda agent Python missing; set FIRE_PYTHON to its python.exe' }
+$pythonExecutable = if ($env:FIRE_PYTHON) { $env:FIRE_PYTHON } else { Join-Path $projectRoot '.venv/Scripts/python.exe' }
+if (-not (Test-Path -LiteralPath $pythonExecutable)) { throw 'Project Python missing; create .venv or set FIRE_PYTHON to an existing python.exe' }
 $env:PYTHONUTF8 = '1'
 $env:PYTHONPYCACHEPREFIX = Join-Path $PSScriptRoot '.tools/pycache'
 $env:LANGSMITH_TRACING = 'false'

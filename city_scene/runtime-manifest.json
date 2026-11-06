@@ -1,0 +1,11 @@
+{
+  "version": "3.0.0",
+  "scene_sha256": "f8c9b734a5ff06258709e217e876a9ef0d55a8cca930fd2ce2a50ee5d1923207",
+  "files": {
+    "poi_catalog.json": "66d78a48fd427bdf2194f086dbf291739484e2e20ca5e770ceedc60ad2679696",
+    "poi_hierarchy.json": "abe35f7261a83690a2682b080c20df559ee48affd010ae1653a9f2aebde764bc",
+    "pedestrian_animation.json": "53bc12519b1f1fc64d1937c33fa111e2c08a51e8a908a5022d20efcf5ba2ebf0",
+    "fire_resources.json": "cf0d5b76454da5a1b1b4e3a4c544c86947a685475f16c8a715972d9896db8d57",
+    "community_building_entrances.csv": "8fdfbf6fa632f5606a3465a6bc07af8717da5c9136758ade9a34193a4428ed45"
+  }
+}

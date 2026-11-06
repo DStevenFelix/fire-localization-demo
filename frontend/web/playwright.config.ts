@@ -1,9 +1,9 @@
 import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-// Run the Bridge using the user's Anaconda agent environment.
-const pythonExecutable = process.env.FIRE_PYTHON || 'D:/Anaconda/envs/agent/python.exe';
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url)).replaceAll('\\', '/');
+// 默认使用工程虚拟环境，也允许通过环境变量指定已有 Python。
+const pythonExecutable = process.env.FIRE_PYTHON || `${projectRoot}.venv/${process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python'}`;
 const runtimeRoot = fileURLToPath(new URL('./test-results/bridge-runtime/', import.meta.url)).replaceAll('\\', '/');
 const bridgeCode = `import sys; sys.path.insert(0, '${projectRoot}'); from pathlib import Path; from frontend.bridge.server import create_app; import uvicorn; uvicorn.run(create_app(Path('${runtimeRoot}')), host='127.0.0.1', port=8080)`;
 
