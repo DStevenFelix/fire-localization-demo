@@ -73,6 +73,23 @@ function lane(a: Point, b: Point, edge: Axis): Piece {
   return result;
 }
 export const lanes = axes.flatMap(e=>[lane(e.a,e.b,e),...(e.twoWay?[lane(e.b,e.a,e)]:[])]);
+const laneByDirection = new Map(lanes.map(lane => [`${lane.road}:${lane.from}:${lane.to}`, lane]));
+export const oppositeLane = (lane: Piece) => laneByDirection.get(`${lane.road}:${lane.to}:${lane.from}`);
+export function followsOnSameLane(a: Cursor, b: Cursor) {
+  if (!a.piece.road || a.piece.road !== b.piece.road) return false;
+  const heading = laneHeading.get(a.piece)!;
+  if (dot(heading, laneHeading.get(b.piece)!) < .999) return false;
+  const front = pose(a).point, rear = pose(b).point;
+  return dot([front[0] - rear[0], front[1] - rear[1]], heading) > 0;
+}
+
+// Close the original tank district and its access spurs up to the surrounding avenues.
+const [zoneWest, zoneSouth, zoneEast, zoneNorth] = original_map_placement.extent;
+const insideDistrict = ([x, y]: number[]) => x >= zoneWest - 1e-6 && x <= zoneEast + 1e-6 &&
+  y >= zoneSouth - 1e-6 && y <= zoneNorth + 1e-6;
+const zoneLanes = new Set(lanes.filter(lane => [lane.from!, lane.to!].some(point => insideDistrict(point.split(',').map(Number)))));
+export const inTankZone = (p: Piece) => zoneLanes.has(p) || !!(p.junction &&
+  (insideDistrict(p.junction.split(',').map(Number)) || p.next.some(lane => zoneLanes.has(lane))));
 for(const from of lanes) for(const to of outgoing.get(from.to!)??[]) {
   const a=from.points.at(-1)!, b=to.points[0], h=laneHeading.get(from)!, k=laneHeading.get(to)!;
   const turn=dot(h,k);
@@ -87,66 +104,72 @@ export const avenueLanes = lanes.filter(l=>arterial.has(l.road!)||roads.slice(0,
 
 export const stationExit = outgoing.get(key(access))!.find(p=>laneHeading.get(p)![0]>0)!;
 export const stationJunction = key(access);
+const stationArrivalLane = lanes.find(lane => lane.to === stationJunction && laneHeading.get(lane)![0] > 0)!;
+const drivewayTop: Point = [access[0], (station.access.entrance as Point)[1] + .65];
+const bayAisles: Point[][] = [];
 export const garage = station.parking_spaces.map((bay)=>{
   const start=bay.center as Point, entry=station.access.entrance as Point;
   const side=Math.sign(start[0]-entry[0]), apronY=entry[1]+.12;
   // Clear the nose of a truck parked in the middle bay before joining the driveway.
   const merge: Point = [entry[0], entry[1] + .55];
-  const lineEnd: Point=[entry[0],entry[1]+.65], join=stationExit.points[0];
+  const join=stationExit.points[0];
   const apron:Point[]=side===0?[]:[
     ...bend([start[0],apronY-.32],[start[0],apronY],[start[0]-side*.44,apronY]),
     ...bend([entry[0]+side*.55,apronY],[entry[0],apronY],merge),
   ];
-  const path=piece([start,...apron,side===0?entry:merge,lineEnd,...bend(lineEnd,[entry[0],join[1]],join).slice(1)],{junction:key(access)});
+  const aisle = [start,...apron,side===0?entry:merge,drivewayTop];
+  bayAisles.push(aisle);
+  const path=piece([...aisle,...bend(drivewayTop,[entry[0],join[1]],join).slice(1)],{junction:key(access)});
   path.next.push(stationExit);
   return path;
 });
+// Drive forward into the apron and finish facing out before selecting reverse.
+const driveInStart = stationArrivalLane.points.at(-1)!;
+const outerTurn: Point = [drivewayTop[0] - .85, drivewayTop[1] + .30];
+const innerTurn: Point = [drivewayTop[0] - .40, drivewayTop[1] - .25];
+const driveIn = piece([
+  ...bend(driveInStart, [outerTurn[0], driveInStart[1]], outerTurn),
+  ...bend(outerTurn, [outerTurn[0], innerTurn[1]], innerTurn).slice(1),
+  ...bend(innerTurn, [drivewayTop[0], innerTurn[1]], drivewayTop).slice(1),
+], { junction: stationJunction });
+export const garageEntries = bayAisles.map(aisle => piece([...aisle].reverse(), { junction: stationJunction }));
+stationArrivalLane.next.push(driveIn);
+driveIn.next.push(...garageEntries);
+export const isGarageAccess = (road: Piece) => road === driveIn || garageEntries.includes(road);
+
+export function isRightTurn(from: Piece, next: Piece | undefined) {
+  if (!next) return false;
+  if (from === stationArrivalLane && next === driveIn) return true;
+  const incoming = laneHeading.get(from);
+  const outgoing = laneHeading.get(next.road ? next : next.next[0]);
+  return !!incoming && !!outgoing && incoming[0] * outgoing[1] - incoming[1] * outgoing[0] < -1e-6;
+}
 
 // External planners receive the same directed lanes and connectors the simulator uses.
 export const roadPieces = new Map<string, Piece>([
   ...lanes.flatMap((lane, i) => [[`lane:${i}`, lane] as const,
-    ...lane.next.filter(next => !next.road).map((turn, j) => [`turn:${i}:${j}`, turn] as const)]),
+    ...lane.next.filter(next => !next.road && !isGarageAccess(next)).map((turn, j) => [`turn:${i}:${j}`, turn] as const)]),
   ...garage.map((bay, i) => [`garage:${i}`, bay] as const),
+  ['garage-access', driveIn],
+  ...garageEntries.map((bay, i) => [`garage-entry:${i}`, bay] as const),
 ]);
+const incomingPieces = new Map<Piece, Piece[]>();
+for (const road of roadPieces.values()) {
+  for (const next of road.next) incomingPieces.set(next, [...(incomingPieces.get(next) ?? []), road]);
+}
+const canReachStation = new Set<Piece>(garageEntries);
+for (const road of canReachStation) {
+  for (const previous of incomingPieces.get(road) ?? []) canReachStation.add(previous);
+}
+
 export function getDispatchNetwork() {
   const ids = new Map([...roadPieces].map(([id, piece]) => [piece, id]));
   return [...roadPieces].map(([id, piece]) => ({ id, points: piece.points.map(p => ({ x: p[0], y: p[1] })),
     length: piece.length, next: piece.next.map(next => ids.get(next)!), road: piece.road }));
 }
 
-const preceding = new Map<Piece, Piece[]>();
-for (const lane of lanes) {
-  for (const next of lane.next) {
-    preceding.set(next, [...(preceding.get(next) ?? []), lane]);
-    if (next.junction) {
-      const exit = next.next[0];
-      preceding.set(exit, [...(preceding.get(exit) ?? []), next]);
-    }
-  }
-}
-
 export type RoadPlan = { pieces: Piece[]; stop: number };
 type RoadLimit = (piece: Piece, offset: number) => number;
-
-// Retrace actual lane connectors in reverse. End far enough inside an incoming
-// lane to take another forward turn without changing heading in place.
-export function retreatPlans(start: Cursor): RoadPlan[] {
-  const plans: RoadPlan[] = [];
-  const queue = [[start.piece]];
-  for (const pieces of queue) {
-    const current = pieces.at(-1)!;
-    for (const previous of preceding.get(current) ?? []) {
-      if (pieces.includes(previous)) continue;
-      const path = [...pieces, previous];
-      if (current.junction && previous.next.length > 1 && previous.length >= 2) {
-        plans.push({pieces: path, stop: previous.length - 1.8});
-      } else {
-        queue.push(path);
-      }
-    }
-  }
-  return plans;
-}
 
 // Follow one straight road between two junctions (including any intermediate
 // graph nodes), choosing the connector into the next road at each corner.
@@ -160,21 +183,25 @@ export function streetLoop(corners: Point[]): Piece[] {
     while(true) {
       result.push(current);
       if(current.to===end)break;
-      const step:Piece|undefined=current.next.find(n=>matching(n.road?n:n.next[0]));
+      const step:Piece|undefined=current.next.find(n=>n.road ? matching(n) : n.next[0] && matching(n.next[0]));
       if(!step)throw new Error(`No lane continuing from ${current.to} toward ${b}`);
       if(!step.road)result.push(step);
       current=step.road?step:step.next[0];
     }
     const k=unit(b,corners[(i+2)%corners.length]);
-    const turn=current.next.find(n=>!n.road&&dot(laneHeading.get(n.next[0])!,k)>.999);
+    const turn=current.next.find(n=>!n.road&&n.next[0]&&dot(laneHeading.get(n.next[0])!,k)>.999);
     if(turn)result.push(turn);
   }
   return result;
 }
 
+// The station's curbside lanes form a clockwise ring. The north side is split at the driveway.
+const stationRing = new Set(streetLoop([[15, 12], [15, 20], [25, 20], [25, 12]]));
+export const isFireStationOnly = (p: Piece) => stationRing.has(p) || (!p.road && p.next.some(lane => stationRing.has(lane)));
+
 export const ARRIVAL_RADIUS = 5;
 export type Approach = { pieces: Piece[]; entry: number; end: number; cost: number };
-function* reachablePieces(start: Cursor, limit: RoadLimit) {
+function* reachablePieces(start: Cursor, limit: RoadLimit, canFollow = (_from: Piece, _to: Piece) => true) {
   const visited = new Set<Piece>();
   const queue=[{pieces:[start.piece], cost:0, offset:start.distance}];
   while(queue.length) {
@@ -186,11 +213,11 @@ function* reachablePieces(start: Cursor, limit: RoadLimit) {
     const reachable=limit(last,offset);
     yield {pieces,cost,offset,last,reachable};
     if(reachable<last.length)continue;
-    for(const next of last.next) if(!visited.has(next))queue.push({pieces:[...pieces,next],cost:cost+last.length-offset,offset:0});
+    for(const next of last.next) if(!visited.has(next)&&canFollow(last,next))queue.push({pieces:[...pieces,next],cost:cost+last.length-offset,offset:0});
   }
 }
 
-export function routeTo(start: Cursor, goal: Cursor, limit: RoadLimit): RoadPlan | undefined {
+export function routeTo(start: Cursor, goal: Cursor, limit: RoadLimit = p => p.length): RoadPlan | undefined {
   for (const {pieces, last, offset, reachable} of reachablePieces(start, limit)) {
     if (last === goal.piece && offset <= goal.distance && reachable >= goal.distance) {
       return {pieces, stop: goal.distance};
@@ -198,10 +225,16 @@ export function routeTo(start: Cursor, goal: Cursor, limit: RoadLimit): RoadPlan
   }
 }
 
+export function routeToLane(start: Cursor, isDestination: (lane: Piece) => boolean, canFollow: (from: Piece, to: Piece) => boolean) {
+  for (const { pieces, last } of reachablePieces(start, p => p.length, canFollow)) {
+    if (isDestination(last)) return pieces;
+  }
+}
+
 export function approaches(start: Cursor, goal: Point, limit: RoadLimit=p=>p.length): Approach[] {
   const found: Approach[]=[];
   for (const {pieces,cost,offset,last,reachable} of reachablePieces(start, limit)) {
-    if(last.road) {
+    if(last.road && canReachStation.has(last)) {
       const a=last.points[0], h=laneHeading.get(last)!;
       const delta:Point=[goal[0]-a[0],goal[1]-a[1]], along=dot(delta,h);
       const half=Math.sqrt((ARRIVAL_RADIUS-.06)**2-Math.max(0,dot(delta,delta)-along*along));

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cityToScene, getFireScene, isInsideScene, localToScene, PIXELS_PER_UNIT, sceneTanks } from './fireSceneData';
+import { cityToScene, getFireScene, isInsideScene, localToScene, PIXELS_PER_UNIT, sceneTanks, SOURCE_SIZE } from './fireSceneData';
 import { scenePixelToCity, sceneToPixel } from './mapCoordinates';
 import { pois } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import resources from '../../../../city_scene/fire_resources.json';
@@ -58,7 +58,7 @@ describe('all authored tanks', () => {
       });
     });
     expect(localToScene(scene.tanks[0].center).x).toBeLessThan(localToScene(scene.tanks[1].center).x);
-    expect(scene.bounds.maxX - scene.bounds.minX).toBeLessThan(500);
+    expect(scene.bounds.maxX - scene.bounds.minX).toBeLessThan(SOURCE_SIZE.width / 2);
   });
 });
 

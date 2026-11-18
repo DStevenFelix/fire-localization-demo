@@ -278,6 +278,15 @@ footer { color: #7591a8; padding: 18px 0; }
 .emergency-error > svg { flex: none; }
 .emergency-error p { margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 11px; line-height: 1.7; }
 .emergency-cancelled { display: grid; gap: 8px; }
+.emergency-demo-controls { flex: none; display: grid; gap: 8px; padding: 11px; border: 1px solid #375568; border-radius: 6px; background: #172b3d; }
+.emergency-demo-controls label { color: #d8e8f1; font-size: 12px; font-weight: 600; }
+.emergency-demo-controls p { color: #a8bdcd; font-size: 11px; line-height: 1.5; }
+.emergency-demo-controls .primary-button { justify-content: center; min-height: 35px; font-size: 12px; }
+.emergency-demo-settings { display: flex; gap: 7px; }
+.emergency-demo-settings select { flex: 1; min-width: 0; width: auto; font-size: 12px; }
+.emergency-demo-settings button { flex: none; padding: 0 8px; white-space: nowrap; font-size: 11px; }
+.demo-fire-bubble { position: absolute; z-index: 1; transform: translate(-50%, calc(-100% - 13px)); padding: 8px 12px; border: 1px solid #f2ba80; border-radius: 8px; background: #38262a; color: #ffe7c8; font-size: 13px; font-weight: 650; white-space: nowrap; pointer-events: none; box-shadow: 0 3px 12px #111a; }
+.demo-fire-bubble::after { content: ''; position: absolute; top: 100%; left: calc(50% - 6px); border: 6px solid transparent; border-top-color: #f2ba80; }
 
 /* 正式展示双栏；窄屏使用同一组组件调整顺序，避免重建三维画布。 */
 .workspace-grid { --card-gap: 18px; --card-padding: 18px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--card-gap); align-items: stretch; }

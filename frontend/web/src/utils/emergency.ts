@@ -22,6 +22,16 @@ const drone = (v: unknown): v is DroneSnapshot => object(v) && config.drones.som
   finite(v.heading) && finite(v.altitude) && v.altitude >= 0 && finite(v.updatedAt) && v.updatedAt >= 0 &&
   typeof v.status === 'string' && Object.hasOwn(droneStatusLabels, v.status) && (v.targetPoiId === undefined || isTank(v.targetPoiId)) &&
   (v.path === undefined || Array.isArray(v.path) && v.path.length >= 2 && v.path.every(position));
+const completedAssessment = (v: Record<string, unknown>) => v.status === 'completed' &&
+  finite(v.severity) && [1, 2, 3].includes(v.severity) && text(v.result);
+const validAssessment = (v: unknown) => object(v) && isTank(v.targetPoiId) &&
+  (v.source === undefined || text(v.source)) && (v.assessedAt === undefined || finite(v.assessedAt)) &&
+  (completedAssessment(v) || ['pending', 'failed'].includes(String(v.status)) && (v.message === undefined || text(v.message)));
+const validPlan = (v: unknown) => object(v) && text(v.id) && isTank(v.targetPoiId) && typeof v.trafficLockdown === 'boolean' &&
+  text(v.summary) && Array.isArray(v.dispatches) && v.dispatches.length > 0 &&
+  v.dispatches.every(d => object(d) && text(d.vehicleId) && d.targetPoiId === v.targetPoiId && position(d.targetPosition) &&
+    d.status === 'dispatched' && (d.route === undefined || route(d.route)) &&
+    (d.path === undefined || Array.isArray(d.path) && d.path.length >= 2 && d.path.every(position)));
 
 // This is the single untrusted input boundary for all transports.
 function validEvent(v: unknown): v is EmergencyEvent {
@@ -31,16 +41,9 @@ function validEvent(v: unknown): v is EmergencyEvent {
     case 'drone.update': return drone(v.drone);
     case 'drone.return': return drone(v.drone) && ['returning', 'idle', 'charging'].includes(v.drone.status);
     case 'drone.observed': return config.drones.some(d => d.id === v.droneId);
-    case 'fire.assessed': return object(v.assessment) && isTank(v.assessment.targetPoiId) &&
-      (v.assessment.source === undefined || text(v.assessment.source)) &&
-      (v.assessment.assessedAt === undefined || finite(v.assessment.assessedAt)) &&
-      (v.assessment.status === 'completed' ? [1, 2, 3].includes(Number(v.assessment.severity)) && finite(v.assessment.severity) && text(v.assessment.result)
-        : ['pending', 'failed'].includes(String(v.assessment.status)) && (v.assessment.message === undefined || text(v.assessment.message)));
-    case 'plan.proposed': return object(v.plan) && text(v.plan.id) && isTank(v.plan.targetPoiId) && typeof v.plan.trafficLockdown === 'boolean' &&
-      text(v.plan.summary) && Array.isArray(v.plan.dispatches) && v.plan.dispatches.length > 0 &&
-      v.plan.dispatches.every(d => object(d) && text(d.vehicleId) && object(v.plan) && d.targetPoiId === v.plan.targetPoiId && position(d.targetPosition) &&
-        d.status === 'dispatched' && (d.route === undefined || route(d.route)) &&
-        (d.path === undefined || Array.isArray(d.path) && d.path.length >= 2 && d.path.every(position)));
+    case 'fire.assessed': return validAssessment(v.assessment);
+    case 'plan.proposed': return validPlan(v.plan);
+    case 'plan.revised': return object(v.assessment) && completedAssessment(v.assessment) && validAssessment(v.assessment) && validPlan(v.plan);
     case 'truck.position': return text(v.vehicleId) && position(v.position) && finite(v.updatedAt) && v.updatedAt >= 0;
     case 'truck.route': return text(v.vehicleId) && route(v.route);
     case 'truck.arrived': case 'truck.extinguishing': return text(v.vehicleId);
@@ -70,6 +73,7 @@ export class EmergencyService {
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   getDrone(id: string) { return this.state.drones.find(d => d.id === id); }
+  isConnectedTo(adapter: EmergencyAdapter) { return this.adapter === adapter; }
   getSceneActors() { return this.state.drones.map(d => ({ ...d, kind: 'drone' as const })); }
   private publish(patch: Partial<EmergencySnapshot>, notify = true) {
     this.state = { ...this.state, ...patch };
@@ -92,10 +96,11 @@ export class EmergencyService {
     this.requests.forEach(controller => controller.abort());
     this.publish({ connected: false, source: undefined });
   }
-  attach() {
+  attach(fallbackAdapter?: EmergencyAdapter) {
     activeService = this;
     this.traffic.trucks.forEach(t => this.traffic.signals.setEmergencyAccess(t.id, false));
-    const disconnect = configuredAdapter ? this.connect(configuredAdapter) : undefined;
+    const adapter = configuredAdapter ?? fallbackAdapter;
+    const disconnect = adapter ? this.connect(adapter) : undefined;
     const unsubscribe = this.traffic.subscribe(seconds => this.tick(seconds), 'update');
     return () => {
       unsubscribe(); disconnect?.(); if (this.adapter) this.disconnectAdapter(this.adapter);
@@ -132,6 +137,7 @@ export class EmergencyService {
       if (current && current.phase !== 'completed') throw new Error('请先完成当前应急处置，再接入下一起火情');
       this.returnRequested = false;
       this.assignments.clear();
+      this.traffic.setTankZoneClosed(true);
       this.publish({ incident: { id: event.incidentId, targetPoiId: event.targetPoiId, phase: 'fire_detected', fireStatus: 'burning',
         confirmed: false, cancelled: false, droneIds: [], observedIds: [], arrivedIds: [], returningIds: [] }, inputError: undefined });
       return;
@@ -190,14 +196,26 @@ export class EmergencyService {
         fireStatus: event.assessment.status === 'completed' ? 'burning' : 'normal' });
       return;
     }
-    if (event.type === 'plan.proposed') {
+    if (event.type === 'plan.proposed' || event.type === 'plan.revised') {
       this.requireObservation(event.occurredAt);
       if (this.state.pending) throw new Error('方案执行请求处理中，请等待确认结果后再更新方案');
-      if (current.confirmed) throw new Error('当前方案已执行，不能覆盖调度任务');
-      if (current.assessment?.status !== 'completed') throw new Error('请先提供已完成的火情判断结果');
       if (event.plan.targetPoiId !== current.targetPoiId) throw new Error('调度方案目标与火情目标不一致');
       const ids = event.plan.dispatches.map(d => d.vehicleId);
       if (new Set(ids).size !== ids.length || ids.some(id => !this.traffic.trucks.some(t => t.id === id))) throw new Error('方案包含重复或不存在的消防车');
+      if (event.type === 'plan.revised') {
+        const fleet = this.adapter?.simulatedFleet;
+        if (!fleet || !current.confirmed || current.fireStatus === 'extinguished') throw new Error('当前无法调整演示调度');
+        if (event.assessment.targetPoiId !== current.targetPoiId) throw new Error('火情判断目标与本次事件不一致');
+        fleet.apply(event.plan);
+        current.plan!.dispatches.filter(d => !ids.includes(d.vehicleId)).forEach(d => this.traffic.signals.setEmergencyAccess(d.vehicleId, false));
+        ids.forEach(id => this.traffic.signals.setEmergencyAccess(id, true));
+        const arrivedIds = current.arrivedIds.filter(id => ids.includes(id));
+        this.incident({ plan: event.plan, assessment: event.assessment, arrivedIds, error: undefined,
+          phase: arrivedIds.length === ids.length ? current.phase : 'fire_trucks_en_route' });
+        return;
+      }
+      if (current.confirmed) throw new Error('当前方案已执行，不能覆盖调度任务');
+      if (current.assessment?.status !== 'completed') throw new Error('请先提供已完成的火情判断结果');
       if (current.plan?.id === event.plan.id) return;
       this.incident({ plan: structuredClone(event.plan), phase: 'awaiting_confirmation', error: undefined, cancelled: false }); return;
     }
@@ -209,7 +227,7 @@ export class EmergencyService {
       this.incident({ fireStatus: 'extinguished', phase: 'extinguished', error: undefined });
       current.plan!.dispatches.forEach(d => this.traffic.setExternalWater(d.vehicleId, false));
       current.plan!.dispatches.forEach(d => this.traffic.signals.setEmergencyAccess(d.vehicleId, false));
-      this.traffic.signals.setMode('normal');
+      this.traffic.setTankZoneClosed(false);
       this.incident({ phase: 'traffic_restored' });
       void this.requestReturn(); return;
     }
@@ -260,7 +278,8 @@ export class EmergencyService {
     try {
       this.requireObservation();
       const plan = incident.plan!;
-      const routes = await this.request(signal => Promise.all(plan.dispatches.map(async dispatch => {
+      const fleet = this.adapter.simulatedFleet;
+      const routes = fleet ? undefined : await this.request(signal => Promise.all(plan.dispatches.map(async dispatch => {
         const truck = this.traffic.trucks.find(t => t.id === dispatch.vehicleId)!;
         const planned = dispatch.route ?? await this.adapter!.resolveRoute?.(dispatch, { x: truck.pose.point[0], y: truck.pose.point[1] }, signal);
         if (!route(planned)) throw new Error('尚未提供消防车正式路径，请接入调度路径或 resolveRoute 接口。');
@@ -270,9 +289,12 @@ export class EmergencyService {
       this.requireObservation();
       await this.request(signal => this.adapter!.execute({ type: 'plan.confirm', commandId: `${incident.id}:${plan.id}:confirm`, incidentId: incident.id, plan }, signal));
       // Revalidate after async acknowledgement before mutating any truck.
-      plan.dispatches.forEach((d, i) => this.traffic.validateExternalRoute(d.vehicleId, routes[i], d.targetPosition));
-      if (plan.trafficLockdown) { this.traffic.signals.setMode('emergency_priority'); this.incident({ phase: 'traffic_lockdown' }); }
-      plan.dispatches.forEach((d, i) => { this.traffic.signals.setEmergencyAccess(d.vehicleId, true); this.traffic.applyExternalDispatch(d, routes[i]); });
+      if (routes) plan.dispatches.forEach((d, i) => this.traffic.validateExternalRoute(d.vehicleId, routes[i], d.targetPosition));
+      if (fleet) fleet.apply(plan);
+      plan.dispatches.forEach((d, i) => {
+        this.traffic.signals.setEmergencyAccess(d.vehicleId, true);
+        if (routes) this.traffic.applyExternalDispatch(d, routes[i]);
+      });
       this.incident({ confirmed: true, phase: 'fire_trucks_dispatched', error: undefined });
     } catch (error) {
       const message = error instanceof Error ? error.message : '消防车派遣未完成，请重试';
@@ -353,6 +375,7 @@ export class EmergencyService {
     if (!incident || incident.fireStatus !== 'extinguished' || incident.phase === 'completed') return;
     const trucks = incident.plan!.dispatches.map(d => this.traffic.trucks.find(t => t.id === d.vehicleId)!);
     if (trucks.some(t => t.status !== 'idle') || incident.returningIds.length !== trucks.length ||
+      this.adapter?.simulatedFleet?.isHome() === false ||
       incident.droneIds.some(id => !['idle', 'charging'].includes(this.getDrone(id)!.status))) return;
     trucks.forEach(t => this.traffic.signals.setEmergencyAccess(t.id, false));
     this.completed.add(incident.id);

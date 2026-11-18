@@ -8,9 +8,19 @@ import type { Candidate, FireSceneSeverity, Mode, Poi, Session, SceneActorSnapsh
 import { TrafficSimulation } from './utils/trafficSimulation';
 import { connectTrafficControl } from './utils/trafficSignalController';
 import EmergencyPanel from './components/EmergencyPanel';
+import EmergencyDemoControls from './components/EmergencyDemoControls';
 import { EmergencyService } from './utils/emergency';
+import { EmergencyDemo, type DemoNotice } from './utils/emergencyDemo';
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : '请求未完成，请检查本地桥接服务。';
+const demoEnabled = import.meta.env.VITE_EMERGENCY_DEMO !== 'false';
+
+function createSimulation(notify: (notice: DemoNotice) => void, revision = 0) {
+  const traffic = new TrafficSimulation();
+  const emergency = new EmergencyService(traffic);
+  const demo = demoEnabled ? new EmergencyDemo(emergency, notify) : undefined;
+  return { traffic, emergency, demo, revision };
+}
 
 export default function App() {
   const [pois, setPois] = useState<Poi[]>([]);
@@ -29,23 +39,31 @@ export default function App() {
   const generation = useRef(0);
   const inFlight = useRef(false);
   const sceneActors = useRef<readonly SceneActorSnapshot[]>([]);
-  const [traffic] = useState(() => new TrafficSimulation());
+  const [notice, setNotice] = useState<DemoNotice>();
+  const [simulation, setSimulation] = useState(() => createSimulation(setNotice));
+  const { traffic, emergency, demo } = simulation;
   useEffect(() => connectTrafficControl(traffic.signals), [traffic]);
-  const [emergency] = useState(() => new EmergencyService(traffic));
-  useEffect(() => emergency.attach(), [emergency]);
+  useEffect(() => emergency.attach(demo), [emergency, demo]);
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(undefined), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
   const emergencyState = useSyncExternalStore(emergency.subscribe, emergency.getSnapshot);
   const incident = emergencyState.incident;
+  const demoConnected = demo && emergency.isConnectedTo(demo);
+  const demoIncident = demo?.owns(incident) ?? false;
   const activeIncident = !!incident && incident.phase !== 'completed';
-  const sceneIncident = incident && (activeIncident || incident.targetPoiId === targetId) ? incident : null;
+  const sceneIncident = incident && (activeIncident || (demoIncident ? demo?.hasStarted(session?.session_id) : incident.targetPoiId === targetId)) ? incident : null;
   const assessment = sceneIncident?.assessment;
-  const severity: FireSceneSeverity = assessment?.status === 'completed' ? assessment.severity : 1;
+  const severity: FireSceneSeverity = assessment?.status === 'completed' ? assessment.severity : demoIncident ? demo!.getSeverity() : 1;
   const fireTargetId = sceneIncident?.targetPoiId ?? session?.ground_truth.poi_id ?? null;
   const fireStatus = sceneIncident?.fireStatus ?? 'normal';
   const seed = 42;
 
   useEffect(() => {
-    if (activeIncident) setTargetId(incident.targetPoiId);
-  }, [activeIncident, incident?.targetPoiId]);
+    if (activeIncident && !demoIncident) setTargetId(incident.targetPoiId);
+  }, [activeIncident, demoIncident, incident?.targetPoiId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +90,7 @@ export default function App() {
 
   const running = starting || session?.status === 'running';
   const busy = preparing || running;
+  const canReset = !!session && connected && !busy && (!activeIncident || demoIncident);
   const completed = session?.status === 'completed';
   const prediction = session?.prediction ?? null;
   const candidates = prediction?.candidates ?? [];
@@ -117,14 +136,18 @@ export default function App() {
     } finally { if (generation.current === revision) { setStarting(false); inFlight.current = false; } }
   }
 
-  async function reset() {
-    if (!session || busy || inFlight.current) return;
+  async function resetAll() {
+    if (!canReset || !session || inFlight.current) return;
+    inFlight.current = true;
     const id = session.session_id;
     const revision = ++generation.current;
     setSession(null); setPreparing(true); setSelectedRank(1); setError(null);
+    setConfirmLive(false); setNotice(undefined);
+    sceneActors.current = [];
+    setSimulation(createSimulation(setNotice, simulation.revision + 1));
     try { const next = await api.reset(id); if (generation.current === revision) setSession(next); }
     catch (err) { if (generation.current === revision) setError(errorMessage(err)); }
-    finally { if (generation.current === revision) setPreparing(false); }
+    finally { if (generation.current === revision) { setPreparing(false); inFlight.current = false; } }
   }
 
   return <div className="application-shell">
@@ -137,9 +160,9 @@ export default function App() {
       <div className="page-heading"><div><div className="eyebrow">Agent-based Urban Fire Localization System</div><h1>城市火灾应急管理系统</h1><p>城市数字孪生 · 多源火情感知 · 实时空间定位</p></div><div className="research-label"><ShieldCheck size={19} /><span>城市应急态势中心<small>多源信息 → 空间推理 → 定位评估</small></span></div></div>
       {error && <div className="error-banner" role="alert"><AlertCircle size={18} /><div><strong>{connected ? '本次操作未完成' : '桥接服务未连接'}</strong><p>请检查本地 Bridge 服务，再重新准备场景。</p><details><summary>查看错误详情</summary><p>{error}</p></details></div><button disabled={busy} onClick={() => { if (!connected) setReload(v => v+1); else setPrepareNonce(v => v+1); }}>重新准备</button></div>}
       <div className="workspace-grid">
-        <div className="map-column">
+        <div className="map-column" key={simulation.revision}>
           <div className="map-region">
-            <SandboxMap pois={pois} session={session} targetId={fireTargetId} highlighted={highlight} sceneActors={sceneActors} severity={severity} traffic={traffic} emergency={emergency} />
+            <SandboxMap pois={pois} session={session} targetId={fireTargetId} highlighted={highlight} sceneActors={sceneActors} severity={severity} traffic={traffic} emergency={emergency} demoNotice={demoConnected && sceneIncident ? notice : undefined} />
           </div>
           <FireScenePanel targetId={fireTargetId} status={fireStatus} actors={sceneActors} severity={severity} showInfo={false} />
         </div>
@@ -147,9 +170,9 @@ export default function App() {
           <section className="control-card"><div className="card-heading"><span><Activity size={17} /><h2>火情场景配置</h2></span><span className="tag-muted">SCENARIO CONTROL</span></div>
             <div className="control-body"><label className="field-label" htmlFor="scenario">火情场景<span>{activeIncident ? '处置中 · 目标锁定' : `${scenarios.length} 个储罐`}</span></label><select id="scenario" value={targetId} disabled={busy || !connected || activeIncident} onChange={e => setTargetId(e.target.value)}>{!scenarios.length && <option value="">等待场景加载</option>}{scenarios.map(p => <option value={p.poi_id} key={p.poi_id}>{p.name}</option>)}</select>
               <div className="ground-truth-box"><MapPin size={16} /><div><small>GROUND TRUTH · 真实着火位置</small><strong>{session?.ground_truth.name ?? (preparing ? '正在准备场景…' : '尚未准备')}</strong><span>{session?.ground_truth.poi_id ?? '等待场景准备'}</span></div></div>
-              <div className="mode-switch" role="group" aria-label="运行模式"><button className={mode === 'offline' ? 'chosen' : ''} disabled={busy} onClick={() => setMode('offline')}>Offline <span>离线模拟</span></button><button className={mode === 'live' ? 'chosen live' : ''} disabled={busy} onClick={() => setMode('live')}>Live <span>付费模型</span></button></div>
+              <div className="mode-switch" role="group" aria-label="运行模式"><button className={mode === 'offline' ? 'chosen' : ''} disabled={busy || activeIncident} onClick={() => setMode('offline')}>Offline <span>离线模拟</span></button><button className={mode === 'live' ? 'chosen live' : ''} disabled={busy || activeIncident} onClick={() => setMode('live')}>Live <span>付费模型</span></button></div>
               <p className={`mode-note ${mode}`}>{mode === 'offline' ? '规则提取 + 字符哈希向量 · 无外部模型调用' : '真实 Chat + Embedding · 启动前确认 API 费用'}</p>
-              <div className="run-buttons"><button className={`primary-button ${completed ? 'is-completed' : ''}`} aria-label="开始定位" disabled={!connected || busy || session?.status !== 'prepared'} onClick={() => void run()}>{busy ? <LoaderCircle size={17} className="spin" /> : completed ? <Check size={17} /> : <Play size={15} fill="currentColor" />}<span>{preparing ? '准备场景中' : running ? '正在定位' : completed ? '定位完成' : session?.status === 'failed' ? '请重置后重试' : '开始定位'}<small data-testid="run-button-state">{buttonState}</small></span></button><button className="secondary-button reset-button" aria-label="重置演示" disabled={!session || busy || !connected} onClick={() => void reset()}><RotateCcw size={16} />重置</button></div>
+              <div className="run-buttons"><button className={`primary-button ${completed ? 'is-completed' : ''}`} aria-label="开始定位" disabled={!connected || busy || session?.status !== 'prepared'} onClick={() => void run()}>{busy ? <LoaderCircle size={17} className="spin" /> : completed ? <Check size={17} /> : <Play size={15} fill="currentColor" />}<span>{preparing ? '准备场景中' : running ? '正在定位' : completed ? '定位完成' : session?.status === 'failed' ? '请重置后重试' : '开始定位'}<small data-testid="run-button-state">{buttonState}</small></span></button><button className="secondary-button reset-button" disabled={!canReset} onClick={() => void resetAll()} title="清空本轮定位结果和模拟处置，回到开始定位前"><RotateCcw size={16} />全局重置</button></div>
               <div className="algorithm-status" role="status" aria-live="polite"><i className={running ? 'pulse-dot' : completed ? 'complete-dot' : ''} /><span>{stage}</span><small>{running ? `第 ${session?.batch_count ?? 0} 批 · ${session?.processed_count ?? 0} 条` : completed ? '实际算法结果' : `种子 ${seed} · ${session?.post_count ?? 100} 条帖子`}</small></div>
               {session?.error && <div className="run-error" role="alert"><AlertCircle size={17} /><div><strong>定位未完成，请重置后重试</strong><p>场景已保留，可重新运行当前场景。</p><details><summary>查看错误详情</summary><strong>{session.error.error_type}</strong><p>{session.error.message}</p></details></div></div>}
             </div>
@@ -164,7 +187,10 @@ export default function App() {
             <details className="runtime-details"><summary>运行信息<span>{stage}</span></summary><dl><div><dt>运行模式</dt><dd>{mode === 'offline' ? 'Offline · 规则提取 / 字符哈希向量' : 'Live · Chat / Embedding'}</dd></div><div><dt>处理批次</dt><dd>{session?.batch_count ?? 0}</dd></div><div><dt>无候选信息</dt><dd>{session?.ignored_count ?? 0} 条</dd></div><div><dt>预测坐标</dt><dd>{top1 ? `(${top1.coordinates.x_m.toFixed(3)}, ${top1.coordinates.y_m.toFixed(3)}) m` : '—'}</dd></div><div><dt>真实坐标</dt><dd>{session ? `(${session.ground_truth.coordinates.x_m.toFixed(3)}, ${session.ground_truth.coordinates.y_m.toFixed(3)}) m` : '—'}</dd></div><div><dt>会话 ID</dt><dd>{session?.session_id ?? '等待创建'}</dd></div></dl></details>
             </div>
           </section>
-          <EmergencyPanel service={emergency} />
+          <EmergencyPanel key={simulation.revision} service={emergency} automatic={demoConnected && demoIncident} demoControls={demoConnected && <EmergencyDemoControls
+            demo={demo} active={activeIncident} pending={emergencyState.pending}
+            handoff={completed && !busy && top1 ? { sessionId: session.session_id, poiId: top1.poi_id, name: top1.name } : undefined}
+          />} />
           <FireSceneInfo targetId={fireTargetId} status={fireStatus} />
         </aside>
       </div>

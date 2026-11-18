@@ -14,7 +14,7 @@ test.each([0, .08, .4, 1])('responders clear intersections when parking after st
   const mock = createEmergencyMock(service);
   cleanups.push(connectTrafficControl(traffic.signals), service.attach(), service.connect(mock.adapter));
   for (let t = 0; t < 115.3 + offset - 1e-8; t += .05) traffic.tick(.05);
-  expect(traffic.cars).toHaveLength(53);
+  expect(traffic.cars).toHaveLength(27);
   mock.begin();
   const plan = mock.prepare(2, 3);
   expect(plan.dispatches).toHaveLength(2);
@@ -34,8 +34,11 @@ test.each([0, .08, .4, 1])('responders clear intersections when parking after st
     const before = traffic.cars.map(car => car.pose.point);
     traffic.tick(.05);
     traffic.cars.forEach((car, i) => distances.set(car.id, distances.get(car.id)! + Math.hypot(car.pose.point[0] - before[i][0], car.pose.point[1] - before[i][1])));
-    if (time >= 100 && traffic.trucks.every(t => t.status === 'idle') && service.getSnapshot().drones.every(d => !d.path)) break;
+    if (time >= 100 && traffic.trucks.every(t => t.status === 'idle') && service.getSnapshot().drones.every(d => !d.path) &&
+      [...distances.values()].every(distance => distance > .2)) break;
   }
   expect(traffic.trucks.every(t => t.status === 'idle')).toBe(true);
-  expect([...distances.values()].filter(distance => distance > .2)).toHaveLength(53);
+  expect(traffic.cars.filter(car => distances.get(car.id)! <= .2).map(car => ({
+    id: car.id, point: car.pose.point, road: car.cursor.piece.road, to: car.cursor.piece.to,
+  }))).toEqual([]);
 }, 60000);

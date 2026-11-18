@@ -126,6 +126,7 @@ export class TrafficSignalController implements TrafficControlService {
   private authorized = new Set<string>();
   private runtime = new Map(intersections.map(i => [i.id, { group: 0, phase: 'all_red' as IntersectionSignalState['phase'] }]));
   private programs = signalPrograms.map(program => ({ ...program, index: 0, elapsed: 0, active: false, priority: undefined as number | undefined }));
+  private programByIntersection = new Map(this.programs.flatMap(program => program.ids.map(id => [id, program] as const)));
   private priorityApproaches: readonly Piece[] = [];
   private occupants = new Map(intersections.map(i => [i.id, new Map<string, Occupant>()]));
   private states = new Map<string, IntersectionSignalState>();
@@ -163,14 +164,34 @@ export class TrafficSignalController implements TrafficControlService {
   }
   release(id: string, actorId: string) { (clearanceZones.get(id) ?? [id]).forEach(key => this.occupants.get(key)?.delete(actorId)); }
   isOccupied(id: string, except?: string) { return [...(this.occupants.get(id)?.keys() ?? [])].some(actor => actor !== except); }
-  canEnterVehicle(lane: Piece, actorId: string, fire: boolean) {
+  hasPedestrianInZone(id: string) {
+    return [...(clearanceZones.get(id) ?? [id])].some(key =>
+      [...(this.occupants.get(key)?.values() ?? [])].some(occupant => occupant.kind === 'pedestrian'));
+  }
+  isVehicleGreen(lane: Piece) {
+    const control = controlledLanes.get(lane);
+    return !control || this.states.get(control.intersection.id)!.vehicles[control.entry.id] === 'green';
+  }
+  returnPriorityPhase(lane: Piece): 'green' | 'preparing' | undefined {
+    const control = controlledLanes.get(lane);
+    if (this.mode !== 'normal' || !control) return;
+    if (this.isVehicleGreen(lane)) return 'green';
+
+    const { intersection, entry } = control;
+    const { index, elapsed, active, phases } = this.programByIntersection.get(intersection.id)!;
+    if (active && elapsed < phases[index].duration - config.timing.allRed) return;
+    const next = phases[active ? (index + 1) % phases.length : index];
+    const group = next.groups.get(intersection.id);
+    if (group !== undefined && intersection.groups[group].members.includes(entry.id)) return 'preparing';
+  }
+  canEnterVehicle(lane: Piece, actorId: string, fire: boolean, ignoreSignal = false) {
     const control = controlledLanes.get(lane);
     if (!control) return true;
     const zone = [...clearanceZones.get(control.intersection.id)!];
     if (zone.some(id => this.isOccupied(id, actorId))) return false;
     if (this.occupants.get(control.intersection.id)!.get(actorId)?.kind === 'vehicle') return true;
-    return (fire && this.authorized.has(actorId) && this.mode !== 'emergency_priority') || (zone.every(id => this.states.get(id)!.phase !== 'pedestrian') &&
-      this.states.get(control.intersection.id)!.vehicles[control.entry.id] === 'green');
+    return ignoreSignal || (fire && this.authorized.has(actorId) && this.mode !== 'emergency_priority') ||
+      (zone.every(id => this.states.get(id)!.phase !== 'pedestrian') && this.isVehicleGreen(lane));
   }
   canEnterPedestrian(crosswalkId: string) {
     const control = controlledCrossings.get(crosswalkId);

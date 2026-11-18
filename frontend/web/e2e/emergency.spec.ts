@@ -71,13 +71,13 @@ test('complete external emergency lifecycle, synchronized drones, confirmation, 
   await snapshot(page, '04-plan-awaiting-confirmation');
   await page.getByRole('button', { name: '确认并执行方案', exact: true }).click();
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'fire_trucks_dispatched');
-  await expect(page.getByText('消防沿线信号优先 · 冲突方向停车 · 其余路口正常运行', { exact: true })).toBeVisible();
+  await expect(page.getByText('罐区道路疏散中 · 暂停普通车辆驶入 · 红绿灯照常轮换', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '地图图层', exact: true }).click();
   await page.getByLabel('交通信号灯', { exact: true }).check();
   await page.getByRole('button', { name: '地图图层', exact: true }).click();
   await advance(page, 2);
   expect(await page.locator('[data-signal-state="green"]').count()).toBeGreaterThan(0);
-  expect(await page.locator('[data-emergency-priority="true"]').count()).toBeLessThan(await page.locator('[data-intersection]').count());
+  await expect(page.locator('[data-emergency-priority="true"]')).toHaveCount(0);
   await snapshot(page, '05-city-lockdown');
   await advance(page, 200);
   await expect(page.locator('[data-fire-truck][data-status="arrived"]')).toHaveCount(2);
@@ -108,7 +108,7 @@ test('complete external emergency lifecycle, synchronized drones, confirmation, 
   const commands = await page.evaluate(() => window.emergencyTest.commands.map(c => ({ type: c.type, commandId: c.commandId })));
   const phases = await page.evaluate(() => window.emergencyTest.phases);
   const milestones = ['fire_detected', 'drone_dispatched', 'observing', 'assessment_completed', 'awaiting_confirmation',
-    'traffic_lockdown', 'fire_trucks_dispatched', 'fire_trucks_arrived', 'extinguishing', 'extinguished', 'traffic_restored', 'returning', 'completed'];
+    'fire_trucks_dispatched', 'fire_trucks_arrived', 'extinguishing', 'extinguished', 'traffic_restored', 'returning', 'completed'];
   expect(phases).toEqual(expect.arrayContaining(milestones));
   expect(milestones.map(phase => phases.indexOf(phase))).toEqual(milestones.map(phase => phases.indexOf(phase)).sort((a, b) => a - b));
   expect(commands.filter(c => c.type === 'plan.confirm')).toHaveLength(1);

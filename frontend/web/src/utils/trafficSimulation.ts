@@ -4,7 +4,7 @@ import config from '../config/trafficControl.json';
 import { TrafficSignalController } from './trafficSignalController';
 import { PedestrianSimulation } from './pedestrianSimulation';
 import { approaches, ARRIVAL_RADIUS, avenueLanes, distance, garage, originalLoop, pose,
-  lanes, retreatPlans, roadPieces, routeTo, stationExit, stationJunction, streetLoop,
+  followsOnSameLane, garageEntries, inTankZone, isFireStationOnly, isGarageAccess, isRightTurn, oppositeLane, roadPieces, routeTo, routeToLane, streetLoop,
   type Approach, type Cursor, type Piece, type Point, type Pose, type RoadPlan } from './roadNetwork';
 
 export type ResetMode = 'garage' | 'roads';
@@ -13,12 +13,21 @@ export type TruckStatus = 'idle' | 'en-route' | 'arrived' | 'unreachable' | 'ret
 type Vehicle = {
   id: string; fire: boolean; cursor: Cursor; pose: Pose; speed: number;
   path: Piece[]; index: number; stop: number; status: TruckStatus; junction?: string;
-  blockedFor: number; originalPath?: Piece[]; waitingForSignal?: boolean;
-  bay?: Piece; reversing?: 'retreat' | 'parking' | 'yield'; yieldRoute?: Piece[];
+  originalPath?: Piece[]; homePath?: Piece[]; waitingForSignal?: boolean;
+  bay?: Piece;
   external?: { target: Point; water: boolean };
   telemetry?: { updatedAt: number; ceiling: number };
+  returnRetry?: number;
+  fixedReturnRoute?: boolean;
+  recallFrom?: Piece;
+  reverseShift?: number;
+  queueWait?: number;
 };
 type VehicleBody = Pick<Vehicle,'fire'|'pose'> & { lane?: Piece };
+type ReturnApproach = { lane: Piece; junction: string };
+type ReturnPriority = ReturnApproach & { vehicle: Vehicle; phase: 'green' | 'preparing' };
+type ReturnExit = ReturnApproach & { truck: Vehicle; exit: Piece };
+type ReturnReservations = { priorities: ReturnPriority[]; exits: ReturnExit[] };
 const body = (fire: boolean) => fire ? [.84,.30] : [.65,.26]; // half length and half width, in metres
 const GAP = .10;
 
@@ -34,7 +43,12 @@ export function conflicts(a: VehicleBody, b: VehicleBody, gap=GAP): boolean {
 }
 
 const localRoutes = traffic_routes.filter(r => !r.road_ids.every(id => roads.some(road => road.id === id)));
-const configuredRoutes = traffic_routes.filter(r => !localRoutes.includes(r) || localRoutes.indexOf(r) < config.vehicles.originalCars);
+const outerRoutes = traffic_routes.filter(r => !localRoutes.includes(r));
+const configuredRoutes = [
+  // Keep one car per outer block, alternating direction between adjacent blocks.
+  ...outerRoutes.filter((_, index) => index % 4 === 0 || index % 4 === 3),
+  ...localRoutes.slice(0, config.vehicles.originalCars).filter((_, index) => index % 2 === 0),
+];
 const trafficLoops=configuredRoutes.map(route=>{
   const i = traffic_routes.indexOf(route);
   const lines=route.road_ids.map(id=>roads.find(r=>r.id===id)?.centerline.coordinates[0]);
@@ -44,9 +58,18 @@ const trafficLoops=configuredRoutes.map(route=>{
     ? [[lines[0]![0],lines[2]![1]],[lines[1]![0],lines[2]![1]],[lines[1]![0],lines[3]![1]],[lines[0]![0],lines[3]![1]]]
     : [...originalLoop];
   const clockwise=i<48?i%2===0:i<52;
-  return {route,path:streetLoop(clockwise?corners.reverse():corners)};
+  if (clockwise) corners.reverse();
+  const path = streetLoop(corners);
+  return {route,path:path.some(isFireStationOnly) ? streetLoop(corners.reverse()) : path};
 });
-const trafficLanes=new Set(trafficLoops.flatMap(loop=>loop.path));
+const outsideLoops = trafficLoops.map(loop => loop.path).filter(path => path.every(lane => !inTankZone(lane)));
+const FIRE_TRUCK_SPEED = 3.8;
+const PARKING_SPEED = 1.2;
+const REVERSE_SHIFT_SECONDS = .45;
+const QUEUE_DETOUR_SECONDS = 3;
+const RETURN_RETRY_SECONDS = 3;
+const RETURN_PRIORITY_DISTANCE = 2.5;
+const RETURN_EXIT_GREEN_WINDOWS = 2;
 export const carIds = configuredRoutes.map(r=>r.id);
 export const truckIds = garage.map((_,i)=>`EXT-FIRE-VEHICLE-0${i+1}`);
 
@@ -59,7 +82,7 @@ function cursorOn(path: Piece[], length: number) {
 }
 function actor(id: string, fire: boolean, path: Piece[], speed: number, offset: number): Vehicle {
   const {cursor,index}=cursorOn(path,offset);
-  return {id,fire,cursor,pose:pose(cursor),speed,path,index,stop:0,status:'idle',blockedFor:0};
+  return {id,fire,cursor,pose:pose(cursor),speed,path,index,stop:0,status:'idle'};
 }
 
 // Check parked truck footprints against a lane or turn, including the swing of a
@@ -76,23 +99,12 @@ function passable(stopped: VehicleBody[]) {
       }
       bounds.set(p,blocked);
     }
-    // The first lane may start partway through. A vehicle behind that cursor
-    // can block backing up, but it cannot block the forward route.
+    // The first lane may start partway through; ignore vehicles behind the cursor.
     const next=bounds.get(p)!.find(d=>d>=offset);
     return next===undefined?p.length:next-.12;
   };
 }
 
-const stationary=(v:Vehicle)=>v.fire&&v.status!=='en-route'&&v.status!=='returning';
-// 已批准的外部停车路段提前避让，防止普通车夹在两辆消防车之间后无出口。
-const blocksTrafficExit = (vehicle: Vehicle, lane: Piece | undefined) => lane &&
-  ((stationary(vehicle) && vehicle.cursor.piece === lane) ||
-    (vehicle.external && vehicle.status === 'en-route' && vehicle.path.at(-1) === lane));
-const reservesJunction = (vehicle: Vehicle, junction: string) => vehicle.junction === junction ||
-  Boolean(vehicle.reversing && vehicle.path.some((p, i) => i >= vehicle.index && p.junction === junction));
-const stationApproach: Cursor = {piece: stationExit, distance: 0};
-const QUEUE_REPLAN_SECONDS = 3.5;
-const REVERSE_SPEED = 1.2;
 const DRIVEWAY_ENTRY = 1.05;
 
 function occupiedJunction({piece, distance}: Cursor) {
@@ -103,14 +115,18 @@ export class TrafficSimulation {
   trucks: Vehicle[]=[];
   private goal: Point|null=null;
   private severity: Severity=1;
+  private simulatedFleet: ReadonlySet<string> | null = null;
+  private simulatedWater = new Set<string>();
+  tankZoneClosed = false;
   private priority=0;
   private garageOrder: Vehicle[]=[];
   readonly pedestrians: PedestrianSimulation;
   private listeners = new Set<(seconds: number) => void>();
   private updates = new Set<(seconds: number) => void>();
   private vehicleOccupancies = new Map<string, string>();
-  constructor(private random=Math.random, readonly signals = new TrafficSignalController()) {
-    this.pedestrians = new PedestrianSimulation(signals);
+  private returnQueue = new Map<Vehicle, ReturnApproach & { greenWindows: number; green: boolean }>();
+  constructor(private random=Math.random, readonly signals = new TrafficSignalController(), pedestriansEnabled = config.pedestriansEnabled) {
+    this.pedestrians = new PedestrianSimulation(signals, pedestriansEnabled);
     if (config.vehicles.emergencyFleetAuthorized) truckIds.forEach(id => signals.setEmergencyAccess(id, true));
     this.reset('garage');
     for(const {route,path} of trafficLoops) {
@@ -134,9 +150,15 @@ export class TrafficSimulation {
       id: vehicle.id, kind: 'fireTruck',
       position: { x: vehicle.pose.point[0], y: vehicle.pose.point[1] },
       heading: vehicle.pose.angle, status: vehicle.external?.water ? 'extinguishing' : vehicle.status,
-      waterTarget: vehicle.external ? (vehicle.external.water ? { x: vehicle.external.target[0], y: vehicle.external.target[1] } : undefined)
-        : this.goal ? { x: this.goal[0], y: this.goal[1] } : undefined,
+      waterTarget: this.waterTarget(vehicle),
     }));
+  }
+  waterTarget(vehicle: Vehicle): CityPosition | undefined {
+    if (vehicle.status !== 'arrived') return;
+    const target = vehicle.external
+      ? (vehicle.external.water ? vehicle.external.target : null)
+      : (!this.simulatedFleet || this.simulatedWater.has(vehicle.id) ? this.goal : null);
+    if (target) return { x: target[0], y: target[1] };
   }
   validateExternalRoute(vehicleId: string, route: FireTruckRoute, target?: CityPosition) {
     const truck = this.trucks.find(t => t.id === vehicleId);
@@ -154,7 +176,6 @@ export class TrafficSimulation {
     const truck = this.trucks.find(t => t.id === dispatch.vehicleId)!;
     truck.path = pieces; truck.index = 0; truck.stop = route.stop;
     truck.status = pieces.length === 1 && Math.abs(truck.cursor.distance - route.stop) < 1e-6 ? 'arrived' : 'en-route';
-    truck.reversing = undefined; truck.blockedFor = 0;
     truck.external = { target: [dispatch.targetPosition.x, dispatch.targetPosition.y], water: false };
     truck.telemetry = undefined;
     this.garageOrder = [...this.garageOrder.filter(t => t !== truck && t.external), truck];
@@ -168,15 +189,20 @@ export class TrafficSimulation {
       const a = p.points[i], dx = b[0] - a[0], dy = b[1] - a[1];
       const t = Math.max(0, Math.min(1, ((position.x - a[0]) * dx + (position.y - a[1]) * dy) / (dx * dx + dy * dy)));
       const offset = p.cumulative[i] + Math.hypot(dx, dy) * t;
-      return index < truck.index || (index === truck.index && (truck.reversing ? offset > truck.cursor.distance + .05 : offset < truck.cursor.distance - .05)) ? [] :
+      return index < truck.index || (index === truck.index && offset < truck.cursor.distance - .05) ? [] :
         [{ index, offset, error: Math.hypot(a[0] + dx * t - position.x, a[1] + dy * t - position.y) }];
     })).sort((a, b) => a.error - b.error);
     if (!samples.length || samples[0].error > .08) throw new Error('消防车位置更新偏离已批准路径或早于当前进度');
-    truck.telemetry = { updatedAt, ceiling: truck.path.slice(0, samples[0].index).reduce((sum, p) => sum + p.length, 0) +
-      (truck.reversing ? truck.path[samples[0].index].length - samples[0].offset : samples[0].offset) };
+    truck.telemetry = { updatedAt, ceiling: truck.path.slice(0, samples[0].index).reduce((sum, p) => sum + p.length, 0) + samples[0].offset };
   }
   setExternalWater(id: string, active: boolean) {
     const truck = this.trucks.find(t => t.id === id);
+    if (this.simulatedFleet?.has(id) && truck && !truck.external) {
+      if (active && truck.status !== 'arrived') throw new Error('消防车尚未抵达批准的停车点');
+      if (active) this.simulatedWater.add(id);
+      else this.simulatedWater.delete(id);
+      return;
+    }
     if (!truck?.external || (active && truck.status !== 'arrived')) throw new Error('消防车尚未抵达批准的停车点');
     truck.external.water = active;
   }
@@ -186,7 +212,7 @@ export class TrafficSimulation {
     if (route) {
       const pieces = this.validateExternalRoute(id, route);
       truck.external = undefined;
-      this.setReturnPath(truck, { pieces, stop: route.stop });
+      this.setReturnPath(truck, { pieces, stop: route.stop }, true);
       return;
     }
     truck.external = undefined;
@@ -194,17 +220,18 @@ export class TrafficSimulation {
   }
   reset(mode: ResetMode) {
     this.trucks.forEach(t => { if (t.junction) this.signals.release(t.junction, t.id); });
+    this.returnQueue.clear();
     this.trucks=[];
     const eligible=avenueLanes.filter(p=>p.length>2.1), length=eligible.reduce((n,p)=>n+p.length-1.9,0);
     for(let i=0;i<garage.length;i++) {
-      const parked=actor(truckIds[i],true,[garage[i]],3.8,0);
+      const parked=actor(truckIds[i],true,[garage[i]],FIRE_TRUCK_SPEED,0);
       parked.bay=garage[i];
       if(mode==='garage') {this.trucks.push(parked); continue;}
       const initial=this.random()*length;
       for(let attempt=0;attempt<Math.ceil(length/.25);attempt++) {
         let s=(initial+attempt*.271)%length;
         const lane=eligible.find(p=>{if(s<p.length-1.9)return true; s-=p.length-1.9;return false;})!;
-        const truck=actor(truckIds[i],true,[lane],3.8,.95+s);
+        const truck=actor(truckIds[i],true,[lane],FIRE_TRUCK_SPEED,.95+s);
         truck.bay=parked.bay;
         if(this.all.every(other=>!conflicts(truck,other))) {this.trucks.push(truck);break;}
       }
@@ -218,235 +245,152 @@ export class TrafficSimulation {
     if(changed) for(const truck of this.trucks)if(truck.status==='arrived')truck.status='idle';
     this.dispatch();
   }
+  closestTruckIds(target: Point, count: number) {
+    return this.chooseResponders(this.rankTrucks(target).map(({ truck }) => truck), count).map(truck => truck.id);
+  }
+  applySimulatedFleet(goal: Point | null, ids: readonly string[] = []) {
+    this.simulatedFleet = goal ? new Set(ids) : null;
+    this.simulatedWater = new Set([...this.simulatedWater].filter(id => this.simulatedFleet?.has(id)));
+    this.goal = goal;
+    this.dispatch();
+  }
+  private rankTrucks(target: Point) {
+    return this.trucks.map(truck => ({ truck, routes: approaches(truck.cursor, target) }))
+      .sort((a, b) => (a.truck.status === 'arrived' ? 0 : a.routes[0]?.cost ?? Infinity) -
+        (b.truck.status === 'arrived' ? 0 : b.routes[0]?.cost ?? Infinity));
+  }
+  private chooseResponders(ranked: Vehicle[], count: number) {
+    const first = ranked.slice(0, count);
+    if (count >= ranked.length || ranked.filter(truck => truck.status === 'arrived').length <= count) return first;
+    const ready = ranked.filter(truck => truck.status === 'arrived');
+    const candidates = count === 1 ? ready.map(truck => [truck]) :
+      ready.flatMap((truck, index) => ready.slice(index + 1).map(other => [truck, other]));
+    // There are at most three trucks. Prefer the nearest responders whose parked positions let the others leave.
+    let best = first;
+    let mostAbleToLeave = -1;
+    for (const selected of candidates) {
+      const parked = selected.filter(truck => truck.status === 'arrived');
+      const canLeave = ranked.filter(truck => !selected.includes(truck) &&
+        (truck.cursor.piece === truck.bay && truck.cursor.distance === 0 || !!this.returnPlan(truck, parked))).length;
+      if (canLeave > mostAbleToLeave) {
+        mostAbleToLeave = canLeave;
+        best = selected;
+      }
+      if (canLeave === ranked.length - count) break;
+    }
+    return best;
+  }
   private dispatch() {
     const target=this.goal;
+    this.trucks.forEach(truck => { truck.recallFrom = undefined; });
     if(!target) {
       this.garageOrder=[];
       for(const truck of this.trucks)this.sendHome(truck);
       return;
     }
-    const stoppedTraffic = this.signals.getMode() === 'emergency_lockdown' ? this.stoppedTraffic() : [];
-    const trafficLimit = passable(stoppedTraffic);
-    const ranked=this.trucks.map(truck=>({truck,routes:approaches(truck.cursor,target,trafficLimit)}));
-    ranked.sort((a,b)=>(a.truck.status==='arrived'?0:a.routes[0]?.cost??Infinity)-
-      (b.truck.status==='arrived'?0:b.routes[0]?.cost??Infinity));
-    const selected=ranked.slice(0,this.severity);
+    const ranked=this.rankTrucks(target);
+    const selectedIds = this.simulatedFleet ?? new Set(this.chooseResponders(ranked.map(({ truck }) => truck), this.severity).map(truck => truck.id));
+    const selected=ranked.filter(({truck})=>selectedIds.has(truck.id));
+    const unselected=ranked.filter(entry=>!selected.includes(entry));
+    for (const { truck } of unselected) {
+      if (truck.status === 'arrived') truck.status = 'return-waiting';
+    }
     this.garageOrder=selected.map(x=>x.truck);
-    const occupied:VehicleBody[]=[...ranked.slice(this.severity).map(x=>x.truck),
-      ...selected.filter(x=>x.truck.status==='arrived').map(x=>x.truck)].map(t=>({...t,lane:t.cursor.piece}));
+    const occupied:VehicleBody[]=selected.filter(x=>x.truck.status==='arrived').map(({truck})=>({...truck,lane:truck.cursor.piece}));
     for(const {truck,routes} of selected) {
-      if(truck.status==='arrived')continue;
-      truck.reversing=undefined;
-      truck.junction=occupiedJunction(truck.cursor);
-      // Stage the first truck farther along its final lane. Following trucks
-      // get separate stops behind it or on another approach within five metres.
-      const candidates=occupied.length || stoppedTraffic.length ? approaches(truck.cursor,target,passable([...occupied, ...stoppedTraffic])) : routes;
+      if(truck.status==='arrived'||(truck.status==='returning'&&isGarageAccess(truck.cursor.piece)))continue;
+      truck.junction ??= occupiedJunction(truck.cursor);
+      // Each responder needs a distinct stopping point within five metres.
+      const candidates=occupied.length ? approaches(truck.cursor,target,passable(occupied)) : routes;
       if(this.assign(truck,candidates,occupied))occupied.push(this.staging(truck));
+      // Continue along the forward return path until another legal approach opens.
+      else if (truck.status === 'returning' || truck.status === 'return-waiting') truck.recallFrom = truck.cursor.piece;
       else truck.status='unreachable';
     }
-    for(const {truck} of ranked.slice(this.severity))this.sendHome(truck);
+    for(const {truck} of unselected)this.sendHome(truck);
   }
   private sendHome(truck: Vehicle) {
-    if (truck.status === 'returning' || truck.status === 'return-waiting') return;
-    truck.junction = occupiedJunction(truck.cursor);
-    this.planReturn(truck, this.all);
+    if (truck.status !== 'returning') this.planReturn(truck);
   }
 
-  private setReturnPath(truck: Vehicle, plan: RoadPlan, reversing?: Vehicle['reversing']) {
+  private setReturnPath(truck: Vehicle, plan: RoadPlan, fixed = false) {
     truck.telemetry = undefined;
     truck.path = plan.pieces;
     truck.index = 0;
     truck.stop = plan.stop;
     truck.status = 'returning';
-    truck.reversing = reversing;
-    truck.blockedFor = 0;
+    truck.returnRetry = 0;
+    truck.fixedReturnRoute = fixed;
   }
 
-  private planReturn(truck: Vehicle, vehicles: Vehicle[], skip?: Piece) {
+  private park(truck: Vehicle) {
+    if (truck.junction) this.signals.release(truck.junction, truck.id);
+    truck.cursor = { piece: truck.bay!, distance: 0 };
+    truck.path = [truck.bay!];
+    truck.index = 0;
+    truck.stop = 0;
+    truck.status = 'idle';
+    truck.junction = undefined;
+    truck.waitingForSignal = false;
+    truck.telemetry = undefined;
+    truck.returnRetry = 0;
+    truck.fixedReturnRoute = false;
+  }
+
+  private returnPlan(truck: Vehicle, parked: readonly Vehicle[]) {
+    const entry = garageEntries[garage.indexOf(truck.bay!)];
+    return routeTo(truck.cursor, { piece: entry, distance: entry.length }, parked.length ? passable([...parked]) : undefined);
+  }
+
+  private planReturn(truck: Vehicle) {
     const bay = truck.bay!;
-    const start = truck.cursor;
-    if (start.piece === bay && start.distance === 0) {
-      truck.status = 'idle';
-      truck.junction = undefined;
-      truck.reversing = undefined;
+    if (truck.cursor.piece === bay && truck.cursor.distance === 0) {
+      this.park(truck);
       return;
     }
-
-    if (start.piece === bay || (start.piece === stationExit && start.distance < 1.5)) {
-      const pieces = start.piece === bay ? [bay] : [stationExit, bay];
-      if (this.beginReverse(truck, {pieces, stop: 0}, vehicles, 'parking')) return;
-    } else {
-      const stationaryTrucks = vehicles.filter(other => other !== truck && stationary(other));
-      const limit = passable(stationaryTrucks);
-      const usable = (p: Piece, s: number) => p === skip ? -1 : limit(p, s);
-      const plan = routeTo(start, stationApproach, usable);
-      if (plan) {
-        this.setReturnPath(truck, plan);
-        return;
-      }
-
-      // Forward exits are blocked. Reverse to an upstream turn only if the
-      // whole backing path is clear and that turn leads to a route home.
-      let hasReverseExit = false;
-      for (const retreat of retreatPlans(start)) {
-        const incoming = retreat.pieces.at(-1)!;
-        const forward = routeTo({piece: incoming, distance: retreat.stop}, stationApproach, usable);
-        if (!forward) continue;
-        hasReverseExit = true;
-        if (this.beginReverse(truck, retreat, vehicles, 'retreat')) return;
-      }
-      if (skip) {
-        const original = routeTo(start, stationApproach, limit);
-        if (original) {
-          this.setReturnPath(truck, original);
-          return;
-        }
-      }
-      if (hasReverseExit) this.clearRearTraffic(truck, vehicles);
-    }
-
-    truck.status = 'return-waiting';
-    truck.reversing = undefined;
-    truck.blockedFor = 0;
-  }
-
-  private beginReverse(vehicle: Vehicle, plan: RoadPlan, vehicles: Vehicle[], reason: NonNullable<Vehicle['reversing']>) {
-    const junctions = plan.pieces.flatMap(p => p.junction ? [p.junction] : []);
-    const others = vehicles.filter(v => v !== vehicle);
-    if (junctions.some(junction => others.some(v => reservesJunction(v, junction)))) return false;
-    for (const [index, p] of plan.pieces.entries()) {
-      const from = index === 0 ? vehicle.cursor.distance : p.length;
-      const to = index === plan.pieces.length - 1 ? plan.stop : 0;
-      const samples = Math.max(1, Math.ceil((from - to) / .12));
-      for (let i = 0; i <= samples; i++) {
-        const position = pose({piece: p, distance: from + (to - from) * i / samples});
-        if (others.some(other => conflicts({fire: vehicle.fire, pose: position}, other))) return false;
-      }
-    }
-    if (vehicle.fire) {
-      this.setReturnPath(vehicle, plan, reason);
-    } else {
-      vehicle.path = plan.pieces;
-      vehicle.index = 0;
-      vehicle.stop = plan.stop;
-      vehicle.reversing = reason;
-    }
-    vehicle.junction = junctions[0];
-    return true;
-  }
-
-  private advanceReverse(vehicle: Vehicle, dt: number, vehicles: Vehicle[]) {
-    let index = vehicle.index;
-    let p = vehicle.cursor.piece;
-    const progress = vehicle.path.slice(0, index).reduce((sum, lane) => sum + lane.length, 0) + p.length - vehicle.cursor.distance;
-    const step = vehicle.telemetry ? Math.min(REVERSE_SPEED * dt, Math.max(0, vehicle.telemetry.ceiling - progress)) : REVERSE_SPEED * dt;
-    if (step <= 1e-8) return;
-    let d = vehicle.cursor.distance - step;
-    if (p.road && p.from) {
-      const opposite = lanes.find(lane => lane.from === p.to && lane.to === p.from && lane.road === p.road);
-      const control = opposite && this.signals.getLaneControl(opposite);
-      if (control) {
-        const stop = this.signals.exitClearance(p, p.from, body(vehicle.fire)[0]);
-        if (vehicle.cursor.distance >= stop - 1e-6 && d < stop && !this.signals.canEnterVehicle(opposite, vehicle.id, vehicle.fire)) d = stop;
-      }
-    }
-    while (d < 0 && index < vehicle.path.length - 1) {
-      p = vehicle.path[++index];
-      d += p.length;
-    }
-    const final = index === vehicle.path.length - 1;
-    if (final) d = Math.max(vehicle.stop, d);
-    const cursor = {piece: p, distance: d};
-    const nextPose = pose(cursor);
-    if (vehicles.some(v => v !== vehicle && conflicts({fire: vehicle.fire, pose: nextPose}, v))) return;
-    vehicle.cursor = cursor;
-    vehicle.pose = nextPose;
-    vehicle.index = index;
-    if (final && d === vehicle.stop) {
-      vehicle.junction = undefined;
-      vehicle.reversing = undefined;
-      if (vehicle.fire) {
-        this.planReturn(vehicle, vehicles);
-      } else {
-        vehicle.path = vehicle.yieldRoute!;
-        vehicle.yieldRoute = undefined;
-        vehicle.index = 0;
-      }
-    }
-  }
-
-  private clearRearTraffic(truck: Vehicle, vehicles: Vehicle[]) {
-    const lane = truck.cursor.piece;
-    if (!lane.road) return;
-    const queue = vehicles.filter(v => v !== truck && v.cursor.piece === lane && v.cursor.distance < truck.cursor.distance);
-    // Back out the last car first. Moving a car in the middle would just move
-    // the queue into another collision. Active fire trucks stay where they are.
-    const tail = queue.sort((a, b) => a.cursor.distance - b.cursor.distance)[0];
-    if (!tail || tail.fire || tail.reversing || tail.speed <= 0) return;
-
-    const loop = tail.originalPath ?? tail.path;
-    for (const retreat of retreatPlans(tail.cursor)) {
-      const incoming = retreat.pieces.at(-1)!;
-      const detour = this.detourToLoop(incoming, lane, loop);
-      if (!detour || !this.beginReverse(tail, retreat, vehicles, 'yield')) continue;
-      tail.originalPath = loop;
-      tail.yieldRoute = detour;
-      return;
-    }
+    const plan = this.returnPlan(truck, this.trucks.filter(other => other !== truck && other.status === 'arrived'));
+    if (plan) this.setReturnPath(truck, plan);
+    else { truck.status = 'return-waiting'; truck.returnRetry = 0; }
   }
   private staging(truck:Vehicle):VehicleBody {
     const lane=truck.path.at(-1)!;
     return {fire:true,lane,pose:pose({piece:lane,distance:truck.stop})};
   }
   private assign(truck:Vehicle,routes:Approach[],occupied:VehicleBody[]) {
-    const crowded=(route:Approach)=>{
-      const lane=route.pieces.at(-1)!;
-      return truck.cursor.piece!==lane&&trafficLanes.has(lane)&&occupied.filter(t=>t.lane===lane).length>=2;
-    };
-    // Leave room for an ordinary car that may already be on a staging lane.
-    // Keep the same lane as a fallback when no other approach is reachable.
-    for(const route of [...routes.filter(r=>!crowded(r)),...routes.filter(crowded)]) {
+    let best: { route: Approach; stop: number; cost: number } | undefined;
+    for(const route of routes) {
+      if (best && route.cost >= best.cost) break;
       const p=route.pieces.at(-1)!;
       // 停车点须清空入口斑马线与路口，避免已抵达车辆堵住后续消防车及普通车。
       const lower=Math.max(route.entry,p===truck.cursor.piece?truck.cursor.distance:Math.min(p.length,.85),
         p.from ? this.signals.exitClearance(p,p.from,body(true)[0]) : 0);
-      const options=[...Array.from({length:Math.max(0,Math.floor((route.end-lower)/.12)+1)},(_,i)=>route.end-i*.12),lower];
+      if (lower > route.end + 1e-6) continue;
+      const options=[...Array.from({length:Math.max(0,Math.floor((route.end-lower)/.12)+1)},(_,i)=>lower+i*.12),route.end];
       const stop=options.find(d=>d<=route.end+1e-6&&occupied.every(v=>!conflicts({fire:true,pose:pose({piece:p,distance:d})},v,.17)));
       if(stop===undefined)continue;
-      truck.path=route.pieces;truck.index=0;truck.stop=stop;truck.blockedFor=0;
-      truck.status=truck.cursor.piece===p&&Math.abs(truck.cursor.distance-stop)<1e-6?'arrived':'en-route';
-      return true;
+      const cost = route.cost + stop - route.entry;
+      if (!best || cost < best.cost) best = { route, stop, cost };
     }
-    return false;
+    if (!best) return false;
+    truck.path = best.route.pieces;
+    truck.index = 0;
+    truck.stop = best.stop;
+    truck.status = truck.cursor.piece === truck.path.at(-1) && Math.abs(truck.cursor.distance - truck.stop) < 1e-6 ? 'arrived' : 'en-route';
+    return true;
   }
-  private bypassQueue(truck:Vehicle) {
-    if (truck.external) return;
-    const incoming=truck.cursor.piece, next=truck.path[truck.index+1];
-    const lockdown = this.signals.getMode() === 'emergency_lockdown';
-    if(!this.goal||!incoming.road||incoming.next.length<2||!next||
-      (!lockdown && (incoming.length-truck.cursor.distance>1.35||distance(truck.pose.point,this.goal)>11)))return;
-    // A queue can form after dispatch. Replan only at a junction where there
-    // is another legal exit; never pass a car by crossing the centre line.
-    const occupied=[...this.trucks.filter(t=>t!==truck).map(t=>t.status==='en-route'?this.staging(t):{...t,lane:t.cursor.piece}),
-      ...(lockdown ? this.stoppedTraffic() : [])];
-    const limit=passable(occupied);
-    const alternatives=approaches(truck.cursor,this.goal,(p,s)=>p===next?0:limit(p,s));
-    if(this.assign(truck,alternatives,occupied))truck.junction=undefined;
-  }
-  private stoppedTraffic(): VehicleBody[] {
-    return this.cars.flatMap(car => {
-      let lane = car.cursor.piece, offset = car.cursor.distance, index = car.index;
-      for (let steps = 0; steps < car.path.length; steps++) {
-        const control = this.signals.getLaneControl(lane), stop = this.signals.stopDistance(lane, body(false)[0]);
-        if (control && car.junction !== control.intersection.id && offset <= stop + 1e-6)
-          return [car, { fire: false, lane, pose: pose({ piece: lane, distance: stop }) }];
-        const next = this.next(car, index);
-        if (!next) break;
-        lane = next; offset = 0; index = (index + 1) % car.path.length;
-      }
-      return [car];
+
+  private retryRecall(truck: Vehicle) {
+    if (!truck.recallFrom || !this.goal || !truck.cursor.piece.road || truck.cursor.piece === truck.recallFrom) return;
+    truck.recallFrom = truck.cursor.piece;
+    const occupied = this.trucks.flatMap(other => {
+      if (other === truck) return [];
+      if (other.status === 'en-route') return [this.staging(other)];
+      if (other.status === 'arrived') return [other];
+      return [];
     });
+    if (this.assign(truck, approaches(truck.cursor, this.goal, passable(occupied)), occupied)) truck.recallFrom = undefined;
   }
+
   private next(vehicle:Vehicle,index:number) {
     if(vehicle.path[index+1]||vehicle.fire)return vehicle.path[index+1];
     const loop=vehicle.originalPath;
@@ -464,27 +408,208 @@ export class TrafficSimulation {
       [truck.stop,other.stop]=[other.stop,truck.stop];
     }
   }
-  private detourToLoop(incoming: Piece, blocked: Piece, loop: Piece[], skip?: Piece) {
-    const seen=new Set([incoming,blocked]);
-    const queue=incoming.next.filter(p=>p!==skip).map(p=>[p]);
-    for(let i=0;i<queue.length;i++) {
-      const path=queue[i], end=path.at(-1)!;
-      if(seen.has(end))continue;
-      seen.add(end);
-      if(end.road&&loop.includes(end)) {
-        return [incoming,...path];
+  setTankZoneClosed(closed: boolean) {
+    if (closed === this.tankZoneClosed) return;
+    this.tankZoneClosed = closed;
+    for (const car of this.cars) {
+      if (closed && (inTankZone(car.cursor.piece) || car.path.some(inTankZone))) {
+        car.homePath = car.originalPath ?? car.path;
+        const plan = this.carDetour(car.cursor, outsideLoops);
+        if (plan) this.applyCarDetour(car, plan);
+      } else if (!closed && car.homePath) {
+        const plan = this.carDetour(car.cursor, [car.homePath]);
+        if (plan) this.applyCarDetour(car, plan);
+        car.homePath = undefined;
       }
-      for(const next of end.next)if(!seen.has(next))queue.push([...path,next]);
     }
+    this.listeners.forEach(listener => listener(0));
   }
-  private divert(car:Vehicle, blocked:Piece, incoming:Piece) {
-    const loop=car.originalPath??car.path;
-    const detour=this.detourToLoop(incoming,blocked,loop,this.next(car,car.index));
-    if (!detour) return false;
-    car.originalPath=loop;car.path=detour;car.index=0;
+
+  private carDetour(start: Cursor, loops: Piece[][], avoid: readonly Piece[] = [], skip?: Piece) {
+    const pieces = routeToLane(start, lane => !!lane.road && (!skip || lane !== start.piece) && !avoid.includes(lane) &&
+      loops.some(loop => loop.includes(lane)), (from, to) => !avoid.includes(to) && !isGarageAccess(to) && !isFireStationOnly(to) &&
+      !(from === start.piece && to === skip) &&
+      (!this.tankZoneClosed || inTankZone(from) || !inTankZone(to)));
+    if (pieces) return { pieces, loop: loops.find(loop => loop.includes(pieces.at(-1)!))! };
+  }
+
+  private applyCarDetour(car: Vehicle, { pieces, loop }: { pieces: Piece[]; loop: Piece[] }) {
+    const end = pieces.at(-1)!;
+    car.originalPath = pieces.length === 1 ? undefined : loop;
+    car.path = pieces.length === 1 ? loop : pieces;
+    car.index = pieces.length === 1 ? loop.indexOf(end) : 0;
+  }
+
+  private divertAtJunction(car: Vehicle, upcoming: Piece, blocked: Piece[]) {
+    const loop = car.originalPath ?? car.path;
+    const preferred = this.tankZoneClosed && loop.some(inTankZone) ? outsideLoops : [loop];
+    const route = this.carDetour(car.cursor, preferred, blocked, upcoming) ?? this.carDetour(car.cursor, outsideLoops, blocked, upcoming);
+    if (route && route.pieces.length > 1) {
+      this.applyCarDetour(car, route);
+      return true;
+    }
+    return false;
+  }
+
+  private tryUTurn(car: Vehicle, parked: readonly Piece[]) {
+    const incoming = car.cursor.piece, opposite = oppositeLane(incoming);
+    if (!opposite || isFireStationOnly(opposite) || (this.tankZoneClosed && !inTankZone(incoming) && inTankZone(opposite))) return false;
+    const start = car.pose.point;
+    const first = opposite.points[0], last = opposite.points.at(-1)!;
+    const offset = ((start[0] - first[0]) * (last[0] - first[0]) + (start[1] - first[1]) * (last[1] - first[1])) / opposite.length;
+    const halfLength = body(false)[0];
+    if (offset < halfLength || offset > opposite.length - halfLength) return false;
+    const cursor = { piece: opposite, distance: offset };
+    const end = pose(cursor);
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16;
+      const candidate: VehicleBody = { fire: false, pose: {
+        point: [start[0] + (end.point[0] - start[0]) * t, start[1] + (end.point[1] - start[1]) * t],
+        angle: car.pose.angle + Math.PI * t,
+      } };
+      if (this.all.some(other => other !== car && conflicts(candidate, other, 0))) return false;
+    }
+    const loop = car.originalPath ?? car.path;
+    const preferred = this.tankZoneClosed && loop.some(inTankZone) ? outsideLoops : [loop];
+    const route = this.carDetour(cursor, preferred, parked) ?? this.carDetour(cursor, outsideLoops, parked);
+    if (!route) return false;
+    if (car.junction) this.signals.release(car.junction, car.id);
+    car.junction = undefined;
+    car.cursor = cursor;
+    car.pose = end;
+    this.applyCarDetour(car, route);
     return true;
   }
-  private advance(vehicle: Vehicle, step: number, others: Vehicle[]) {
+
+  private prepareCar(car: Vehicle) {
+    const lane = car.cursor.piece;
+    const next = this.next(car, car.index);
+    const parked = this.trucks.filter(truck => truck.status === 'arrived');
+    const blocked = parked.map(truck => truck.cursor.piece);
+    const closedExit = this.tankZoneClosed && !inTankZone(lane) && next && inTankZone(next);
+    const blockedExit = next && (blocked.includes(next) || next.next.some(exit => blocked.includes(exit)));
+    if (lane.road && !car.junction && next && (closedExit || blockedExit)) {
+      if (this.divertAtJunction(car, next, blocked)) return false;
+      if (closedExit) return false;
+    }
+    const fireAhead = parked.some(truck => truck.cursor.piece === lane &&
+      truck.cursor.distance > car.cursor.distance && truck.cursor.distance - car.cursor.distance < 1.65);
+    if (fireAhead) return this.tryUTurn(car, blocked);
+    return true;
+  }
+
+  private queuedAtFork(vehicle: Vehicle) {
+    const { piece: lane, distance: offset } = vehicle.cursor;
+    return lane.road && !vehicle.junction && lane.next.length > 1 &&
+      offset >= this.signals.stopDistance(lane, body(vehicle.fire)[0]) - .15;
+  }
+
+  private relieveCarQueue(car: Vehicle, dt: number, moved: boolean) {
+    if (moved || !this.queuedAtFork(car)) { car.queueWait = 0; return; }
+    if (!this.signals.isVehicleGreen(car.cursor.piece)) return;
+    car.queueWait = (car.queueWait ?? 0) + dt;
+    if (car.queueWait < QUEUE_DETOUR_SECONDS) return;
+    car.queueWait = 0;
+    const next = this.next(car, car.index);
+    if (!next) return;
+    const blocked = this.all.filter(vehicle => vehicle !== car &&
+      (vehicle.status === 'arrived' || vehicle.cursor.distance < 2.25)).map(vehicle => vehicle.cursor.piece);
+    this.divertAtJunction(car, next, blocked);
+  }
+  private junctionExit(vehicle: Vehicle, junction: string) {
+    const lane = vehicle.cursor.piece;
+    let exitIndex = vehicle.index + (lane.junction ? 0 : 1);
+    let exit = lane.junction ? lane : this.next(vehicle, vehicle.index);
+    // Find the first lane outside the entire clearance zone, including short links.
+    for (let remaining = vehicle.path.length + 1; exit && remaining > 0; remaining--) {
+      if (!exit.junction && !(exit.to && this.signals.sharesClearanceZone(junction, exit.to))) break;
+      exit = this.next(vehicle, exitIndex % vehicle.path.length);
+      exitIndex++;
+    }
+    return exit;
+  }
+
+  private exitBlocked(vehicle: Vehicle, exit: Piece | undefined, junction: string, others: Vehicle[]) {
+    if (!exit) return false;
+    const halfLength = body(vehicle.fire)[0];
+    return others.some(other => other !== vehicle && other.cursor.piece === exit &&
+      other.cursor.distance < this.signals.exitClearance(exit, exit.from ?? junction, halfLength) +
+        halfLength + body(other.fire)[0] + GAP);
+  }
+
+  private reserveReturnGreen(others: Vehicle[]) {
+    const reservations: ReturnReservations = { priorities: [], exits: [] };
+    if (this.signals.getMode() !== 'normal') {
+      this.returnQueue.clear();
+      return reservations;
+    }
+    for (const truck of this.trucks) {
+      const { piece: lane, distance } = truck.cursor;
+      const control = truck.status === 'returning' && !truck.telemetry && this.signals.getLaneControl(lane);
+      if (!control) { this.returnQueue.delete(truck); continue; }
+      const junction = control.intersection.id;
+      const stopLine = this.signals.stopDistance(lane, body(true)[0]);
+      const waiting = distance <= stopLine + 1e-6 && distance >= stopLine - RETURN_PRIORITY_DISTANCE &&
+        (!truck.junction || !this.signals.sharesClearanceZone(truck.junction, junction)) &&
+        (truck.index < truck.path.length - 1 || truck.stop > stopLine);
+      const queued = this.returnQueue.get(truck);
+      if (!waiting || queued?.lane !== lane) this.returnQueue.delete(truck);
+      if (waiting && queued?.lane !== lane) this.returnQueue.set(truck, { lane, junction, greenWindows: 0, green: false });
+    }
+
+    const { priorities, exits } = reservations;
+    const reserve = (request: ReturnPriority) => {
+      const index = priorities.findIndex(other => this.signals.sharesClearanceZone(request.junction, other.junction));
+      if (index === -1) { priorities.push(request); return; }
+      const current = priorities[index];
+      if ((request.phase === 'green' && current.phase === 'preparing') || (request.lane === current.lane &&
+          request.vehicle.cursor.distance > current.vehicle.cursor.distance)) priorities[index] = request;
+    };
+    for (const [truck, approach] of this.returnQueue) {
+      const { lane, junction } = approach;
+      const phase = this.signals.returnPriorityPhase(lane);
+      const green = phase === 'green';
+      if (green && !approach.green) approach.greenWindows++;
+      approach.green = green;
+      const exit = this.junctionExit(truck, junction);
+      // Once two greens have been offered, reserve the outlet only in the truck's own window.
+      const holdExit = exit?.road && (phase || approach.greenWindows < RETURN_EXIT_GREEN_WINDOWS);
+      if (exit && holdExit) exits.push({ truck, lane, junction, exit });
+      if (!phase && !holdExit) continue;
+
+      if (!this.exitBlocked(truck, exit, junction, others)) {
+        if (phase) reserve({ vehicle: truck, lane, junction, phase });
+        continue;
+      }
+      // A full outlet has to drain through its next signal before the truck can enter.
+      if (exit && holdExit) {
+        const control = this.signals.getLaneControl(exit);
+        const outletPhase = this.signals.returnPriorityPhase(exit);
+        if (!control || !outletPhase || this.signals.sharesClearanceZone(junction, control.intersection.id)) continue;
+        let head: Vehicle | undefined;
+        for (const vehicle of others) {
+          if (vehicle.cursor.piece === exit && (!head || vehicle.cursor.distance > head.cursor.distance)) head = vehicle;
+        }
+        if (!head || head.fire || head.speed <= 0) continue;
+        const stop = this.signals.stopDistance(exit, body(false)[0]);
+        const downstream = control.intersection.id;
+        if (head.cursor.distance >= stop - RETURN_PRIORITY_DISTANCE && head.cursor.distance <= stop + 1e-6 &&
+            !this.exitBlocked(head, this.junctionExit(head, downstream), downstream, others)) {
+          reserve({ vehicle: head, lane: exit, junction: downstream, phase: outletPhase });
+        }
+      }
+    }
+    return reservations;
+  }
+
+  private mustYieldAtEntry(vehicle: Vehicle, junction: string, priorities: ReturnPriority[]) {
+    return priorities.some(({ vehicle: first, lane, junction: reserved }) => first !== vehicle &&
+      this.signals.sharesClearanceZone(reserved, junction) &&
+      // A vehicle already ahead on the same lane has to clear it first.
+      (vehicle.cursor.piece !== lane || vehicle.cursor.distance <= first.cursor.distance));
+  }
+
+  private advance(vehicle: Vehicle, step: number, others: Vehicle[], ignoreSignal: boolean, reservations: ReturnReservations) {
     if (vehicle.telemetry) {
       const progress = vehicle.path.slice(0, vehicle.index).reduce((sum, p) => sum + p.length, 0) + vehicle.cursor.distance;
       step = Math.min(step, Math.max(0, vehicle.telemetry.ceiling - progress));
@@ -492,58 +617,55 @@ export class TrafficSimulation {
     }
     let {piece:p,distance:d}=vehicle.cursor;
     const inGarage=vehicle.fire&&garage.includes(p);
-    if(inGarage&&this.garageOrder.find(t=>t.status==='en-route'&&garage.includes(t.cursor.piece))!==vehicle)return;
+    if(inGarage&&vehicle.status==='en-route'&&this.garageOrder.find(t=>t.status==='en-route'&&garage.includes(t.cursor.piece))!==vehicle)return;
     let index=vehicle.index, junction=vehicle.junction;
     const final=vehicle.fire&&index===vehicle.path.length-1;
     const limit=final?vehicle.stop:p.length;
     const upcoming=this.next(vehicle,index);
     vehicle.waitingForSignal = false;
     const control = this.signals.getLaneControl(p);
-    if (control && junction !== control.intersection.id && (!final || vehicle.stop > this.signals.stopDistance(p, body(vehicle.fire)[0]))) {
+    const clearing = control && junction && this.signals.sharesClearanceZone(junction, control.intersection.id);
+    if (control && !clearing && (!final || vehicle.stop > this.signals.stopDistance(p, body(vehicle.fire)[0]))) {
       const stop = this.signals.stopDistance(p, body(vehicle.fire)[0]);
       if (d + step > stop) {
         // 进入停止线后保留通行承诺；切红时已经进入的对象继续清空，不在路中冻结。
-        if (d <= stop + 1e-6 && !this.signals.canEnterVehicle(p, vehicle.id, vehicle.fire)) {
-          step = Math.max(0, stop - d); vehicle.waitingForSignal = true;
-          if (step <= 1e-8) return;
+        const bypassSignal = ignoreSignal || (this.signals.getMode() !== 'emergency_lockdown' && isRightTurn(p, upcoming));
+        const allowed = vehicle.fire ? bypassSignal || this.signals.isVehicleGreen(p) :
+          this.signals.canEnterVehicle(p, vehicle.id, false, bypassSignal);
+        const atEntry = d <= stop + 1e-6;
+        const waitForSignal = atEntry && !allowed;
+        const yieldToReturn = atEntry && allowed && !ignoreSignal && this.mustYieldAtEntry(vehicle, control.intersection.id, reservations.priorities);
+        if (waitForSignal || yieldToReturn) {
+          step = Math.max(0, stop - d);
+          vehicle.waitingForSignal = waitForSignal && !bypassSignal;
+          if (step <= 1e-8) return yieldToReturn ? 'yield' : undefined;
         } else {
-          if (others.some(v => v !== vehicle && reservesJunction(v, control.intersection.id))) return;
-          let exit = p.junction ? p : upcoming;
-          let exitIndex = p.junction ? index : (index + 1) % vehicle.path.length;
-          // 短连接道属于同一个清空区，检查整段既有路径的出口，避免进入后被下游红灯队列困住。
-          while (exit && (exit.junction || (exit.to && this.signals.sharesClearanceZone(control.intersection.id, exit.to)))) {
-            exit = this.next(vehicle, exitIndex);
-            exitIndex = (exitIndex + 1) % vehicle.path.length;
-          }
-          const blockedExit = !vehicle.fire && p.road && exit && others.some(v =>
-            blocksTrafficExit(v, exit) || blocksTrafficExit(v, upcoming));
-          if (blockedExit && this.divert(vehicle, exit, p)) return;
-          if (vehicle.fire && this.signals.getMode() === 'emergency_lockdown' && exit &&
-            others.some(v => !v.fire && v.cursor.piece === exit)) { this.bypassQueue(vehicle); return; }
+          if (vehicle.fire && this.signals.hasPedestrianInZone(control.intersection.id)) return;
+          if (others.some(v => v !== vehicle && v.junction && this.signals.sharesClearanceZone(v.junction, control.intersection.id))) return;
+          const exit = this.junctionExit(vehicle, control.intersection.id);
+          // Keep the receiving lane open between green phases while its remaining traffic drains.
+          if (atEntry && !vehicle.fire && !ignoreSignal && exit && reservations.exits.some(request => request.exit === exit &&
+            this.signals.sharesClearanceZone(request.junction, control.intersection.id) &&
+            (p !== request.lane || d <= request.truck.cursor.distance))) return;
           // 先确认下游容得下整辆车，再进入路口，保留原有避碰和让行机制。
-          if (exit && others.some(v => v !== vehicle && v.cursor.piece === exit &&
-            v.cursor.distance < this.signals.exitClearance(exit, exit.from ?? control.intersection.id, body(vehicle.fire)[0]) +
-              body(vehicle.fire)[0] + body(v.fire)[0] + GAP)) return;
+          if (this.exitBlocked(vehicle, exit, control.intersection.id, others)) return;
           junction = control.intersection.id;
         }
       }
     }
     const approach=p.junction&&(!inGarage||(!control&&d+step>DRIVEWAY_ENTRY))?p.junction:
       upcoming?.junction&&d+step+body(vehicle.fire)[0]+.29>=limit?upcoming.junction:undefined;
-    if(approach&&approach!==junction&&!control) {
-      if (this.signals.isOccupied(approach, vehicle.id)) return;
-      if(others.some(v=>v!==vehicle&&reservesJunction(v,approach)))return;
+    if(approach&&(!junction||!this.signals.sharesClearanceZone(junction,approach))&&!control) {
+      if (!ignoreSignal && this.mustYieldAtEntry(vehicle, approach, reservations.priorities)) return 'yield';
+      if (!vehicle.fire && this.signals.isOccupied(approach, vehicle.id)) return;
+      if(others.some(v=>v!==vehicle&&v.junction&&this.signals.sharesClearanceZone(v.junction,approach)))return;
       const turn=p.junction===approach?p:upcoming!;
       const exit=turn.next[0];
-      // An active truck anywhere on an exit lane can trap a queue back into
-      // this junction, even if the lane looks clear immediately at its start.
-      const blockedExit = !vehicle.fire && p.road && exit && others.some(v =>
-        blocksTrafficExit(v, exit) || blocksTrafficExit(v, turn));
-      if (blockedExit && this.divert(vehicle, exit, p)) return;
       if(exit&&others.some(v=>v!==vehicle&&v.cursor.piece===exit&&v.cursor.distance<2.25))return;
       junction=approach;
     }
-    d+=step;
+    const shiftToReverse = vehicle.fire && d < limit && d + step >= limit && upcoming && garageEntries.includes(upcoming);
+    d = shiftToReverse ? limit : d + step;
     if(d>limit) {
       if(final)d=limit;
       else if(upcoming) {
@@ -557,9 +679,10 @@ export class TrafficSimulation {
     const endOfReturn = vehicle.status === 'returning' && index === vehicle.path.length - 1;
     if (endOfReturn) d = Math.min(d, vehicle.stop);
     const cursor={piece:p,distance:d}, nextPose=pose(cursor);
+    if (vehicle.fire && garageEntries.includes(p)) nextPose.angle += Math.PI;
     if(others.some(v=>v!==vehicle&&conflicts({fire:vehicle.fire,pose:nextPose},v)))return;
-    if (junction && p.road && p.from === junction) {
-      if (d >= this.signals.exitClearance(p, junction, body(vehicle.fire)[0]) || (endOfReturn && d >= vehicle.stop)) {
+    if (junction && p.road && p.from && this.signals.sharesClearanceZone(junction, p.from)) {
+      if (d >= this.signals.exitClearance(p, p.from, body(vehicle.fire)[0]) || (endOfReturn && d >= vehicle.stop)) {
         this.signals.release(junction, vehicle.id); junction = undefined;
       }
     }
@@ -567,12 +690,17 @@ export class TrafficSimulation {
       vehicle.path=vehicle.originalPath;vehicle.originalPath=undefined;
     }
     vehicle.cursor=cursor;vehicle.pose=nextPose;vehicle.index=index;vehicle.junction=junction;
+    if (shiftToReverse) vehicle.reverseShift = REVERSE_SHIFT_SECONDS;
     if (junction) this.signals.occupy(junction, vehicle.id, 'vehicle');
     if(vehicle.status === 'en-route') {
       this.orderStops(vehicle);
       if(index===vehicle.path.length-1&&d>=vehicle.stop-1e-6)vehicle.status='arrived';
     } else if (endOfReturn && d >= vehicle.stop) {
-      this.planReturn(vehicle, others);
+      if (p === garageEntries[garage.indexOf(vehicle.bay!)]) {
+        this.park(vehicle);
+        if (this.goal && (this.simulatedFleet?.has(vehicle.id) ?? true)) this.dispatch();
+      }
+      else this.planReturn(vehicle);
     }
   }
   tick(seconds: number) {
@@ -581,50 +709,38 @@ export class TrafficSimulation {
     // Small steps keep even fast responders from skipping over a stopped car.
     while(seconds>1e-6) {
       const dt=Math.min(seconds,.022);
-      if (this.signals.getMode() === 'emergency_priority') {
-        const requests = this.trucks.filter(truck => truck.status === 'en-route' && this.signals.hasEmergencyAccess(truck.id)).flatMap(truck => {
-          let ahead = -truck.cursor.distance;
-          return truck.path.slice(truck.index).flatMap(lane => {
-            const control = this.signals.getLaneControl(lane);
-            const remaining = ahead + (control?.entry.stopLine ?? lane.length);
-            ahead += lane.length;
-            return control && remaining >= -.84 && remaining <= config.emergencyLookAhead ? [{ lane, remaining }] : [];
-          });
-        }).sort((a, b) => a.remaining - b.remaining);
-        this.signals.setPriorityApproaches(requests.map(request => request.lane));
-      }
       this.signals.advance(dt);
       this.pedestrians.tick(dt);
-      for(let i=0;i<all.length;i++) {
-        const v=all[(this.priority+i)%all.length];
-        if (v.status === 'return-waiting') {
-          v.blockedFor += dt;
-          if (v.blockedFor >= 1) this.planReturn(v, all);
-        } else if (v.reversing) {
-          this.advanceReverse(v, dt, all);
-        } else if(!v.fire||v.status==='en-route'||v.status==='returning') {
-          const before=v.cursor;
-          this.advance(v,v.speed*dt,all);
-          if (v.waitingForSignal) { v.blockedFor = 0; continue; }
-          if(v.status==='en-route') {
-            v.blockedFor=before===v.cursor?v.blockedFor+dt:0;
-            if(!v.external&&v.blockedFor>.8&&v.cursor.piece.road&&v.index===v.path.length-1&&this.goal&&distance(v.pose.point,this.goal)<=ARRIVAL_RADIUS&&
-              v.cursor.distance>=this.signals.exitClearance(v.cursor.piece,v.cursor.piece.from!,body(true)[0])&&
-              this.trucks.filter(other=>other!==v&&other.status==='en-route').every(other=>!conflicts(v,this.staging(other),.17))) {
-              v.status='arrived';v.junction=undefined;
-            } else if(v.blockedFor>QUEUE_REPLAN_SECONDS) {
-              v.blockedFor=0;this.bypassQueue(v);
-            }
-          } else if (v.status === 'returning' && !v.reversing) {
-            v.blockedFor = before === v.cursor ? v.blockedFor + dt : 0;
-            if (v.blockedFor >= QUEUE_REPLAN_SECONDS) {
-              const {piece: lane, distance: offset} = v.cursor;
-              const approach = Math.min(lane.length - 1.35, this.signals.stopDistance(lane, body(true)[0]) - .1);
-              const skip = lane.next.length > 1 && offset >= approach ? this.next(v, v.index) : undefined;
-              this.planReturn(v, all, skip);
-            }
+      const returnReservations = this.reserveReturnGreen(all);
+      const respondersOnRoad = this.trucks.some(truck => truck.status === 'en-route' || truck.status === 'returning' || truck.status === 'arrived');
+      for (let i = 0; i < all.length; i++) {
+        const vehicle = all[(this.priority + i) % all.length];
+        if (vehicle.fire) {
+          if (vehicle.reverseShift && vehicle.reverseShift > 0) {
+            vehicle.reverseShift = Math.max(0, vehicle.reverseShift - dt);
+            continue;
           }
+          const before = vehicle.cursor;
+          if (vehicle.status === 'en-route' || vehicle.status === 'returning') {
+            const speed = isGarageAccess(vehicle.cursor.piece) ? PARKING_SPEED : vehicle.speed;
+            this.advance(vehicle, speed * dt, all, vehicle.status === 'en-route', returnReservations);
+          }
+          if (vehicle.status === 'returning' && before.piece !== vehicle.cursor.piece) this.retryRecall(vehicle);
+          if (vehicle.status === 'return-waiting' || (vehicle.status === 'returning' && !vehicle.fixedReturnRoute &&
+            !vehicle.telemetry && !vehicle.waitingForSignal && before === vehicle.cursor)) {
+            vehicle.returnRetry = (vehicle.returnRetry ?? 0) + dt;
+            if (vehicle.returnRetry >= RETURN_RETRY_SECONDS) this.planReturn(vehicle);
+          } else vehicle.returnRetry = 0;
+          continue;
         }
+        const before = vehicle.cursor;
+        let yielded = false;
+        if (this.prepareCar(vehicle)) {
+          const yielding = this.trucks.some(truck => truck.status === 'en-route' && followsOnSameLane(vehicle.cursor, truck.cursor));
+          const evacuating = this.tankZoneClosed && inTankZone(vehicle.cursor.piece);
+          yielded = this.advance(vehicle, (yielding || evacuating ? FIRE_TRUCK_SPEED : vehicle.speed) * dt, all, yielding, returnReservations) === 'yield';
+        }
+        if (respondersOnRoad) this.relieveCarQueue(vehicle, dt, yielded || before !== vehicle.cursor);
       }
       all.forEach(vehicle => {
         const previous = this.vehicleOccupancies.get(vehicle.id);

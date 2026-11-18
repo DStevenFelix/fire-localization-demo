@@ -207,7 +207,7 @@ test('proposal and cancellation keep all trucks parked and normal signals; resul
 test('confirmation is idempotent and gives access to exactly the selected vehicles', async () => {
   const { service, mock, traffic } = setup(); const plan = mock.prepare(1);
   await Promise.all([service.confirm(), service.confirm()]); await service.confirm();
-  expect(mock.commands).toHaveLength(1); expect(traffic.signals.getMode()).toBe('emergency_priority');
+  expect(mock.commands).toHaveLength(1); expect(traffic.signals.getMode()).toBe('normal');
   traffic.trucks.forEach(t => expect(traffic.signals.hasEmergencyAccess(t.id)).toBe(plan.dispatches.some(d => d.vehicleId === t.id)));
 });
 test('missing adapter or traffic initialization preserves the pending proposal', async () => {
@@ -277,9 +277,9 @@ test('road export preserves every legal connector and includes the previously ex
 });
 test('full lifecycle uses actual fleet, explicit extinguishing, normal traffic recovery and safe return', async () => {
   const { service, mock, traffic } = setup(); const plan = mock.prepare(2); await service.confirm();
-  expect(traffic.cars).toHaveLength(53); expect(traffic.trucks).toHaveLength(3);
+  expect(traffic.cars).toHaveLength(27); expect(traffic.trucks).toHaveLength(3);
   for (let t = 0; t < 300 && !plan.dispatches.every(d => traffic.trucks.find(truck => truck.id === d.vehicleId)!.status === 'arrived'); t += .2) traffic.tick(.2);
-  expect(plan.dispatches.map(d => traffic.trucks.find(t => t.id === d.vehicleId)!.status), JSON.stringify(traffic.trucks.map(t => ({ id: t.id, point: t.pose.point, status: t.status, index: t.index, length: t.path.length, distance: t.cursor.distance, stop: t.stop, road: t.cursor.piece.road, junction: t.junction, blocked: t.blockedFor, end: t.path.at(-1)?.points })))).toEqual(['arrived', 'arrived']);
+  expect(plan.dispatches.map(d => traffic.trucks.find(t => t.id === d.vehicleId)!.status), JSON.stringify(traffic.trucks.map(t => ({ id: t.id, point: t.pose.point, status: t.status, index: t.index, length: t.path.length, distance: t.cursor.distance, stop: t.stop, road: t.cursor.piece.road, junction: t.junction, end: t.path.at(-1)?.points })))).toEqual(['arrived', 'arrived']);
   expect(service.getSnapshot().incident?.fireStatus).toBe('burning');
   plan.dispatches.forEach(d => { mock.emit({ type: 'truck.arrived', vehicleId: d.vehicleId }); mock.emit({ type: 'truck.extinguishing', vehicleId: d.vehicleId }); });
   traffic.tick(30); expect(service.getSnapshot().incident?.fireStatus).toBe('extinguishing');

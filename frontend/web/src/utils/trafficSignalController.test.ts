@@ -3,7 +3,7 @@ import city from '../../../../city_scene/city_scene.json';
 import local from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import animation from '../../../../city_scene/pedestrian_animation.json';
 import config from '../config/trafficControl.json';
-import { distance, garage, lanes, pose, stationJunction, type Piece } from './roadNetwork';
+import { distance, garage, isFireStationOnly, isRightTurn, lanes, oppositeLane, pose, stationJunction, type Piece } from './roadNetwork';
 import { junctionKey } from './trafficSignalGeometry';
 import { crossingPathsConflict, intersections, signalCoverage, signalCrosswalks, TrafficSignalController } from './trafficSignalController';
 import { conflicts, TrafficSimulation } from './trafficSimulation';
@@ -24,8 +24,12 @@ function isolate(sim: TrafficSimulation) {
 }
 function fixture(count = 1) {
   const sim = new TrafficSimulation(); isolate(sim);
-  const car = sim.cars.find(c => c.path.some(p => p.road && p.length > 8 && sim.signals.getLaneControl(p)))!;
-  const lane = car.path.find(p => p.road && p.length > 8 && sim.signals.getLaneControl(p))!;
+  const needsSignal = (lane: Piece, index: number, path: Piece[]) => {
+    const next = path[(index + 1) % path.length];
+    return lane.road && lane.length > 8 && next.junction && sim.signals.getLaneControl(lane) && !isRightTurn(lane, next);
+  };
+  const car = sim.cars.find(c => c.path.some(needsSignal))!;
+  const lane = car.path.find(needsSignal)!;
   const cars = [car, ...sim.cars.filter(c => c !== car)].slice(0, count);
   sim.cars.splice(0, sim.cars.length, ...cars); sim.trucks.splice(0);
   cars.forEach((c, i) => {
@@ -211,40 +215,80 @@ test('cars already committed at lockdown finish crossing; an occupied exit preve
   expect(follower.junction).toBeUndefined();
 });
 
-test('authorized fire truck waits for occupied crossing, respects physical collisions, then passes all red', () => {
-  const { sim, lane, control } = fixture(); sim.cars.splice(0);
-  const truckSim = new TrafficSimulation();
-  const truck = truckSim.trucks[0];
-  const turn = lane.next[0], exit = turn.next[0];
-  truck.path = [lane, turn, exit]; truck.index = 0; truck.stop = exit.length - .9; truck.status = 'en-route';
-  truck.cursor = { piece: lane, distance: sim.signals.stopDistance(lane, .84) - .5 }; truck.pose = pose(truck.cursor);
-  sim.trucks.push(truck); sim.signals.setMode('emergency_lockdown'); sim.signals.setEmergencyAccess(truck.id, false);
-  sim.tick(2); expect(truck.cursor.piece).toBe(lane); expect(truck.waitingForSignal).toBe(true);
-  sim.signals.setEmergencyAccess(truck.id, true); sim.signals.occupy(control.intersection.id, 'walking', 'pedestrian', control.intersection.crosswalks[0].id);
-  const before = truck.pose.point; sim.tick(2); expect(truck.pose.point).toEqual(before);
-  sim.signals.release(control.intersection.id, 'walking');
-  until(() => sim.tick(.05), () => truck.cursor.piece === exit);
-  expect(sim.signals.getMode()).toBe('emergency_lockdown');
-  expect(sim.signals.getAllSignalStates().every(s => Object.values(s.vehicles).every(c => c === 'red'))).toBe(true);
-  const blocker = truckSim.cars[0]; blocker.cursor = { piece: exit, distance: Math.min(exit.length - .8, truck.cursor.distance + 3) };
-  blocker.pose = pose(blocker.cursor); blocker.speed = 0; blocker.path = [exit]; blocker.index = 0;
-  sim.cars.push(blocker); sim.tick(3); expect(conflicts(truck, blocker, 0)).toBe(false);
+test('a fire truck obeys red on a signal-controlled return and brakes for a car in its path on dispatch', () => {
+  const { sim, lane, cars: [car] } = fixture();
+  const truck = new TrafficSimulation().trucks[0];
+  const turn = car.path[(car.index + 1) % car.path.length], exit = turn.next[0];
+  const stopLine = sim.signals.stopDistance(lane, .84);
+  truck.path = [lane, turn, exit]; truck.index = 0; truck.stop = exit.length - .9;
+  truck.cursor = { piece: lane, distance: stopLine }; truck.pose = pose(truck.cursor);
+  car.cursor = { piece: turn, distance: .1 }; car.pose = pose(car.cursor); car.speed = 0;
+  car.path = [turn, exit]; car.index = 0;
+  sim.trucks.push(truck);
+  truck.status = 'returning';
+  sim.tick(.1);
+  expect(truck.cursor.distance).toBe(stopLine);
+  expect(truck.waitingForSignal).toBe(true);
+  truck.status = 'en-route';
+  for (let i = 0; i < 25; i++) {
+    sim.tick(.05);
+    expect(conflicts(truck, car, 0)).toBe(false);
+  }
+  expect(truck.cursor.piece === lane || truck.cursor.piece === turn).toBe(true);
+  expect(car.cursor.distance).toBe(.1);
+  expect(sim.signals.getMode()).toBe('normal');
+  expect(sim.signals.isVehicleGreen(lane)).toBe(false);
+  car.speed = 1.4;
+  for (let i = 0; i < 150 && truck.cursor.piece !== exit; i++) {
+    sim.tick(.05);
+    expect(conflicts(truck, car, 0)).toBe(false);
+  }
+  expect(truck.cursor.piece === exit).toBe(true);
 });
 
-test('revoked station access stops each responding truck before the shared road entrance until authorized', () => {
-  const sim = new TrafficSimulation(); isolate(sim); sim.cars.splice(0);
-  sim.trucks.forEach(t => sim.signals.setEmergencyAccess(t.id, false));
-  sim.signals.setMode('emergency_lockdown'); sim.setIncident([39.717988, 33.984756], 1); sim.tick(5);
-  const truck = sim.trucks.find(t => t.status === 'en-route')!;
-  expect(garage.includes(truck.cursor.piece)).toBe(true);
-  expect(truck.cursor.distance).toBeCloseTo(sim.signals.stopDistance(truck.cursor.piece, .84));
-  sim.signals.setEmergencyAccess(truck.id, true);
-  until(() => sim.tick(.05), () => !garage.includes(truck.cursor.piece));
-  expect(sim.trucks).toHaveLength(3);
+test.each(['ordinary car', 'returning', 'en-route'] as const)('%s can turn right at red when the outlet is clear', status => {
+  const sim = new TrafficSimulation();
+  const lane = lanes.find(p => p.from === '3.000000,12.000000' && p.to === '15.000000,12.000000')!;
+  const turn = lane.next.find(next => isRightTurn(lane, next) && !isFireStationOnly(next))!;
+  const exit = turn.next[0];
+  const car = sim.cars[0], blocker = sim.cars[1], truck = sim.trucks[0];
+  const ordinary = status === 'ordinary car';
+  const vehicle = ordinary ? car : truck;
+  sim.cars.splice(0, sim.cars.length, ...(ordinary ? [car, blocker] : [blocker]));
+  sim.trucks.splice(0, sim.trucks.length, ...(ordinary ? [] : [truck]));
+  if (!ordinary) truck.status = status;
+  const stop = sim.signals.stopDistance(lane, ordinary ? .65 : .84);
+  vehicle.path = [lane, turn, exit]; vehicle.index = 0; vehicle.stop = exit.length;
+  vehicle.cursor = { piece: lane, distance: stop }; vehicle.pose = pose(vehicle.cursor);
+  blocker.path = [exit]; blocker.index = 0; blocker.speed = 0;
+  blocker.cursor = { piece: exit, distance: .5 }; blocker.pose = pose(blocker.cursor);
+
+  expect(sim.signals.isVehicleGreen(lane)).toBe(false);
+  sim.tick(.1);
+  expect(vehicle.cursor.distance).toBe(stop);
+  sim.cars.pop();
+  sim.tick(.1);
+  expect(vehicle.cursor.distance).toBeGreaterThan(stop);
+  expect(sim.signals.isVehicleGreen(lane)).toBe(false);
 });
+
+test.each([['en-route', false, true], ['returning', false, false], ['en-route', true, false]] as const)(
+  'car yielding at red with truck state %s and opposite lane %s', (status, opposite, shouldYield) => {
+    const { sim, lane, cars: [car] } = fixture();
+    const truck = new TrafficSimulation().trucks[0];
+    const stopLine = sim.signals.stopDistance(lane, .65);
+    car.cursor = { piece: lane, distance: stopLine }; car.pose = pose(car.cursor);
+    const truckLane = opposite ? oppositeLane(lane)! : lane;
+    truck.cursor = { piece: truckLane, distance: stopLine - 2.2 }; truck.pose = pose(truck.cursor);
+    truck.path = [truckLane]; truck.index = 0; truck.stop = truckLane.length; truck.status = status; truck.speed = 0;
+    sim.trucks.push(truck);
+    sim.tick(.1);
+    expect(car.cursor.distance - stopLine).toBeCloseTo(shouldYield ? .38 : 0);
+    expect(sim.signals.isVehicleGreen(lane)).toBe(false);
+  });
 
 test('pedestrian waits at red, starts on green, clears after lockdown and continues the saved route after recovery', () => {
-  const sim = new TrafficSimulation();
+  const sim = new TrafficSimulation(undefined, undefined, true);
   const pedestrian = sim.pedestrians.actors.find(a => a.id.startsWith('WALK:'))!;
   isolate(sim); sim.pedestrians.actors.push(pedestrian); sim.cars.splice(0); sim.trucks.splice(0);
   const route = pedestrian.route, crossing = route.segments[0].crosswalk!;
@@ -262,7 +306,8 @@ test('pedestrian waits at red, starts on green, clears after lockdown and contin
 });
 
 test('existing extension pedestrian routes obey their saved crosswalk edges and retain phase continuity', () => {
-  const sim = new TrafficSimulation(), actor = sim.pedestrians.actors.find(a => a.route.segments.some(s => s.crosswalk) && !a.id.startsWith('WALK:'))!;
+  const sim = new TrafficSimulation(undefined, undefined, true);
+  const actor = sim.pedestrians.actors.find(a => a.route.segments.some(s => s.crosswalk) && !a.id.startsWith('WALK:'))!;
   isolate(sim); sim.cars.splice(0); sim.trucks.splice(0); sim.pedestrians.actors.push(actor);
   actor.index = actor.route.segments.findIndex(s => Boolean(s.crosswalk)); actor.distance = 0;
   sim.signals.setMode('emergency_lockdown'); sim.tick(5); expect(actor.distance).toBe(0);
@@ -273,11 +318,16 @@ test('existing extension pedestrian routes obey their saved crosswalk edges and 
   const d = actor.distance; sim.tick(1); expect(actor.distance).toBeGreaterThan(d);
 });
 
-test('configured fleet contains five actual local cars, all 48 extension routes and three original fire trucks', () => {
+test('reduced traffic still covers every outer block and the original loop', () => {
   const sim = new TrafficSimulation();
-  expect(sim.cars).toHaveLength(53);
-  expect(sim.cars.filter(c => c.path.every(p => !p.road || p.road.startsWith('R-')))).toHaveLength(5);
-  expect(sim.cars.filter(c => c.path.some(p => p.road?.startsWith('EXT-'))).map(c => c.id)).toEqual(city.traffic_routes.slice(0, 48).map(r => r.id));
+  expect(sim.cars).toHaveLength(27);
+  expect(sim.cars.filter(c => c.path.every(p => !p.road || p.road.startsWith('R-')))).toHaveLength(3);
+  const activeIds = new Set(sim.cars.map(car => car.id));
+  const outerRoutes = city.traffic_routes.slice(0, 48);
+  const blocks = new Set(outerRoutes.map(route => route.road_ids.join(':')));
+  const coveredBlocks = outerRoutes.filter(route => activeIds.has(route.id)).map(route => route.road_ids.join(':'));
+  expect(coveredBlocks).toHaveLength(24);
+  expect(new Set(coveredBlocks)).toEqual(blocks);
   expect(sim.trucks).toHaveLength(3);
 });
 
@@ -355,7 +405,7 @@ test.each([0, .5, 1, 2, 3])('complete city demonstration at offset %s: lockdown,
   for (let i = 0; i < 9000 && !sim.trucks.every(t => t.status === 'idle'); i++) sim.tick(.1);
   expect(sim.trucks.every(t => t.status === 'idle'), JSON.stringify(sim.trucks.map(t => ({
     status: t.status, point: t.pose.point, road: t.cursor.piece.road, d: t.cursor.distance, length: t.cursor.piece.length,
-    junction: t.junction, waiting: t.waitingForSignal, reversing: t.reversing, blocked: t.blockedFor,
+    junction: t.junction, waiting: t.waitingForSignal,
     busy: sim.all.filter(c => c.junction && (signalCoverage.compoundZones[0].includes(c.junction) || c.junction === t.cursor.piece.to))
       .map(c => ({id: c.id, p: c.pose.point, road: c.cursor.piece.road, d: c.cursor.distance, junction: c.junction})),
     near: sim.all.filter(c => c !== t && distance(c.pose.point, t.pose.point) < 6).map(c => ({ id: c.id, point: c.pose.point, junction: c.junction })),

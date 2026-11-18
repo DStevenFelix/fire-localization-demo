@@ -12,16 +12,18 @@ import type { Point } from '../utils/roadNetwork';
 import { fire_station_reserve } from '../../../../city_scene/city_scene.json';
 import baseMap from '../../../../fire_poi/map_original.png';
 import DroneLayer from './DroneLayer';
-import type { EmergencyService } from '../utils/emergency';
+import { severityLabels, type EmergencyService } from '../utils/emergency';
+import type { DemoNotice } from '../utils/emergencyDemo';
 import { drone_station } from '../../../../city_scene/fire_resources.json';
 
-type Props = { traffic: TrafficSimulation; emergency?: EmergencyService; pois: Poi[]; session: Session | null; targetId?: string | null; highlighted: Candidate | null; sceneActors: { current: readonly SceneActorSnapshot[] }; severity: Severity; onSeverityChange?: (severity: Severity) => void };
+type Props = { traffic: TrafficSimulation; emergency?: EmergencyService; pois: Poi[]; session: Session | null; targetId?: string | null; highlighted: Candidate | null; sceneActors: { current: readonly SceneActorSnapshot[] }; severity: Severity; onSeverityChange?: (severity: Severity) => void; demoNotice?: DemoNotice };
 const layerNames = {roads:'城市道路',buildings:'建筑与设施',pois:'POI',vehicles:'车辆',pedestrians:'行人',signals:'交通信号灯',prediction:'火灾预测'};
 const stationPoint=sceneToPixel({x_m:fire_station_reserve.center[0],y_m:fire_station_reserve.center[1]});
 const stationView=zoomView({...ORIGINAL_VIEW,x:stationPoint.x-ORIGINAL_VIEW.width/2,y:stationPoint.y-ORIGINAL_VIEW.height/2},2.1);
 const droneStationPoint=sceneToPixel({x_m:drone_station.center[0],y_m:drone_station.center[1]});
 const droneStationView=zoomView({...ORIGINAL_VIEW,x:droneStationPoint.x-ORIGINAL_VIEW.width/2,y:droneStationPoint.y-ORIGINAL_VIEW.height/2},2.1);
-export default function SandboxMap({ pois, session, targetId, highlighted, sceneActors, severity, onSeverityChange, traffic, emergency }: Props) {
+export default function SandboxMap({ pois, session, targetId, highlighted, sceneActors, severity, onSeverityChange, traffic, emergency, demoNotice }: Props) {
+  const hasPedestrians = traffic.pedestrians.actors.length > 0;
   const [layers,setLayers]=useState({roads:true,buildings:true,pois:true,vehicles:true,pedestrians:true,signals:false,prediction:true});
   const [selectedSignal, setSelectedSignal] = useState<string | null>(null);
   const [, setSignalRevision] = useState(0);
@@ -32,16 +34,19 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
   const [info,setInfo]=useState<string|null>(null);
   const [paused,setPaused]=useState(false);
   const [speed,setSpeed]=useState(1);
-  const trafficLocked = traffic.signals.getMode() === 'emergency_lockdown';
-  const trafficPriority = traffic.signals.getMode() === 'emergency_priority';
   const [resetMode,setResetMode]=useState<ResetMode>('garage');
   const [vehicleReset,setVehicleReset]=useState({mode:'garage' as ResetMode,version:0});
   const svg=useRef<SVGSVGElement>(null);
   const drag=useRef<{clientX:number;clientY:number;view:MapView}|null>(null);
   const markers=useMemo(()=>candidateMarkers(session),[session]);
   const showInfo=useCallback((message:string)=>setInfo(message),[]);
-  const truth=targetId ? pois.find(poi=>poi.poi_id===targetId) : session?.ground_truth;
+  const target=targetId ? pois.find(poi=>poi.poi_id===targetId) : null;
+  const truth=session?.ground_truth ?? target;
   const truthPoint=truth?sceneToPixel(truth.coordinates,'LOCAL30x25'):null;
+  const firePoint=target ? sceneToPixel(target.coordinates,'LOCAL30x25') : null;
+  const fireIncident=emergency?.getSnapshot().incident;
+  const fireStatus=fireIncident?.targetPoiId===targetId ? fireIncident?.fireStatus : undefined;
+  const noticePoint=demoNotice ? sceneToPixel({ x_m: demoNotice.target.x, y_m: demoNotice.target.y }) : null;
   const finalTop1=session?.status==='completed'?session.prediction?.candidates.find(c=>c.rank===1):null;
   const finalPoint=finalTop1?sceneToPixel(finalTop1.coordinates,session?.prediction?.coordinate_system??'LOCAL30x25'):null;
   const incident=useMemo<Point|null>(()=>{
@@ -74,7 +79,7 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
         <option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option>
       </select></label>
     </div>
-    <div className={`traffic-status${trafficLocked || trafficPriority ? ' traffic-lockdown-status' : ''}`} role="status">{trafficLocked ? '全城市交通管制 · 车辆及行人停止进入路口' : trafficPriority ? '消防沿线信号优先 · 冲突方向停车 · 其余路口正常运行' : '城市交通正常运行 · 车辆及行人遵循交通信号'}</div>
+    <div className={`traffic-status${traffic.tankZoneClosed ? ' traffic-lockdown-status' : ''}`} role="status">{traffic.tankZoneClosed ? '罐区道路疏散中 · 暂停普通车辆驶入 · 红绿灯照常轮换' : `城市交通正常运行 · ${hasPedestrians ? '车辆及行人' : '车辆'}遵循交通信号`}</div>
     <div className="map-canvas" style={{aspectRatio:`${IMAGE_SIZE.width}/${IMAGE_SIZE.height}`}}>
       <svg ref={svg} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="云港新区城市地图，真实火点与逐批候选预测" data-testid="sandbox-svg" data-simulation-paused={paused} data-simulation-speed={speed}
         onPointerDown={e=>{if((e.target as Element).closest('[data-intersection]'))return;setSelectedSignal(null);if(e.button!==0||(e.target as Element).closest('[data-poi],[data-city-poi],[data-candidate]'))return;drag.current={clientX:e.clientX,clientY:e.clientY,view};e.currentTarget.setPointerCapture(e.pointerId);}}
@@ -92,7 +97,7 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
             <circle cx={p.x} cy={p.y} r={poi.type==='tank'?5:3.5} fill={poi.type==='tank'?'#e4b869':'#d8e5dd'} stroke="#152132" strokeWidth="1.5"/><circle cx={p.x} cy={p.y} r="11" fill="transparent"/><title>{poi.name}</title>
           </g>;})}</g>
         </>}
-        <CityMotion pedestrians={layers.pedestrians} simulation={traffic}/>
+        {hasPedestrians && <CityMotion pedestrians={layers.pedestrians} simulation={traffic}/>}
         {layers.signals && <TrafficSignalLayer signals={traffic.signals} viewWidth={view.width} select={setSelectedSignal}/>}
         {layers.prediction&&<g data-layer="predictions">{markers.map(marker=>{const c=marker.candidate,p=sceneToPixel(c.coordinates,marker.system),color=evidenceColor(marker.strength,marker.final);return <g key={c.poi_id} data-candidate={c.poi_id} data-testid="evidence-marker" data-strength={marker.strength} data-current={marker.current} data-final={marker.final} tabIndex={0} role="button" aria-label={`${marker.current?'当前':'历史'}候选 ${c.name} 得分 ${c.score} 票数 ${c.votes}`}
           onClick={()=>setInfo(`${marker.current?'当前 Top'+c.rank:'历史候选'} · ${c.name} · 得分 ${c.score.toFixed(3)} · 票数 ${c.votes} · 展示强度不代表概率`)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')setInfo(`${c.name} · 得分 ${c.score.toFixed(3)} · 票数 ${c.votes}`);}}>
@@ -102,19 +107,23 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
         </g>;})}</g>}
         {highlightedPoint&&highlighted&&layers.prediction&&<g data-testid="candidate-marker" pointerEvents="none"><circle cx={highlightedPoint.x} cy={highlightedPoint.y} r="31" fill="none" stroke="#f8ce70" strokeWidth="3" strokeDasharray="6 5"/><g transform={`translate(${highlightedPoint.x+95} ${highlightedPoint.y+66})`}><rect x="-65" y="-22" width="130" height="32" rx="5" fill="#1c3037" stroke="#f8ce70"/><text textAnchor="middle" className="map-label">候选 #{highlighted.rank}</text></g></g>}
         {truthPoint&&truth&&<g data-testid="truth-marker" data-poi-id={truth.poi_id} pointerEvents="none"><circle cx={truthPoint.x} cy={truthPoint.y} r="10" fill="#222831" stroke="#f1f5f9" strokeWidth="3"/><path d={`M${truthPoint.x} ${truthPoint.y+14}v25`} stroke="#f1f5f9" strokeWidth="2"/><g transform={`translate(${truthPoint.x} ${truthPoint.y+57})`}><rect x="-87" y="-18" width="174" height="32" rx="6" fill="#18212d" stroke="#91a4b9"/><text textAnchor="middle" y="4" className="map-label truth-label">Ground Truth</text></g></g>}
-        {truthPoint && emergency?.getSnapshot().incident && <g data-testid="fire-marker" data-poi-id={truth?.poi_id} data-status={emergency.getSnapshot().incident!.fireStatus} pointerEvents="none" transform={`translate(${truthPoint.x} ${truthPoint.y})`}>
-          {['burning', 'extinguishing'].includes(emergency.getSnapshot().incident!.fireStatus) && <><circle r="25" fill="#f65738" fillOpacity=".2" stroke="#ff8c52" strokeWidth="2"/><path d="M0 -21C7 -8 15 -6 12 6C9 19 -10 19 -13 7C-17 -3 -7 -7 -6 -13C-2 -7 1 -6 0 -21Z" fill="#ff954b" stroke="#ffe1a5" strokeWidth="2"/></>}
+        {firePoint && fireStatus && <g data-testid="fire-marker" data-poi-id={target?.poi_id} data-status={fireStatus} pointerEvents="none" transform={`translate(${firePoint.x} ${firePoint.y})`}>
+          {['burning', 'extinguishing'].includes(fireStatus) && <><circle r="25" fill="#f65738" fillOpacity=".2" stroke="#ff8c52" strokeWidth="2"/><path d="M0 -21C7 -8 15 -6 12 6C9 19 -10 19 -13 7C-17 -3 -7 -7 -6 -13C-2 -7 1 -6 0 -21Z" fill="#ff954b" stroke="#ffe1a5" strokeWidth="2"/></>}
         </g>}
         {layers.prediction&&finalPoint&&finalTop1&&<g data-testid="prediction-marker" data-poi-id={finalTop1.poi_id} pointerEvents="none"><circle cx={finalPoint.x} cy={finalPoint.y} r="29" fill="none" stroke="#8f132b" strokeWidth="5"/><circle cx={finalPoint.x} cy={finalPoint.y} r="37" fill="none" stroke="#ee786e" strokeWidth="2" className="prediction-breath"/><path d={`M${finalPoint.x-44} ${finalPoint.y}h12 M${finalPoint.x+32} ${finalPoint.y}h12 M${finalPoint.x} ${finalPoint.y-44}v12`} stroke="#8f132b" strokeWidth="3"/><g transform={`translate(${finalPoint.x} ${finalPoint.y-70})`}><rect x="-99" y="-18" width="198" height="32" rx="6" fill="#461f2a" stroke="#ed7779"/><text textAnchor="middle" y="4" className="map-label prediction-label">最终定位 · Top1</text></g></g>}
         <VehicleLayer simulation={traffic} emergency={emergency} visible={layers.vehicles} target={incident} severity={severity} reset={vehicleReset} paused={paused} speed={speed} sceneActors={sceneActors}/>
         {emergency && <DroneLayer emergency={emergency} traffic={traffic} />}
       </svg>
+      {demoNotice && noticePoint && <div className="demo-fire-bubble" role="status" data-testid="demo-fire-bubble" style={{
+        left: `${Math.min(80, Math.max(20, (noticePoint.x - view.x) / view.width * 100))}%`,
+        top: `${Math.min(94, Math.max(25, (noticePoint.y - view.y) / view.height * 100))}%`,
+      }}>火情等级：{severityLabels[demoNotice.severity]}</div>}
       <div className="north-compass" aria-label="地图北向"><span>N</span><span>↑</span></div>
       <div className="map-tools"><button className="icon-button" aria-label="地图图层" aria-expanded={layerPanel} onClick={()=>setLayerPanel(v=>!v)}><Layers size={17}/></button><span className="tool-divider"/>
         <button className="icon-button" aria-label="放大地图" onClick={()=>setView(v=>zoomView(v,1.25))}><Plus size={18}/></button><span className="zoom-level">{(IMAGE_SIZE.width/view.width).toFixed(2)}×</span><button className="icon-button" aria-label="缩小地图" onClick={()=>setView(v=>zoomView(v,.8))}><Minus size={18}/></button>
         <button className="map-text-button" aria-label="全图" onClick={()=>setView(FULL_VIEW)}><Maximize2 size={14}/>全图</button><button className="map-text-button" aria-label="重置地图视图" onClick={()=>setView(ORIGINAL_VIEW)}><RotateCcw size={14}/>重置视图</button>
       </div>
-      {layerPanel&&<div className="map-layer-panel" aria-label="地图图层控制">{Object.entries(layerNames).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key as keyof typeof layers]} onChange={()=>setLayers(v=>({...v,[key]:!v[key as keyof typeof layers]}))}/>{label}</label>)}</div>}
+      {layerPanel&&<div className="map-layer-panel" aria-label="地图图层控制">{Object.entries(layerNames).filter(([key])=>key!=='pedestrians'||hasPedestrians).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key as keyof typeof layers]} onChange={()=>setLayers(v=>({...v,[key]:!v[key as keyof typeof layers]}))}/>{label}</label>)}</div>}
       <div className="map-scale" style={{width:`${IMAGE_SIZE.width/30*5/view.width*100}%`}}><span/><p>5 仿真单位</p></div>
       {hover&&<div className="poi-tooltip" role="status"><strong>{hover.name}</strong><span>{hover.poi_id}</span><span>局部 X {hover.coordinates.x_m.toFixed(3)} · Y {hover.coordinates.y_m.toFixed(3)}</span></div>}
       {info&&<div className="candidate-info" role="status"><span>{info}</span><button aria-label="关闭地图信息" onClick={()=>setInfo(null)}>×</button></div>}

@@ -32,7 +32,7 @@ test('default hidden signals, real traffic control, live details, all red, recov
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await ready(page);
   await expect(page.locator('[data-layer="traffic-signals"]')).toHaveCount(0);
-  await expect(page.locator('[data-layer="vehicles"] [data-actor]')).toHaveCount(53);
+  await expect(page.locator('[data-layer="vehicles"] [data-actor]')).toHaveCount(27);
   await expect(page.locator('[data-fire-truck]')).toHaveCount(3);
   const initial = await page.evaluate(() => window.trafficSimulation.cars.map(c => c.pose.point));
   await page.evaluate(() => window.trafficSimulation.tick(12));
@@ -66,17 +66,15 @@ test('default hidden signals, real traffic control, live details, all red, recov
   await page.getByTestId('sandbox-svg').click({ position: { x: 450, y: 260 } });
   await expect(page.getByRole('complementary', { name: '路口信号详情' })).toHaveCount(0);
   await showSignals(page, false);
-  await expect(page.getByText('全城市交通管制 · 车辆及行人停止进入路口', { exact: true })).toBeVisible();
   await page.evaluate(() => window.trafficSimulation.tick(60));
   const stopped = await page.locator('[data-layer="vehicles"] [data-actor]').evaluateAll(nodes => nodes.map(n => n.getAttribute('transform')));
   await page.evaluate(() => window.trafficSimulation.tick(2));
   expect(await page.locator('[data-layer="vehicles"] [data-actor]').evaluateAll(nodes => nodes.map(n => n.getAttribute('transform')))).toEqual(stopped);
-  expect(await page.locator('[data-pedestrian-route][data-waiting-for-signal="true"]').count()).toBeGreaterThan(0);
+  await expect(page.locator('[data-pedestrian-route]')).toHaveCount(0);
   await showSignals(page, true);
   await page.getByRole('button', { name: '全图', exact: true }).click();
   await page.screenshot({ path: `${screenshots}/traffic-lockdown.png`, fullPage: true });
   await page.evaluate(() => window.trafficSimulation.signals.setMode('normal'));
-  await expect(page.getByText('全城市交通管制 · 车辆及行人停止进入路口', { exact: true })).toHaveCount(0);
   expect(await page.locator('[data-signal-state="green"]').count()).toBe(0);
   await page.evaluate(() => window.trafficSimulation.tick(2));
   expect(await page.locator('[data-signal-state="green"]').count()).toBeGreaterThan(0);

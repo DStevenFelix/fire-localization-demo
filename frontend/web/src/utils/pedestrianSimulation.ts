@@ -16,15 +16,20 @@ const routes = [
   })),
 ].map(r => ({ ...r, segments: r.segments.map(s => ({ ...s, length: distance(s.a, s.b) })) }));
 
+function createActor(route: typeof routes[number]) {
+  let remaining = route.phase * route.length, index = 0;
+  while (remaining >= route.segments[index].length && index < route.segments.length - 1) remaining -= route.segments[index++].length;
+  return { id: route.id, route, index, distance: remaining, waiting: false,
+    point: [...route.segments[index].a] as Point, angle: 0 };
+}
+
 export const pedestrianIds = routes.map(r => r.id);
 export class PedestrianSimulation {
-  readonly actors = routes.map(route => {
-    let remaining = route.phase * route.length, index = 0;
-    while (remaining >= route.segments[index].length && index < route.segments.length - 1) remaining -= route.segments[index++].length;
-    return { id: route.id, route, index, distance: remaining, waiting: false,
-      point: [...route.segments[index].a] as Point, angle: 0 };
-  });
-  constructor(private signals: TrafficSignalController) { this.actors.forEach(actor => this.update(actor)); }
+  readonly actors: ReturnType<typeof createActor>[];
+  constructor(private signals: TrafficSignalController, enabled = true) {
+    this.actors = enabled ? routes.map(createActor) : [];
+    this.actors.forEach(actor => this.update(actor));
+  }
   tick(seconds: number) {
     this.actors.forEach(actor => {
       let remaining = actor.route.speed * seconds;

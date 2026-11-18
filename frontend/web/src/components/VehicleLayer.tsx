@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef } from 'react';
 import { carIds, TrafficSimulation, truckIds, type ResetMode, type Severity } from '../utils/trafficSimulation';
 import { IMAGE_SIZE, WORLD_SIZE } from '../utils/mapCoordinates';
-import type { Point } from '../utils/roadNetwork';
+import { garageEntries, type Point } from '../utils/roadNetwork';
 import { point } from './CityLayers';
 import type { SceneActorSnapshot } from '../types';
 import type { EmergencyService } from '../utils/emergency';
@@ -10,7 +10,6 @@ type Props = { simulation: TrafficSimulation; emergency?: EmergencyService; visi
 const scale = `scale(${IMAGE_SIZE.width/WORLD_SIZE.width} ${IMAGE_SIZE.height/WORLD_SIZE.height})`;
 export const VehicleLayer = memo(function VehicleLayer({simulation,emergency,visible,target,severity,reset,paused,speed,sceneActors}:Props) {
   const root=useRef<SVGGElement>(null);
-  const targetRef=useRef<Point|null>(null);
   const resetVersion=useRef(0);
   const draw=useRef<()=>void>(()=>{});
   useEffect(()=>{
@@ -27,13 +26,13 @@ export const VehicleLayer = memo(function VehicleLayer({simulation,emergency,vis
         element.dataset.waitingForSignal=String(Boolean(vehicle.waitingForSignal));
         if(!vehicle.fire)continue;
         element.dataset.status=vehicle.status;
-        element.dataset.reversing=vehicle.reversing??'';
+        element.dataset.reversing=garageEntries.includes(vehicle.cursor.piece)?'parking':'';
         element.dataset.x=vehicle.pose.point[0].toFixed(4);element.dataset.y=vehicle.pose.point[1].toFixed(4);
         element.dataset.road=vehicle.cursor.piece.road??'';
         const spray=water.get(vehicle.id)!;
-        const waterTarget = vehicle.external ? (vehicle.external.water ? vehicle.external.target : null) : vehicle.status === 'arrived' ? targetRef.current : null;
+        const waterTarget = sim.waterTarget(vehicle);
         if(waterTarget) {
-          const q=point(waterTarget), mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+          const q=point([waterTarget.x,waterTarget.y]), mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
           const stream=`M${p.x},${p.y} Q${mx},${my-22} ${q.x},${q.y}`;
           spray.setAttribute('visibility','visible');
           for(const path of spray.querySelectorAll('path'))path.setAttribute('d',stream);
@@ -50,8 +49,7 @@ export const VehicleLayer = memo(function VehicleLayer({simulation,emergency,vis
   const tx=target?.[0], ty=target?.[1];
   useEffect(()=>{
     if(paused||emergency)return;
-    targetRef.current=tx===undefined||ty===undefined?null:[tx,ty];
-    simulation.setIncident(targetRef.current,severity);draw.current();
+    simulation.setIncident(tx===undefined||ty===undefined?null:[tx,ty],severity);draw.current();
   },[tx,ty,severity,paused,simulation,emergency]);
   useEffect(()=>{
     if(paused||reset.version===resetVersion.current)return;

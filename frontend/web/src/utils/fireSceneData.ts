@@ -2,6 +2,7 @@ import mapConfig from '../../../../fire_poi/map_config.json';
 import { pois, areas } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import { fire_station_reserve, original_map_placement } from '../../../../city_scene/city_scene.json';
 import { drone_station } from '../../../../city_scene/fire_resources.json';
+import { ARRIVAL_RADIUS } from './roadNetwork';
 
 export const SOURCE_SIZE = { width: mapConfig.source.width_px, height: mapConfig.source.height_px };
 export const PIXELS_PER_UNIT = {
@@ -36,11 +37,13 @@ export function getFireScene(targetId: string | null) {
   if (!target) return null;
   const area = areas.find(poi => poi.id === target.parent_id)!;
   const footprint = area.geometry.coordinates[0].map(point => localToScene(point));
-  // Include the adjoining access roads, without showing the entire sandbox.
-  const bounds = { minX: Math.min(...footprint.map(p => p.x)) - 100,
-    maxX: Math.max(...footprint.map(p => p.x)) + 100,
-    minZ: Math.min(...footprint.map(p => p.z)) - 64,
-    maxZ: Math.max(...footprint.map(p => p.z)) + 64 };
+  const origin = localToScene(target.center);
+  const reachX = ARRIVAL_RADIUS * PIXELS_PER_UNIT.x, reachZ = ARRIVAL_RADIUS * PIXELS_PER_UNIT.y;
+  // Include the adjoining access roads and the dispatch algorithm's stopping radius.
+  const bounds = { minX: Math.min(Math.min(...footprint.map(p => p.x)) - 100, origin.x - reachX),
+    maxX: Math.max(Math.max(...footprint.map(p => p.x)) + 100, origin.x + reachX),
+    minZ: Math.min(Math.min(...footprint.map(p => p.z)) - 64, origin.z - reachZ),
+    maxZ: Math.max(Math.max(...footprint.map(p => p.z)) + 64, origin.z + reachZ) };
   return { target, area, bounds,
     center: { x: (bounds.minX + bounds.maxX) / 2, y: 0, z: (bounds.minZ + bounds.maxZ) / 2 },
     tanks: sceneTanks.filter(poi => poi.parent_id === target.parent_id),

@@ -74,6 +74,8 @@ async function auditTraffic(page: Page, seconds: number, stopAtPassage = false, 
   return page.evaluate(async ({ seconds, stopAtPassage, finish }) => {
     const conflictPath = '/src/utils/trafficSimulation.ts';
     const { conflicts } = await import(conflictPath);
+    const roadPath = '/src/utils/roadNetwork.ts';
+    const { followsOnSameLane } = await import(roadPath);
     const sim = window.acceptanceService.traffic;
     const distance = new Map(sim.cars.map(car => [car.id, 0]));
     const violations: { actor: string; intersection: string; color: string }[] = [];
@@ -84,7 +86,7 @@ async function auditTraffic(page: Page, seconds: number, stopAtPassage = false, 
     let time = 0;
     while (time < seconds - 1e-8) {
       const before = sim.all.map(vehicle => ({ id: vehicle.id, point: vehicle.pose.point,
-        lane: vehicle.cursor.piece, offset: vehicle.cursor.distance, junction: vehicle.junction,
+        lane: vehicle.cursor.piece, offset: vehicle.cursor.distance, junction: vehicle.junction, fire: vehicle.fire, status: vehicle.status,
         signals: sim.signals.getLaneControl(vehicle.cursor.piece) ? sim.signals.getIntersectionState(sim.signals.getLaneControl(vehicle.cursor.piece)!.intersection.id) : undefined }));
       const step = Math.min(.05, seconds - time);
       sim.tick(step);
@@ -96,10 +98,12 @@ async function auditTraffic(page: Page, seconds: number, stopAtPassage = false, 
         if (vehicle.junction && vehicle.junction !== old.junction && (!old.junction || !sim.signals.sharesClearanceZone(old.junction, vehicle.junction)) &&
           control && old.offset <= sim.signals.stopDistance(old.lane, vehicle.fire ? .84 : .65) + 1e-6) {
           const state = sim.signals.getIntersectionState(control.intersection.id)!;
-          if (state.vehicles[control.entry.id] !== 'green' && old.signals?.vehicles[control.entry.id] !== 'green')
-            violations.push({ actor: vehicle.id, intersection: control.intersection.id, color: state.vehicles[control.entry.id] });
-          if (vehicle.fire && state.emergencyPriority && old.lane.road) passage = { vehicle: vehicle.id, intersection: control.intersection.id,
+          const yielding = !vehicle.fire && before.some(truck => truck.fire && truck.status === 'en-route' &&
+            followsOnSameLane({ piece: old.lane, distance: old.offset }, { piece: truck.lane, distance: truck.offset }));
+          if (vehicle.fire && old.status === 'en-route' && old.lane.road) passage = { vehicle: vehicle.id, intersection: control.intersection.id,
             road: old.lane.road, signals: sim.signals.getAllSignalStates() };
+          else if (!yielding && state.vehicles[control.entry.id] !== 'green' && old.signals?.vehicles[control.entry.id] !== 'green')
+            violations.push({ actor: vehicle.id, intersection: control.intersection.id, color: state.vehicles[control.entry.id] });
         }
       });
       sim.all.forEach((vehicle, index) => sim.all.slice(index + 1).forEach(other => {
@@ -150,7 +154,7 @@ test('normal traffic, shared station and complete incident use the actual busine
   await writeFile(`${output}/normal-traffic.json`, JSON.stringify(normal, null, 2));
   expect(normal.violations).toEqual([]);
   expect(normal.collisions).toEqual([]);
-  expect(normal.movedCars).toBe(53);
+  expect(normal.movedCars).toBe(27);
   expect(normal.groupsSeen).toBeGreaterThan(100);
   await page.getByRole('button', { name: '查看无人机站', exact: true }).click();
   await page.getByRole('button', { name: '无人机站', exact: true }).click();
@@ -198,7 +202,7 @@ test('normal traffic, shared station and complete incident use the actual busine
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'fire_trucks_dispatched');
   await page.getByRole('button', { name: '查看消防站', exact: true }).click();
   const dispatched = await auditTraffic(page, 2);
-  expect(dispatched.signals.some(s => s.emergencyPriority)).toBe(true);
+  expect(dispatched.signals.every(s => !s.emergencyPriority)).toBe(true);
   expect(dispatched.signals.some(s => !s.emergencyPriority && Object.values(s.vehicles).includes('green'))).toBe(true);
   await screenshot(page, '04-dispatch-priority');
   const passage = await auditTraffic(page, 120, true);
@@ -215,7 +219,7 @@ test('normal traffic, shared station and complete incident use the actual busine
   await page.mouse.wheel(0, -600);
   await expect.poll(async () => Number((await page.getByTestId('sandbox-svg').getAttribute('viewBox'))!.split(' ')[2])).toBeLessThan(2000);
   await page.locator(`[data-intersection="${passage.passage!.intersection}"] [data-vehicle-signal]`).first().click();
-  await expect(page.getByRole('complementary', { name: '路口信号详情' })).toContainText('消防沿线信号优先');
+  await expect(page.getByRole('complementary', { name: '路口信号详情' })).toContainText('正常运行');
   await screenshot(page, '05-controlled-intersection-passage');
   await page.getByRole('region', { name: '火情沙盘地图', exact: true }).screenshot({ path: `${output}/screenshots/traffic-priority-closeup.png` });
   const response = await auditTraffic(page, 240, false, 'arrived');
@@ -243,7 +247,7 @@ test('normal traffic, shared station and complete incident use the actual busine
   const recovery = await auditTraffic(page, 900, false, 'home');
   expect(recovery.trucks.every(t => t.status === 'idle')).toBe(true);
   expect(recovery.signals.every(s => !s.emergencyPriority)).toBe(true);
-  expect(recovery.movedCars).toBe(53);
+  expect(recovery.movedCars).toBe(27);
   expect(recovery.violations).toEqual([]);
   expect(recovery.collisions).toEqual([]);
   const landed = await page.evaluate(() => window.acceptanceService.getSnapshot().drones.map(d => ({ id: d.id, position: d.position, path: d.path })));

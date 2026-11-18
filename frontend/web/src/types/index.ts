@@ -84,6 +84,7 @@ export type EmergencyEvent = Readonly<{ messageId: string; incidentId: string; o
   { type: 'drone.observed'; droneId: string } |
   { type: 'fire.assessed'; assessment: FireAssessment } |
   { type: 'plan.proposed'; plan: EmergencyPlan } |
+  { type: 'plan.revised'; assessment: Extract<FireAssessment, { status: 'completed' }>; plan: EmergencyPlan } |
   { type: 'truck.position'; vehicleId: string; position: CityPosition; updatedAt: number } |
   { type: 'truck.route'; vehicleId: string; route: FireTruckRoute } |
   { type: 'truck.arrived' | 'truck.extinguishing'; vehicleId: string } |
@@ -102,6 +103,8 @@ export interface EmergencyAdapter {
   subscribe(receive: (event: unknown) => void): () => void;
   execute(command: EmergencyCommand, signal: AbortSignal): Promise<void>;
   resolveRoute?(dispatch: FireTruckDispatch, from: CityPosition, signal: AbortSignal): Promise<FireTruckRoute>;
+  /** Optional executor for adapters backed by the local traffic simulator. */
+  readonly simulatedFleet?: { apply(plan: EmergencyPlan): void; isHome(): boolean };
 }
 export type EmergencyIncident = Readonly<{
   id: string; targetPoiId: string; phase: EmergencyPhase; fireStatus: FireSceneStatus;

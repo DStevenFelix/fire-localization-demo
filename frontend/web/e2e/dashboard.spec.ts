@@ -93,8 +93,12 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await page.setViewportSize({ width: 1366, height: 900 });
   await verifyOverlay(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole('button', { name: '重置演示' }).click();
+  await page.getByRole('button', { name: '移交应急处置', exact: true }).click();
+  await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'drone_dispatched');
+  await page.getByRole('button', { name: '全局重置' }).click();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
+  await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'idle');
+  await expect(page.locator('[data-drone][data-status="idle"]')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
   await expect(page.getByTestId('run-button-state')).toHaveText('Ready');
   await page.getByLabel('火情场景').selectOption('T-SE-01');
@@ -178,7 +182,7 @@ test('worker errors expose a sanitized error state and permit reset', async ({ p
   await page.locator('.run-error summary').click();
   await expect(page.getByText('RuntimeError', { exact: true })).toBeVisible();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
-  await page.getByRole('button', { name: '重置演示' }).click();
+  await page.getByRole('button', { name: '全局重置' }).click();
   await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
 });
 
