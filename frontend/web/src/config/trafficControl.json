@@ -1,0 +1,28 @@
+{
+  "vehicles": { "originalCars": 5, "emergencyFleetAuthorized": true },
+  "timing": { "vehicleGreen": 10, "pedestrianGreen": 8, "allRed": 1.5 },
+  "emergencyLookAhead": 12,
+  "originalCrosswalkSource": "fire_poi/map_original.png",
+  "originalCrosswalks": [
+    { "control": "J01", "pixels": [191, 82, 315, 111] },
+    { "control": "J01", "pixels": [150, 117, 178, 240] },
+    { "control": "J01", "pixels": [328, 117, 356, 240] },
+    { "control": "J01", "pixels": [191, 247, 315, 275] },
+    { "control": "J02", "pixels": [998, 82, 1122, 111] },
+    { "control": "J02", "pixels": [958, 117, 985, 240] },
+    { "control": "J02", "pixels": [1136, 117, 1164, 240] },
+    { "control": "J02", "pixels": [998, 247, 1122, 275] },
+    { "control": "J03", "pixels": [191, 769, 315, 799] },
+    { "control": "J03", "pixels": [150, 805, 178, 928] },
+    { "control": "J03", "pixels": [328, 805, 356, 928] },
+    { "control": "J03", "pixels": [191, 933, 315, 962] },
+    { "control": "J04", "pixels": [998, 769, 1122, 799] },
+    { "control": "J04", "pixels": [958, 805, 985, 928] },
+    { "control": "J04", "pixels": [1136, 805, 1164, 928] },
+    { "control": "J04", "pixels": [998, 933, 1122, 962] },
+    { "control": "R-01", "pixels": [643, 117, 671, 240] },
+    { "control": "R-02", "pixels": [593, 805, 621, 928] },
+    { "control": "R-02", "pixels": [692, 805, 719, 928] },
+    { "control": "R-02", "pixels": [626, 933, 688, 962] }
+  ]
+}

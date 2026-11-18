@@ -19113,5 +19113,60 @@
       "file": "city_scene/city_scene.json",
       "object_id": "EXT-P-FIRE"
     }
+  },
+  {
+    "id": "EXT-P-DRONE",
+    "name": "消防无人机站",
+    "aliases": [
+      "消防站东北侧无人机站",
+      "应急无人机起降站"
+    ],
+    "type": "drone_station",
+    "category": "emergency_resource",
+    "center": [
+      28.6,
+      24
+    ],
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            27.4,
+            22.4
+          ],
+          [
+            29.8,
+            22.4
+          ],
+          [
+            29.8,
+            25.6
+          ],
+          [
+            27.4,
+            25.6
+          ],
+          [
+            27.4,
+            22.4
+          ]
+        ]
+      ]
+    },
+    "description": "消防站东北侧独立双机起降与充电站，位于西环路东侧、南环大道北侧空地，服务 EXT-P-FIRE 消防站。",
+    "can_post": false,
+    "coordinate_system": "CITY90x75",
+    "parent_id": null,
+    "station_poi_id": "EXT-P-FIRE",
+    "capacity": 2,
+    "region_id": null,
+    "community_id": null,
+    "post_policy": "emergency_resource_only",
+    "source": {
+      "dataset": "city_full_extension",
+      "file": "city_scene/city_scene.json",
+      "object_id": "EXT-P-DRONE"
+    }
   }
 ]

@@ -1,11 +1,11 @@
 {
   "version": "3.0.0",
-  "scene_sha256": "f8c9b734a5ff06258709e217e876a9ef0d55a8cca930fd2ce2a50ee5d1923207",
+  "scene_sha256": "3d09581e5ea3c8ac78a7ab204294a69ee239d164c47b80cafbc29e6c3b6fe444",
   "files": {
-    "poi_catalog.json": "66d78a48fd427bdf2194f086dbf291739484e2e20ca5e770ceedc60ad2679696",
-    "poi_hierarchy.json": "abe35f7261a83690a2682b080c20df559ee48affd010ae1653a9f2aebde764bc",
+    "poi_catalog.json": "d3831aed46c59d32ae84964c1ce005e7132bbdf886a03442878fcfedfb35ec1c",
+    "poi_hierarchy.json": "c809f0b7750749022aec390a683e89b43ae2a48d3d53506a027bec49590933d4",
     "pedestrian_animation.json": "53bc12519b1f1fc64d1937c33fa111e2c08a51e8a908a5022d20efcf5ba2ebf0",
-    "fire_resources.json": "cf0d5b76454da5a1b1b4e3a4c544c86947a685475f16c8a715972d9896db8d57",
+    "fire_resources.json": "581a5762d340ed40c94de7b2c540d074e3f1e3fc266da13767cf44b29246fb5b",
     "community_building_entrances.csv": "8fdfbf6fa632f5606a3465a6bc07af8717da5c9136758ade9a34193a4428ed45"
   }
 }

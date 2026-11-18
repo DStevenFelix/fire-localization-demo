@@ -8,7 +8,7 @@ async function ready(page: Page) {
   await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
   await expect(page.getByTestId('truth-marker')).toBeVisible();
   await expect(page.getByTestId('run-button-state')).toHaveText('Ready');
-  await expect(page.locator('.metrics-row')).toContainText('/ 100 条');
+  await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText('0 批 · 0 / 100 条', { exact: true })).toBeVisible();
 }
 
 async function verifyOverlay(page: Page, withPrediction = true) {
@@ -71,13 +71,13 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await expect(page.locator('.candidate-row')).toHaveCount(3);
   await expect(page.getByTestId('prediction-marker')).toBeVisible();
   await expect(page.getByTestId('run-button-state')).toHaveText('Completed');
-  await expect(page.locator('.metrics-row')).toContainText('100 / 100 条');
+  await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText(/^\d+ 批 · 100 \/ 100 条$/)).toBeVisible();
   await expect(page.getByTestId('truth-marker').locator('text')).toHaveText('Ground Truth');
   await expect(page.getByTestId('prediction-marker').locator('text')).toHaveText('最终定位 · Top1');
   await verifyOverlay(page);
   await page.getByRole('button', { name: /^高亮候选 2 / }).click();
   await expect(page.getByTestId('candidate-marker')).toBeVisible();
-  const directory = fileURLToPath(new URL('../screenshots/', import.meta.url));
+  const directory = process.env.FIRE_ACCEPTANCE_DIR ? `${process.env.FIRE_ACCEPTANCE_DIR}/existing/` : fileURLToPath(new URL('../screenshots/', import.meta.url));
   await mkdir(directory, { recursive: true });
   await page.screenshot({ path: `${directory}/offline-candidate-1440.png`, fullPage: true });
   await page.getByRole('button', { name: /^高亮候选 1 / }).click();

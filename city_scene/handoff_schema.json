@@ -48,7 +48,8 @@
               "road",
               "intersection",
               "node",
-              "reserve"
+              "reserve",
+              "drone_station"
             ]
           },
           "category": {
@@ -600,7 +601,7 @@
                 "minLength": 1
               },
               "relation": {
-                "const": "part_of"
+                "enum": ["part_of", "serves"]
               },
               "object_id": {
                 "type": "string",
@@ -626,6 +627,26 @@
         "vehicles"
       ],
       "properties": {
+        "drone_station": {
+          "type": "object",
+          "required": ["poi_id", "station_poi_id", "center", "geometry", "bays"],
+          "properties": {
+            "poi_id": {"type": "string", "minLength": 1},
+            "station_poi_id": {"type": "string", "minLength": 1},
+            "center": {"$ref": "#/$defs/poiCatalog/items/properties/center"},
+            "geometry": {"$ref": "#/$defs/poiCatalog/items/properties/geometry"},
+            "bays": {
+              "type": "array", "minItems": 2, "maxItems": 2,
+              "items": {
+                "type": "object", "required": ["drone_id", "center"],
+                "properties": {
+                  "drone_id": {"type": "string", "minLength": 1},
+                  "center": {"$ref": "#/$defs/poiCatalog/items/properties/center"}
+                }
+              }
+            }
+          }
+        },
         "version": {
           "const": "1.0.0"
         },

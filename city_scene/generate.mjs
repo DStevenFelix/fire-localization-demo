@@ -6,6 +6,7 @@ const line = points => ({ type: 'LineString', coordinates: points });
 const object = (id, name, type, category, center, geometry) => ({ id, name, aliases: [name + '附近'], type, category, center, geometry, description: `${name}，城市扩展区空间参照物`, can_post: true, coordinate_system: 'CITY90x75' });
 const xs = [3,15,25,65,77,87], ys = [3,12,20,55,63.5,72];
 const roads = [], buildings = [], scene_pois = [], traffic_routes = [], pedestrian_paths = [];
+const droneStation = JSON.parse(readFileSync(new URL('poi_catalog.json', import.meta.url), 'utf8')).find(poi => poi.type === 'drone_station');
 function road(name, points, original_connection) {
   const a=points[0], b=points.at(-1), id=`EXT-R-${String(roads.length+1).padStart(3,'0')}`;
   roads.push({...object(id,name,'road','urban_road',[(a[0]+b[0])/2,(a[1]+b[1])/2],line(points)), centerline: line(points),
@@ -106,7 +107,8 @@ for(let i=0;i<xs.length-1;i++)for(let j=0;j<ys.length-1;j++){
   landscape.paths.push({geometry:line([[x+2.5,y+2.55],[x+w-2.5,y+2.55]]),width:.3});
 }
 const box=geometry=>{const ps=geometry.coordinates[0];return [Math.min(...ps.map(p=>p[0])),Math.min(...ps.map(p=>p[1])),Math.max(...ps.map(p=>p[0])),Math.max(...ps.map(p=>p[1]))];};
-const boxes=[...buildings.map(b=>b.plot_geometry),reserve.geometry].map(box);
+scene_pois.push(droneStation);
+const boxes=[...buildings.map(b=>b.plot_geometry),reserve.geometry,droneStation.geometry].map(box);
 const distanceTo=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy)));return Math.hypot(p[0]-a[0]-dx*t,p[1]-a[1]-dy*t);};
 let seed=123456789;const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
 for(let x=.35;x<90;x+=.47)for(let y=.35;y<75;y+=.47){

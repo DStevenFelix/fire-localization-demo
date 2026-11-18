@@ -1,5 +1,6 @@
 import { edges, roads, fire_station_reserve as station, original_map_placement } from '../../../../city_scene/city_scene.json';
 import { edges as originalEdges, nodes as originalNodes } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
+import { crossingNodes } from './trafficSignalGeometry';
 
 export type Point = [number, number];
 export type Pose = { point: Point; angle: number };
@@ -40,15 +41,21 @@ const arterial = new Set(['R-01','R-02','R-03','R-04']);
 const extension = new Map(roads.map(r=>[r.id,r]));
 const access = station.access.road_connection as Point;
 type Axis = { a: Point; b: Point; road: string; twoWay: boolean; halfWidth: number; offset: number };
-const axes: Axis[] = [...edges.filter(e=>e.vehicle_allowed).flatMap(e=>{
+const sourceAxes: Axis[] = [...edges.filter(e=>e.vehicle_allowed).flatMap(e=>{
   const [a,b]=e.geometry.coordinates as Point[], halfWidth=extension.get(e.road_id)!.width/2;
   const split=e.road_id===station.access.road_id&&a[0]<access[0]&&access[0]<b[0];
   return (split?[[a,access],[access,b]]:[[a,b]]).map(([a,b])=>({a,b,road:e.road_id,twoWay:e.bidirectional,halfWidth,offset:halfWidth/2}));
-}), ...originalEdges.filter(e=>e.vehicle_allowed&&e.road_id!=='R-07').map(e=>{
+}), ...originalEdges.filter(e=>e.vehicle_allowed).map(e=>{
   const [a,b]=e.geometry.coordinates.map(p=>add(p as Point,CITY_OFFSET));
   const offset=arterial.has(e.road_id)?.8:.35;
   return {a,b,road:e.road_id,twoWay:e.bidirectional,halfWidth:offset*2,offset};
 })];
+const axes = sourceAxes.flatMap(edge => {
+  const splits = crossingNodes.filter(n => n.road === edge.road && distance(edge.a, n.point) > 1e-6 &&
+    distance(n.point, edge.b) > 1e-6 && Math.abs(distance(edge.a, n.point) + distance(n.point, edge.b) - distance(edge.a, edge.b)) < 1e-6)
+    .map(n => n.point).sort((a, b) => distance(edge.a, a) - distance(edge.a, b));
+  return [edge.a, ...splits].map((a, i) => ({...edge, a, b: [...splits, edge.b][i]}));
+});
 const touching = new Map<string, Axis[]>();
 for(const edge of axes) for(const p of [edge.a,edge.b]) {
   const id=key(p); if(!touching.has(id))touching.set(id,[]); touching.get(id)!.push(edge);
@@ -94,6 +101,18 @@ export const garage = station.parking_spaces.map((bay)=>{
   path.next.push(stationExit);
   return path;
 });
+
+// External planners receive the same directed lanes and connectors the simulator uses.
+export const roadPieces = new Map<string, Piece>([
+  ...lanes.flatMap((lane, i) => [[`lane:${i}`, lane] as const,
+    ...lane.next.filter(next => !next.road).map((turn, j) => [`turn:${i}:${j}`, turn] as const)]),
+  ...garage.map((bay, i) => [`garage:${i}`, bay] as const),
+]);
+export function getDispatchNetwork() {
+  const ids = new Map([...roadPieces].map(([id, piece]) => [piece, id]));
+  return [...roadPieces].map(([id, piece]) => ({ id, points: piece.points.map(p => ({ x: p[0], y: p[1] })),
+    length: piece.length, next: piece.next.map(next => ids.get(next)!), road: piece.road }));
+}
 
 const preceding = new Map<Piece, Piece[]>();
 for (const lane of lanes) {

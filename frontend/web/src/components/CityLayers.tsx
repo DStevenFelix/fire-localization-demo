@@ -1,8 +1,10 @@
 import { memo, useEffect, useRef } from 'react';
 import poiCatalog from '../../../../city_scene/poi_catalog.json';
-import pedestrianAnimation from '../../../../city_scene/pedestrian_animation.json';
+import { pedestrianIds } from '../utils/pedestrianSimulation';
+import type { TrafficSimulation } from '../utils/trafficSimulation';
 import roadsLayer from '../../../../city_scene/assets/sand-table-roads.png';
 import buildingsLayer from '../../../../city_scene/assets/sand-table-buildings.png';
+import scene from '../../../../city_scene/city_scene.json';
 import { SCENE_SIZE } from '../utils/mapCoordinates';
 import { sceneToPixel } from '../utils/mapCoordinates';
 
@@ -12,7 +14,45 @@ export function geometryPoints(geometry: Geometry) {
   const points = geometry.type === 'Polygon' ? geometry.coordinates[0] as number[][] : geometry.coordinates as number[][];
   return points.map(p=>{const q=point(p); return `${q.x},${q.y}`;}).join(' ');
 }
-export const CityRoads = memo(function CityRoads(){return <image href={roadsLayer} {...SCENE_SIZE} data-layer="roads" data-material="physical-asphalt" pointerEvents="none"/>;});
+export const CityRoads = memo(function CityRoads() {
+  return <g data-layer="roads" data-material="physical-asphalt" pointerEvents="none">
+    <image href={roadsLayer} {...SCENE_SIZE}/>
+    {scene.roads.filter(road => road.original_connection).map(road => {
+      const start = point(road.centerline.coordinates[0]);
+      const end = point(road.centerline.coordinates[1]);
+      const length = Math.hypot(end.x - start.x, end.y - start.y);
+      const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
+      // 原图原生像素量测的路面半宽，接驳段沿既有中心线收至扩展路宽。
+      const sourceHalf = end.x === start.x ? 74 : 67.5;
+      const half = road.width * 42 / 2;
+      const sidewalk = road.sidewalk_width * 42;
+      // 与静态道路相同的路口尺度，在停止线前结束，保留完整斑马线与停止线。
+      const join = Math.min(length / 2, length - half - 48);
+      const outer = Math.max(sourceHalf + 12, half + sidewalk);
+      return <g key={road.id} data-road-seam={road.id} transform={`translate(${start.x} ${start.y}) rotate(${angle})`}>
+        <defs><clipPath id={`seam-${road.id}`}>
+          <rect x="0" y={-outer} width={join} height={outer * 2}/>
+        </clipPath></defs>
+        {/* 局部 x 正向始终朝原图外侧，裁剪也约束描边，原图最后完整覆盖其内侧。 */}
+        <g clipPath={`url(#seam-${road.id})`}>
+          <rect x="0" y={-outer} width={join} height={outer * 2} fill="url(#sand-grass)"/>
+          <polygon points={`0,${-sourceHalf - 12} ${join},${-half - sidewalk} ${join},${half + sidewalk} 0,${sourceHalf + 12}`} fill="url(#sand-pavement)"/>
+          <polygon points={`0,${-sourceHalf} ${join},${-half} ${join},${half} 0,${sourceHalf}`} fill="url(#sand-asphalt)"/>
+          {[-1, 1].map(side => <g key={side}>
+            <path d={`M0 ${side * sourceHalf}L${join} ${side * half}`} fill="none" stroke="#eeeade" strokeWidth="2.5"/>
+            <path d={`M0 ${side * (sourceHalf + 11)}L${join} ${side * (half + 5)}`} fill="none" stroke="#e9cb27" strokeWidth="1.6"/>
+          </g>)}
+          <path d={`M0 0H${join}`} stroke="#e9cb27" strokeWidth="1.6"/>
+          {/* 同位置重放被局部路面替换的原扩展箭头，方向和车道偏移沿用静态层。 */}
+          {length >= 170 && <>
+            <path d="M-22 -2H8V-8L26 0 8 8V2H-22Z" fill="#f3f2e9" transform={`translate(${length * .37} 32)`}/>
+            <path d="M-22 -2H8V-8L26 0 8 8V2H-22Z" fill="#f3f2e9" transform={`translate(${length * .63} -32) rotate(180)`}/>
+          </>}
+        </g>
+      </g>;
+    })}
+  </g>;
+});
 export const CityBuildings = memo(function CityBuildings(){return <image href={buildingsLayer} {...SCENE_SIZE} data-layer="buildings" data-material="physical-miniatures" pointerEvents="none"/>;});
 export const CityPois = memo(function CityPois({select}:{select:(name:string)=>void}) {
   const information=(p:typeof poiCatalog[number])=>`${p.name} · ${p.id} · 父级 ${poiCatalog.find(parent=>parent.id===p.parent_id)?.name??'城市公共空间'}${p.parent_id?` (${p.parent_id})`:''} · CITY90x75 (${p.center.map(v=>v.toFixed(3)).join(', ')})`;
@@ -28,21 +68,22 @@ export function positionOnPath(points: number[][], distance: number) {
   for(let i=0;i<lengths.length;i++)if(remaining<=lengths[i]){const a=points[i],b=points[i+1],t=lengths[i]?remaining/lengths[i]:0;return {x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,angle:Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI};}else remaining-=lengths[i];
   return {x:points[0][0],y:points[0][1],angle:0};
 }
-export function CityMotion({pedestrians,paused,speed}:{pedestrians:boolean;paused:boolean;speed:number}) {
+export function CityMotion({pedestrians,simulation}:{pedestrians:boolean;simulation:TrafficSimulation}) {
   const root=useRef<SVGGElement>(null);
-  const elapsed=useRef(0);
   useEffect(()=>{
-    const media=window.matchMedia('(prefers-reduced-motion: reduce)');let frame=0,last=0;
-    const nodeMap=new Map(pedestrianAnimation.nodes.map(n=>[n.id,n.center]));
-    const moving=pedestrians?pedestrianAnimation.routes.map(r=>({...r,points:r.node_ids.map(id=>nodeMap.get(id)!)})):[];
-    const elements=moving.map(r=>({r,element:root.current?.querySelector(`[data-actor="${r.id}"]`),points:r.points}));
-    const draw=()=>{for(const {r,element,points} of elements){const distance=elapsed.current*r.speed+r.phase*r.length,p=positionOnPath(points,distance),q=point([p.x,p.y]);element?.setAttribute('transform',`translate(${q.x} ${q.y}) rotate(${-p.angle})`);let rest=distance%r.length,index=0;while(index<points.length-2&&rest>Math.hypot(points[index+1][0]-points[index][0],points[index+1][1]-points[index][1])){rest-=Math.hypot(points[index+1][0]-points[index][0],points[index+1][1]-points[index][1]);index++;}element?.setAttribute('data-edge-id',r.edge_ids[index]);}};
-    const tick=(time:number)=>{if(last)elapsed.current+=Math.min((time-last)/1000,.1)*speed;last=time;draw();frame=requestAnimationFrame(tick);};
-    const sync=()=>{cancelAnimationFrame(frame);last=0;draw();if(!paused&&!media.matches&&!document.hidden&&pedestrians)frame=requestAnimationFrame(tick);};
-    media.addEventListener('change',sync);document.addEventListener('visibilitychange',sync);sync();
-    return()=>{cancelAnimationFrame(frame);media.removeEventListener('change',sync);document.removeEventListener('visibilitychange',sync);};
-  },[pedestrians,paused,speed]);
+    const elements = new Map([...root.current!.querySelectorAll<SVGGElement>('[data-actor]')].map(e => [e.dataset.actor!, e]));
+    const draw = () => simulation.pedestrians.actors.forEach(actor => {
+      const element = elements.get(actor.id);
+      if (!element) return;
+      const q = point(actor.point);
+      element.setAttribute('transform', `translate(${q.x} ${q.y}) rotate(${-actor.angle})`);
+      element.dataset.edgeId = actor.route.segments[actor.index].id;
+      element.dataset.waitingForSignal = String(actor.waiting);
+      element.dataset.x = actor.point[0].toFixed(4); element.dataset.y = actor.point[1].toFixed(4);
+    });
+    draw(); return simulation.subscribe(draw);
+  },[pedestrians,simulation]);
   return <g ref={root} pointerEvents="none">
-    {pedestrians&&<g data-layer="pedestrians">{pedestrianAnimation.routes.map((r,i)=><g key={r.id} data-actor={r.id} data-pedestrian-route={r.id}><ellipse rx="3" ry="4" fill={['#ebc698','#a2b8d0','#c39ca4'][i%3]} stroke="#294343" strokeWidth=".8"/><circle cx="0" cy="0" r="2" fill="#ead9b9"/></g>)}</g>}
+    {pedestrians&&<g data-layer="pedestrians">{pedestrianIds.map((id,i)=><g key={id} data-actor={id} data-pedestrian-route={id}><ellipse rx="3" ry="4" fill={['#ebc698','#a2b8d0','#c39ca4'][i%3]} stroke="#294343" strokeWidth=".8"/><circle cx="0" cy="0" r="2" fill="#ead9b9"/></g>)}</g>}
   </g>;
 }

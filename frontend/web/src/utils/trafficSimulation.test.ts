@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { fire_station_reserve } from '../../../../city_scene/city_scene.json';
 import { pois } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
-import { approaches, avenueLanes, distance, garage, pose, stationExit, type Point } from './roadNetwork';
+import { approaches, avenueLanes, distance, garage, pose, roadPieces, stationExit, type Point } from './roadNetwork';
 import { conflicts, TrafficSimulation } from './trafficSimulation';
 
 const tanks=pois.filter(p=>p.id.startsWith('T-')).map(p=>({id:p.id,point:[p.center[0]+30,p.center[1]+25] as Point}));
@@ -14,7 +14,7 @@ const advance=(sim:TrafficSimulation, until:()=>boolean, seconds=100)=>{
 test('parks in all three marked stalls and returns deselected trucks to their own stalls',()=>{
   const sim=new TrafficSimulation();
   expect(sim.trucks.map(t=>t.pose.point)).toEqual(fire_station_reserve.parking_spaces.map(b=>b.center));
-  expect(sim.cars).toHaveLength(56);
+  expect(sim.cars).toHaveLength(53);
   sim.setIncident(sw,3);
   expect(sim.trucks.map(t=>t.status)).toEqual(['en-route','en-route','en-route']);
   sim.tick(.7);
@@ -161,13 +161,15 @@ test('all unassigned trucks return to their own bays after a road reset with no 
 });
 
 test('cars use the right side in both directions and stop behind a stopped car',()=>{
-  const road=avenueLanes.filter(l=>l.road==='R-02'&&l.length>9);
+  // 原有长路段在底图过街点细分，仍以双向同一道路验证跟车与避碰。
+  const road=avenueLanes.filter(l=>l.road==='R-02'&&l.length>7);
   expect(road).toHaveLength(2);
   for(const lane of road) {
     const p=pose({piece:lane,distance:1});
     expect((p.point[1]-29.361296)*Math.cos(p.angle)).toBeCloseTo(-.8);
   }
-  const sim=new TrafficSimulation(), lane=road[0];
+  // 跟车阶段在足够长的既有车道上运行，避免本测试期间进入新增的过街信号区。
+  const sim=new TrafficSimulation(), lane=avenueLanes.find(l=>l.road?.startsWith('EXT-')&&l.length>10)!;
   sim.cars.splice(2);
   const [leader,follower]=sim.cars;
   for(const [v,d] of [[leader,7],[follower,4]] as const) {
@@ -191,4 +193,23 @@ test('dispatch can take another legal turn when a queue blocks the final approac
   sim.setIncident(sw,3);
   for(let frame=0;frame<3600&&!sim.trucks.every(t=>t.status==='arrived');frame++)sim.tick(1/60);
   expect(sim.trucks.filter(t=>t.status==='arrived')).toHaveLength(3);
+});
+
+test('approved external parking lanes divert ordinary traffic before two responders arrive', () => {
+  const sim = new TrafficSimulation();
+  // 该启动时刻会让普通车在首车停下前进入停车路段，随后夹住第二辆消防车。
+  sim.tick(2.75);
+  Array.from({ length: 2306 }, () => sim.tick(.05));
+  const approved = ['lane:92', 'turn:92:1', 'lane:24', 'turn:24:1', 'lane:142',
+    'lane:166', 'lane:168', 'turn:168:1', 'lane:187'];
+  [sim.trucks[1], sim.trucks[0]].forEach((truck, index) => {
+    sim.applyExternalDispatch({ vehicleId: truck.id, targetPoiId: 'T-SW-01',
+      targetPosition: { x: sw[0], y: sw[1] }, status: 'dispatched' },
+    { pieceIds: [`garage:${index === 0 ? 1 : 0}`, ...approved],
+      stop: index === 0 ? roadPieces.get(approved.at(-1)!)!.length - .98 : 2.88 });
+  });
+  sim.signals.setMode('emergency_priority');
+  advance(sim, () => sim.trucks.slice(0, 2).every(t => t.status === 'arrived'), 300);
+  expect(sim.trucks.slice(0, 2).map(t => t.status)).toEqual(['arrived', 'arrived']);
+  expect(sim.all.every((vehicle, index) => sim.all.slice(index + 1).every(other => !conflicts(vehicle, other, 0)))).toBe(true);
 });

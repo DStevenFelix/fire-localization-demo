@@ -1,0 +1,25 @@
+{
+  "requestTimeoutMs": 15000,
+  "displaySpeedUnitsPerSecond": 2.4,
+  "drones": [
+    {
+      "id": "DRONE-01",
+      "position": {
+        "x": 28.6,
+        "y": 23.15
+      },
+      "heading": 1.5707963267948966,
+      "altitude": 0
+    },
+    {
+      "id": "DRONE-02",
+      "position": {
+        "x": 28.6,
+        "y": 24.85
+      },
+      "heading": 1.5707963267948966,
+      "altitude": 0
+    }
+  ],
+  "stationPoiId": "EXT-P-DRONE"
+}

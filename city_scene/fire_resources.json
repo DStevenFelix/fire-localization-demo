@@ -133,5 +133,56 @@
         ]
       }
     }
-  ]
+  ],
+  "drone_station": {
+    "poi_id": "EXT-P-DRONE",
+    "station_poi_id": "EXT-P-FIRE",
+    "center": [
+      28.6,
+      24
+    ],
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            27.4,
+            22.4
+          ],
+          [
+            29.8,
+            22.4
+          ],
+          [
+            29.8,
+            25.6
+          ],
+          [
+            27.4,
+            25.6
+          ],
+          [
+            27.4,
+            22.4
+          ]
+        ]
+      ]
+    },
+    "bays": [
+      {
+        "drone_id": "DRONE-01",
+        "center": [
+          28.6,
+          23.15
+        ]
+      },
+      {
+        "drone_id": "DRONE-02",
+        "center": [
+          28.6,
+          24.85
+        ]
+      }
+    ]
+  }
 }

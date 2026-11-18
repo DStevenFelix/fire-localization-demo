@@ -27,12 +27,51 @@ def post(index=0, **kwargs):
 def test_current_map_json_and_output_types():
     repository = PoiRepository(ROOT)
     assert len(repository.tanks) == 8
-    assert len(repository.pois) == 415
+    assert len(repository.pois) == 416
     assert len(repository.relations) == 306
     assert all(p.type == "tank" for p in repository.tanks.values())
     with pytest.raises(ValueError):
         repository.validate_location("T-SW-01")
     repository.validate_location("F-PIPE-SW")
+
+
+def test_drone_station_is_registered_and_clear_of_vehicle_resources():
+    city = json.loads((ROOT / 'city_scene/city_scene.json').read_text(encoding='utf-8'))
+    catalog = json.loads((ROOT / 'city_scene/poi_catalog.json').read_text(encoding='utf-8'))
+    resources = json.loads((ROOT / 'city_scene/fire_resources.json').read_text(encoding='utf-8'))
+    hierarchy = json.loads((ROOT / 'city_scene/poi_hierarchy.json').read_text(encoding='utf-8'))
+    station = resources['drone_station']
+    poi = next(p for p in catalog if p['id'] == station['poi_id'])
+    scene_poi = next(p for p in city['scene_pois'] if p['id'] == poi['id'])
+    repository = PoiRepository(ROOT)
+    assert repository.pois[poi['id']].name == poi['name'] == scene_poi['name']
+    assert repository.pois[poi['id']].type == 'drone_station'
+    assert [repository.pois[poi['id']].x_m, repository.pois[poi['id']].y_m] == station['center']
+    assert poi['geometry'] == scene_poi['geometry'] == station['geometry']
+    assert poi['station_poi_id'] == resources['station_poi_id']
+    assert not repository.pois[poi['id']].can_post
+    schema = json.loads((ROOT / 'city_scene/handoff_schema.json').read_text(encoding='utf-8'))
+    assert poi['type'] in schema['$defs']['poiCatalog']['items']['properties']['type']['enum']
+    assert 'serves' in schema['$defs']['poiHierarchy']['properties']['relations']['items']['properties']['relation']['enum']
+    assert {'subject_id': poi['id'], 'relation': 'serves', 'object_id': resources['station_poi_id'],
+            'source': 'city_full_extension'} in hierarchy['relations']
+    polygon = station['geometry']['coordinates'][0]
+    xmin, xmax = min(p[0] for p in polygon), max(p[0] for p in polygon)
+    ymin, ymax = min(p[1] for p in polygon), max(p[1] for p in polygon)
+    assert math.dist(station['bays'][0]['center'], station['bays'][1]['center']) > 1.44
+    for bay in station['bays']:
+        assert xmin + .72 < bay['center'][0] < xmax - .72
+        assert ymin + .72 < bay['center'][1] < ymax - .72
+    for item in [city['fire_station_reserve'], *city['buildings']]:
+        vertices = item.get('plot_geometry', item['geometry'])['coordinates'][0]
+        assert (max(p[0] for p in vertices) < xmin or min(p[0] for p in vertices) > xmax or
+                max(p[1] for p in vertices) < ymin or min(p[1] for p in vertices) > ymax)
+    for road in city['roads']:
+        a, b = road['centerline']['coordinates']
+        if a[0] == b[0] and min(a[1], b[1]) < ymax and max(a[1], b[1]) > ymin:
+            assert max(xmin - a[0], a[0] - xmax) > road['width'] / 2 + road['sidewalk_width']
+        if a[1] == b[1] and min(a[0], b[0]) < xmax and max(a[0], b[0]) > xmin:
+            assert max(ymin - a[1], a[1] - ymax) > road['width'] / 2 + road['sidewalk_width']
 
 
 def test_circle_sector_boundaries_and_angle_wrap():

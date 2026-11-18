@@ -1476,6 +1476,12 @@
       "relation": "part_of",
       "object_id": "EXT-C-002",
       "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-P-DRONE",
+      "relation": "serves",
+      "object_id": "EXT-P-FIRE",
+      "source": "city_full_extension"
     }
   ]
 }

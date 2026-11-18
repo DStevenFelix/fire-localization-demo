@@ -3,54 +3,61 @@ import { carIds, TrafficSimulation, truckIds, type ResetMode, type Severity } fr
 import { IMAGE_SIZE, WORLD_SIZE } from '../utils/mapCoordinates';
 import type { Point } from '../utils/roadNetwork';
 import { point } from './CityLayers';
+import type { SceneActorSnapshot } from '../types';
+import type { EmergencyService } from '../utils/emergency';
 
-type Props = { visible: boolean; target: Point|null; severity: Severity; reset: {mode: ResetMode; version: number}; paused: boolean; speed: number };
+type Props = { simulation: TrafficSimulation; emergency?: EmergencyService; visible: boolean; target: Point|null; severity: Severity; reset: {mode: ResetMode; version: number}; paused: boolean; speed: number; sceneActors: { current: readonly SceneActorSnapshot[] } };
 const scale = `scale(${IMAGE_SIZE.width/WORLD_SIZE.width} ${IMAGE_SIZE.height/WORLD_SIZE.height})`;
-export const VehicleLayer = memo(function VehicleLayer({visible,target,severity,reset,paused,speed}:Props) {
+export const VehicleLayer = memo(function VehicleLayer({simulation,emergency,visible,target,severity,reset,paused,speed,sceneActors}:Props) {
   const root=useRef<SVGGElement>(null);
-  const engine=useRef<TrafficSimulation|null>(null);
   const targetRef=useRef<Point|null>(null);
   const resetVersion=useRef(0);
   const draw=useRef<()=>void>(()=>{});
   useEffect(()=>{
-    const sim=engine.current??=new TrafficSimulation();
+    const sim=simulation;
     const nodes=new Map([...root.current!.querySelectorAll<SVGGElement>('[data-actor]')].map(e=>[e.dataset.actor!,e]));
     const water=new Map([...root.current!.querySelectorAll<SVGGElement>('[data-water-for]')].map(e=>[e.dataset.waterFor!,e]));
     let last=0, frame=0;
     draw.current=()=>{
+      sceneActors.current=[...sim.sceneSnapshot, ...(emergency?.getSceneActors() ?? [])];
       for(const vehicle of sim.all) {
         const p=point(vehicle.pose.point), element=nodes.get(vehicle.id)!;
         element.setAttribute('transform',`translate(${p.x} ${p.y}) ${scale} rotate(${-vehicle.pose.angle*180/Math.PI})`);
+        element.dataset.x=vehicle.pose.point[0].toFixed(4);element.dataset.y=vehicle.pose.point[1].toFixed(4);
+        element.dataset.waitingForSignal=String(Boolean(vehicle.waitingForSignal));
         if(!vehicle.fire)continue;
         element.dataset.status=vehicle.status;
         element.dataset.reversing=vehicle.reversing??'';
         element.dataset.x=vehicle.pose.point[0].toFixed(4);element.dataset.y=vehicle.pose.point[1].toFixed(4);
         element.dataset.road=vehicle.cursor.piece.road??'';
         const spray=water.get(vehicle.id)!;
-        if(vehicle.status==='arrived'&&targetRef.current) {
-          const q=point(targetRef.current), mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+        const waterTarget = vehicle.external ? (vehicle.external.water ? vehicle.external.target : null) : vehicle.status === 'arrived' ? targetRef.current : null;
+        if(waterTarget) {
+          const q=point(waterTarget), mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
           const stream=`M${p.x},${p.y} Q${mx},${my-22} ${q.x},${q.y}`;
           spray.setAttribute('visibility','visible');
           for(const path of spray.querySelectorAll('path'))path.setAttribute('d',stream);
         } else spray.setAttribute('visibility','hidden');
       }
     };
-    const tick=(now:number)=>{if(last)sim.tick(Math.min((now-last)/1000,.08)*speed);last=now;draw.current();frame=requestAnimationFrame(tick);};
+    const tick=(now:number)=>{if(last)sim.tick(Math.min((now-last)/1000,.08)*speed);last=now;frame=requestAnimationFrame(tick);};
     const sync=()=>{cancelAnimationFrame(frame);last=0;draw.current();if(!paused&&!document.hidden)frame=requestAnimationFrame(tick);};
+    const unsubscribe = sim.subscribe(() => draw.current());
+    const unwatch = emergency?.subscribe(() => draw.current());
     document.addEventListener('visibilitychange',sync);sync();
-    return()=>{cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',sync);};
-  },[paused,speed]);
+    return()=>{cancelAnimationFrame(frame);unsubscribe();unwatch?.();document.removeEventListener('visibilitychange',sync);sceneActors.current=[];};
+  },[paused,speed,sceneActors,simulation,emergency]);
   const tx=target?.[0], ty=target?.[1];
   useEffect(()=>{
-    if(paused)return;
+    if(paused||emergency)return;
     targetRef.current=tx===undefined||ty===undefined?null:[tx,ty];
-    engine.current?.setIncident(targetRef.current,severity);draw.current();
-  },[tx,ty,severity,paused]);
+    simulation.setIncident(targetRef.current,severity);draw.current();
+  },[tx,ty,severity,paused,simulation,emergency]);
   useEffect(()=>{
     if(paused||reset.version===resetVersion.current)return;
     resetVersion.current=reset.version;
-    engine.current?.reset(reset.mode);draw.current();
-  },[reset,paused]);
+    simulation.reset(reset.mode);draw.current();
+  },[reset,paused,simulation]);
   return <g ref={root} pointerEvents="none" display={visible?undefined:'none'}>
     <g data-layer="vehicles">{carIds.map((id,i)=><g key={id} data-actor={id} transform="translate(-100 -100)">
       <rect x="-.64" y="-.25" width="1.28" height=".5" rx=".12" fill={['#e9d3a6','#e4e8e0','#91b9c4','#ca7765'][i%4]} stroke="#263c43" strokeWidth=".025"/>
