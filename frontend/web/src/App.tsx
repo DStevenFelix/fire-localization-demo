@@ -189,7 +189,7 @@ export default function App() {
           </section>
           <EmergencyPanel key={simulation.revision} service={emergency} automatic={demoConnected && demoIncident} demoControls={demoConnected && <EmergencyDemoControls
             demo={demo} active={activeIncident} pending={emergencyState.pending}
-            handoff={completed && !busy && top1 ? { sessionId: session.session_id, poiId: top1.poi_id, name: top1.name } : undefined}
+            handoff={completed && !busy && top1 ? { sessionId: session.session_id, groundTruth: session.ground_truth, candidates } : undefined}
           />} />
           <FireSceneInfo targetId={fireTargetId} status={fireStatus} />
         </aside>

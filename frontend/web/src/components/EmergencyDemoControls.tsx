@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import type { FireSceneSeverity } from '../types';
+import type { Candidate, FireSceneSeverity, Session } from '../types';
 import { severityLabels } from '../utils/emergency';
 import type { EmergencyDemo } from '../utils/emergencyDemo';
 
 type Props = {
   demo: EmergencyDemo;
-  handoff?: { sessionId: string; poiId: string; name: string };
+  handoff?: { sessionId: string; groundTruth: Session['ground_truth']; candidates: readonly Candidate[] };
   active: boolean;
   pending: boolean;
 };
@@ -31,9 +31,9 @@ export default function EmergencyDemoControls({ demo, handoff, active, pending }
     </div>
     <p role="status">已生效：{severityLabels[applied]}{dirty ? ' · 有待确认修改' : ''}</p>
     {handoff && !active && !demo.hasStarted(handoff.sessionId) ? <>
-      <p>本轮侦察目标 · {handoff.name}</p>
+      <p>按候选排名巡查，最后到真实火点 · {handoff.groundTruth.name}</p>
       <button type="button" className="primary-button" disabled={dirty || pending}
-        onClick={() => perform(() => demo.start(handoff.sessionId, handoff.poiId))}>移交应急处置</button>
+        onClick={() => perform(() => demo.start(handoff.sessionId, handoff.groundTruth.poi_id, handoff.candidates))}>移交应急处置</button>
     </> : !active && !handoff && <p>完成帖子定位并获得 Top1 后，可移交应急处置。</p>}
     <button type="button" className="secondary-button" disabled={!demo.canConfirmExtinction()}
       onClick={() => perform(() => demo.confirmExtinction())}>确认已灭火</button>

@@ -1,6 +1,9 @@
 import { expect, test } from 'vitest';
+import config from '../config/emergency.json';
 import { EmergencyService } from './emergency';
 import { EmergencyDemo, type DemoNotice } from './emergencyDemo';
+import { toCity } from './mapCoordinates';
+import { poiRegistry } from './poiRegistry';
 import { connectTrafficControl } from './trafficSignalController';
 import { TrafficSimulation } from './trafficSimulation';
 
@@ -27,16 +30,41 @@ test('manual handoff completes reconnaissance, revises the active fleet, and ret
   try {
     demo.applySettings(3);
     expect(service.getSnapshot().incident).toBeNull();
-    demo.start('session-1', 'T-SW-01');
+    const truth = 'T-SW-01';
+    // Put the true fire outside all three predictions and pass the predictions out of order.
+    demo.start('session-1', truth, [
+      { rank: 3, poi_id: 'T-SE-02' }, { rank: 1, poi_id: 'T-NW-01' }, { rank: 2, poi_id: 'T-NE-01' },
+    ]);
+    const stops = ['T-NW-01', 'T-NE-01', 'T-SE-02', truth].map(id => {
+      const poi = poiRegistry.get(id)!;
+      const point = toCity({ x_m: poi.center[0], y_m: poi.center[1] }, poi.coordinate_system);
+      return { x: point.x_m, y: point.y_m };
+    });
+    const drones = service.getSnapshot().drones;
+    expect(drones[0].path).toEqual([drones[0].position, ...stops]);
+    expect(incident().targetPoiId).toBe(truth);
     expect(notices).toHaveLength(0);
-    expect(service.getSnapshot().drones.every(d => d.status === 'flying')).toBe(true);
+    expect(drones.every(d => d.status === 'flying')).toBe(true);
     expect(demo.canConfirmExtinction()).toBe(false);
     demo.confirmExtinction();
     expect(incident().phase).toBe('drone_dispatched');
+    demo.applySettings(2);
+    demo.applySettings(3);
+    const throughTop3 = Math.max(...drones.map(({ path }) => path!.slice(1, -1).reduce((distance, point, i) =>
+      distance + Math.hypot(point.x - path![i].x, point.y - path![i].y), 0)));
+    for (let elapsed = 0; elapsed <= throughTop3 / config.displaySpeedUnitsPerSecond; elapsed += .08) traffic.tick(.08);
+    expect(incident().observedIds).toEqual([]);
+    expect(incident().plan).toBeUndefined();
+    expect(notices).toHaveLength(0);
+    expect(traffic.trucks.every(t => t.status === 'idle')).toBe(true);
     await advanceUntil(() => incident().confirmed, 30);
     expect(incident().observedIds).toHaveLength(2);
-    expect(notices.map(n => n.severity)).toEqual([3]);
+    expect(service.getSnapshot().drones[0].position).toEqual(stops[3]);
+    expect(notices).toEqual([{ id: expect.any(Number), target: stops[3], severity: 3 }]);
     expect(incident().plan?.dispatches).toHaveLength(3);
+    for (const dispatch of incident().plan!.dispatches) {
+      expect(dispatch).toMatchObject({ targetPoiId: truth, targetPosition: stops[3] });
+    }
     await advanceUntil(() => traffic.trucks.some(t => t.cursor.piece.road && t.status === 'en-route'), 15);
     demo.applySettings(1);
     expect(incident().plan?.dispatches).toHaveLength(1);
@@ -79,7 +107,7 @@ test.each(['T-SW-01', 'T-SW-02', 'T-SE-01', 'T-SE-02', 'T-NW-01', 'T-NW-02', 'T-
     const detach = service.attach(demo);
     try {
       demo.applySettings(3);
-      demo.start(target, target);
+      demo.start(target, target, [{ rank: 1, poi_id: target }]);
       for (let elapsed = 0; service.getSnapshot().incident?.phase !== 'completed' && elapsed < 600; elapsed += .08) {
         traffic.tick(.08);
         if (demo.canConfirmExtinction() && traffic.sceneSnapshot.filter(t => t.waterTarget).length === 3) demo.confirmExtinction();

@@ -1,11 +1,18 @@
 import config from '../config/emergency.json';
-import type { CityPosition, EmergencyAdapter, EmergencyCommand, EmergencyEvent, EmergencyIncident, EmergencyPlan, FireSceneSeverity } from '../types';
+import type { Candidate, CityPosition, EmergencyAdapter, EmergencyCommand, EmergencyEvent, EmergencyIncident, EmergencyPlan, FireSceneSeverity } from '../types';
 import { severityLabels, type EmergencyService } from './emergency';
 import { toCity } from './mapCoordinates';
 import { poiRegistry } from './poiRegistry';
 
 type DemoEvent<T = EmergencyEvent> = T extends EmergencyEvent ? Omit<T, 'incidentId' | 'messageId' | 'occurredAt'> : never;
 export type DemoNotice = { id: number; target: CityPosition; severity: FireSceneSeverity };
+
+function tankPosition(poiId: string): CityPosition {
+  const poi = poiRegistry.get(poiId);
+  if (poi?.type !== 'Tank') throw new Error(`无法将 ${poiId} 作为储罐侦察目标`);
+  const { x_m, y_m } = toCity({ x_m: poi.center[0], y_m: poi.center[1] }, poi.coordinate_system);
+  return { x: x_m, y: y_m };
+}
 
 export class EmergencyDemo implements EmergencyAdapter {
   readonly source = '模拟演示';
@@ -35,21 +42,22 @@ export class EmergencyDemo implements EmergencyAdapter {
   hasStarted(sessionId: string | undefined) { return !!sessionId && this.mission?.sessionId === sessionId; }
   getSeverity() { return this.severity; }
 
-  start(sessionId: string, targetPoiId: string) {
+  start(sessionId: string, groundTruthPoiId: string, candidates: readonly Pick<Candidate, 'rank' | 'poi_id'>[]) {
     if (!this.receive || this.hasStarted(sessionId)) return;
     const previous = this.service.getSnapshot().incident;
     if (previous && previous.phase !== 'completed') throw new Error('当前还有应急任务正在处置');
-    const poi = poiRegistry.get(targetPoiId);
-    if (poi?.type !== 'Tank') throw new Error('无法将该预测位置作为储罐侦察目标');
-    const coordinate = toCity({ x_m: poi.center[0], y_m: poi.center[1] }, poi.coordinate_system);
-    this.mission = { id: `demo:${sessionId}`, sessionId, targetPoiId, target: { x: coordinate.x_m, y: coordinate.y_m } };
+    const target = tankPosition(groundTruthPoiId);
+    const route = candidates.filter(({ rank }) => rank >= 1 && rank <= 3)
+      .sort((a, b) => a.rank - b.rank).map(candidate => tankPosition(candidate.poi_id));
+    // The final waypoint is always ground truth, even if an earlier candidate visited it already.
+    route.push(target);
+    this.mission = { id: `demo:${sessionId}`, sessionId, targetPoiId: groundTruthPoiId, target };
     this.spraying.clear();
-    this.emit({ type: 'fire.detected', targetPoiId });
+    this.emit({ type: 'fire.detected', targetPoiId: groundTruthPoiId });
     this.service.getSnapshot().drones.forEach((drone, index) => {
-      const { x, y } = this.mission!.target;
       this.emit({ type: 'drone.update', drone: { ...drone, status: 'flying', altitude: 110 + 15 * index,
-        targetPoiId, updatedAt: drone.updatedAt + 1,
-        path: [drone.position, { x: x + (index === 0 ? -.8 : .8), y }] } });
+        targetPoiId: groundTruthPoiId, updatedAt: drone.updatedAt + 1,
+        path: [drone.position, ...route.map(({ x, y }) => ({ x: x + .8 * index, y }))] } });
     });
   }
 
@@ -64,7 +72,7 @@ export class EmergencyDemo implements EmergencyAdapter {
       this.spraying = new Set([...this.spraying].filter(id => plan.dispatches.some(d => d.vehicleId === id)));
     }
     this.severity = severity;
-    if (active) this.showNotice();
+    if (active && incident.observedIds.length > 0) this.showNotice();
   }
 
   canConfirmExtinction() {
