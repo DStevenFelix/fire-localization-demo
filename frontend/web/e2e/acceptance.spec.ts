@@ -274,7 +274,9 @@ test('eight detected tank targets share actual SVG and Three.js positions', asyn
   const results = [];
   for (const id of ids) {
     await ready(page);
+    await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(id);
+    await page.getByRole('button', { name: '关闭仿真设置' }).click();
     await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
     expect(await page.evaluate(id => window.acceptanceMock.emit({ type: 'fire.detected', targetPoiId: id }), id)).toEqual({ accepted: true });
     await page.getByRole('button', { name: '开始定位', exact: true }).click();

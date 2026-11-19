@@ -12,12 +12,12 @@
 @media(max-width:540px){.control-column{grid-template-columns:1fr}.algorithm-caption{grid-column:1}.metrics-row{grid-template-columns:1fr 1fr;gap:16px}.metrics-row>div:nth-child(2){border:0}.metrics-row>div{padding:0 15px}.map-legend small{width:100%;margin:0}.map-legend{font-size:9px;gap:12px}.brand h1{font-size:11px}.brand-symbol{width:31px;height:33px}.topbar{gap:10px}.header-status{gap:8px}.page-heading h2{font-size:22px}.map-heading{height:67px}.map-tools{gap:0;padding:3px}.zoom-level{font-size:8px;min-width:29px}.map-tools .icon-button{width:23px;height:25px}.map-scale{left:17px;bottom:13px}.north-compass{top:8px;right:10px}.session-footnote{flex-wrap:wrap}.session-footnote p{width:100%;margin:3px 0 0;text-align:left}footer{flex-wrap:wrap}.calibration-panel{right:8px;bottom:8px;width:210px}.run-timeline{gap:8px}.run-timeline strong{font-size:10px}.run-timeline small{font-size:8px}.evidence-card{padding:16px}}
 /* Research demo presentation. The image and markers still share one SVG. */
 :root { background: #09121e; color: #dce7f3; }
-body { background: radial-gradient(ellipse at 45% 0, #17314866, transparent 55%), #09121e; }
-.topbar { height: 64px; padding: 0 24px; background: #0d1927e8; border-color: #284056; }
-.brand-symbol { width: 36px; height: 36px; border-radius: 9px; background: #16333b; border-color: #306572; color: #90dce3; }
+body { background: #0d141d; }
+.topbar { height: 64px; padding: 0 24px; background: #141f2b; border-color: #2b3d4d; }
+.brand-symbol { width: 36px; height: 36px; border-radius: 9px; background: #23434a; border-color: #39565f; color: #a8ced1; }
 .brand .brand-name { color: #cee6f0; font-size: 11px; letter-spacing: 1.6px; margin-top: 0; font-weight: 650; }
-.brand span { font-size: 9px; letter-spacing: 1px; color: #8fa8bb; margin-top: 5px; }
-.topbar-title { border-color: #284056; }
+.brand span { font-size: 9px; letter-spacing: 1px; color: #9aaebf; margin-top: 5px; }
+.topbar-title { color: #9aaebf; border-color: #2b3d4d; }
 .connection.connected { color: #94d1c3; }
 main { max-width: 1920px; padding: 22px 24px 0; }
 .page-heading { margin-bottom: 19px; }
@@ -364,3 +364,335 @@ footer { color: #7591a8; padding: 18px 0; }
   .map-heading h2 { flex-wrap: wrap; }
   footer { flex-wrap: wrap; line-height: 1.7; }
 }
+
+.opinion-card .card-heading { padding-block: 11px; }
+.opinion-heading { display: flex; align-items: center; gap: 9px; min-width: 0; color: #9aaebf; }
+.opinion-english { display: block; margin-top: 3px; color: #9aaebf; font-size: 9px; letter-spacing: .5px; }
+.opinion-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 6px 8px;
+  border: 1px solid #2b3d4d;
+  border-radius: 5px;
+  background: #192734;
+  color: #c1d1df;
+  font-size: 11px;
+}
+.opinion-settings:hover { background: #23434a; color: #e6edf4; }
+.opinion-settings:focus-visible, .opinion-post-text:focus-visible, .simulation-settings :focus-visible {
+  outline: 2px solid #88bfc5;
+  outline-offset: 2px;
+}
+.opinion-body { display: grid; gap: 8px; }
+.opinion-source, .opinion-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 18px;
+  color: #9db0c2;
+  font-size: 11px;
+}
+.opinion-caption { display: grid; justify-content: stretch; gap: 6px; font-variant-numeric: tabular-nums; }
+.opinion-caption progress { appearance: none; width: 100%; height: 5px; border: 0; border-radius: 4px; overflow: hidden; background: #2b3d4d; }
+.opinion-caption progress::-webkit-progress-bar { background: #2b3d4d; }
+.opinion-caption progress::-webkit-progress-value { background: #88bfc5; }
+.opinion-caption progress::-moz-progress-bar { background: #88bfc5; }
+.opinion-viewport {
+  position: relative;
+  height: calc(207px - var(--opinion-radar-size));
+  overflow: hidden;
+  border: 1px solid #2b3d4d;
+  border-radius: 6px;
+  background: #192734;
+}
+.opinion-placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 16px;
+  overflow: auto;
+  color: #9db0c2;
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.opinion-entry {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 3px;
+  padding: 6px 10px;
+  background: #192734;
+}
+.opinion-entry-current { animation: opinion-enter 350ms ease-in-out both; }
+.opinion-entry-outgoing { animation: opinion-exit 350ms ease-in-out both; pointer-events: none; }
+@keyframes opinion-enter { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes opinion-exit {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) { .opinion-entry-outgoing { visibility: hidden; } }
+.opinion-post-meta, .opinion-post-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  color: #a9bdd0;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.opinion-post-meta time { flex: none; font-variant-numeric: tabular-nums; }
+.opinion-post-details span:last-child:not(:first-child) { flex: none; }
+.opinion-post-text {
+  overflow: auto;
+  scrollbar-width: thin;
+  color: #dce5ee;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.opinion-body .algorithm-status { margin-top: 0; min-height: 17px; }
+.opinion-body .algorithm-status small { color: #9db0c2; text-align: right; }
+.opinion-body .run-error { margin-top: 0; }
+
+.simulation-settings {
+  inset: 0;
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  margin: auto;
+  overflow: auto;
+  border: 1px solid #2b3d4d;
+  border-radius: 10px;
+  background: #141f2b;
+  color: #dce5ee;
+}
+.simulation-settings::backdrop { background: #050b16b8; }
+.simulation-settings-content { padding: 22px; }
+.simulation-settings-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 19px; }
+.simulation-settings-heading h2 { font-size: 17px; font-weight: 650; }
+.simulation-settings select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #34485c;
+  border-radius: 5px;
+  background: #0e1927;
+  color: #d9e6ef;
+  font-size: 12px;
+}
+.simulation-settings .mode-note { min-height: 0; margin-bottom: 0; }
+.simulation-settings .mode-note:not(.live) { color: #9aaebf; }
+
+.opinion-radar-body { --opinion-radar-size: 108px; }
+.opinion-radar-overview {
+  display: grid;
+  grid-template-columns: var(--opinion-radar-size) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.opinion-radar { display: block; width: 100%; height: var(--opinion-radar-size); }
+.opinion-radar-summary { display: grid; min-width: 0; gap: 7px; }
+.opinion-radar-note { color: #9aaebf; font-size: 10px; }
+.opinion-radar-frame { fill: #101923; stroke: #477779; stroke-width: 1.2; }
+.opinion-radar-grid { stroke: #36565f; stroke-width: .8; }
+.opinion-radar-axis { opacity: .6; }
+.opinion-radar-center { fill: #477779; }
+.opinion-radar-sweep {
+  transform-box: view-box;
+  transform-origin: center;
+  animation: opinion-radar-scan 4s linear infinite paused;
+  opacity: .32;
+  transition: opacity 180ms ease-out;
+}
+.opinion-radar[data-active="true"] .opinion-radar-sweep { animation-play-state: running; opacity: 1; }
+.opinion-radar-beam { stroke: #9cddd9; stroke-width: 1.3; stroke-linecap: round; }
+.opinion-radar-signal {
+  fill: #a4e8d4;
+  stroke: #a4e8d426;
+  stroke-width: 4;
+  opacity: 0;
+  animation: opinion-radar-signal-fade 880ms ease-out both;
+}
+@keyframes opinion-radar-scan { to { transform: rotate(360deg); } }
+@keyframes opinion-radar-signal-fade {
+  10% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+.opinion-radar-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.opinion-radar-controls > .run-buttons { grid-area: 1 / 1 / 2 / -1; }
+.opinion-radar-controls > .algorithm-status { grid-area: 2 / 1; }
+.opinion-radar-controls > .opinion-settings { grid-area: 2 / 2; height: 28px; padding-block: 4px; }
+.opinion-radar-controls > .run-error { grid-column: 1 / -1; }
+/* 保持卡片高度，并为窄屏帖子正文留出更多空间。 */
+@media (max-width: 540px) {
+  .opinion-radar-body { --opinion-radar-size: 100px; }
+  .opinion-radar-controls > .algorithm-status {
+    display: grid;
+    grid-template-columns: 5px minmax(0, 1fr);
+    gap: 2px 6px;
+    line-height: 1.2;
+  }
+  .opinion-radar-controls > .algorithm-status small {
+    grid-column: 2;
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* GIS 工作台的普通界面配色，地图渲染和雷达保留各自的显示色。 */
+:root {
+  color-scheme: light;
+  --gis-page: #ebedef;
+  --gis-panel: #fdfdfd;
+  --gis-subtle: #f1f3f5;
+  --gis-line: #d2d6da;
+  --gis-ink: #24292e;
+  --gis-muted: #616b75;
+  --gis-action: #345d83;
+  --gis-action-hover: #294c6d;
+  --gis-selected: #e3ebf2;
+  --gis-hover: #e5e9ed;
+  background: var(--gis-page);
+  color: var(--gis-ink);
+}
+
+body { background: var(--gis-page); }
+.topbar { background: var(--gis-subtle); border-color: var(--gis-line); }
+.brand-symbol { background: var(--gis-panel); border-color: var(--gis-line); color: var(--gis-muted); }
+.brand .brand-name, .topbar-title strong { color: var(--gis-ink); }
+.brand span, .topbar-title, .page-heading .eyebrow, .page-heading p,
+.research-label, .research-label svg, .research-label small, footer { color: var(--gis-muted); }
+.topbar-title { border-color: var(--gis-line); }
+.connection, .connection.connected { color: var(--gis-ink); }
+.connection svg { background-color: #314a45; color: #94d1c3; border-radius: 2px; }
+.connection:not(.connected) svg { background-color: #51382d; color: #df9d84; }
+.mode-badge:not(.live) { background: var(--gis-subtle); border-color: var(--gis-line); color: var(--gis-muted); }
+footer i, .divider, .tool-divider { background-color: var(--gis-line); }
+
+.map-card, .control-card, .results-card, .emergency-card, .fire-scene-card,
+.control-column {
+  background: var(--gis-panel);
+  border-color: var(--gis-line);
+}
+.map-card:hover, .control-card:hover, .results-card:hover {
+  border-color: var(--gis-line);
+  box-shadow: none;
+}
+.map-heading { background: var(--gis-panel); }
+.map-heading .eyebrow, .map-heading-meta, .card-heading > span:first-child,
+.opinion-heading, .opinion-english, .map-footnote, .map-legend, .map-legend small {
+  color: var(--gis-muted);
+}
+.card-heading h2 { color: var(--gis-ink); }
+.card-heading, .control-column > section + section { border-color: var(--gis-line); }
+.tag-muted { color: var(--gis-muted); background: var(--gis-subtle); border-color: transparent; }
+.results-card .tag-muted, .fire-scene-card .tag-muted { background: transparent; }
+.tiny-dot { background: var(--gis-muted); }
+
+select { background: var(--gis-panel); border-color: var(--gis-line); color: var(--gis-ink); }
+.primary-button { background: var(--gis-action); border-color: var(--gis-action); color: #fff; }
+.primary-button:hover:not(:disabled) {
+  background: var(--gis-action-hover);
+  border-color: var(--gis-action-hover);
+  box-shadow: none;
+}
+.secondary-button, .opinion-settings {
+  background: var(--gis-panel);
+  border-color: var(--gis-line);
+  color: var(--gis-ink);
+}
+.secondary-button:hover:not(:disabled), .opinion-settings:hover {
+  background: var(--gis-hover);
+  color: var(--gis-ink);
+}
+.primary-button:disabled:not(.is-completed), .secondary-button:disabled, .dispatch-controls button:disabled {
+  background: var(--gis-subtle);
+  border-color: var(--gis-line);
+  color: var(--gis-muted);
+  opacity: 1;
+}
+.dispatch-controls { background: var(--gis-subtle); border-color: var(--gis-line); color: var(--gis-ink); }
+.dispatch-controls button, .dispatch-controls select { background: var(--gis-panel); border-color: var(--gis-line); }
+.dispatch-controls button:hover:not(:disabled) { background: var(--gis-hover); }
+.dispatch-controls strong svg { color: var(--gis-muted); }
+.traffic-status:not(.traffic-lockdown-status) {
+  background: var(--gis-subtle);
+  border-color: transparent;
+  color: var(--gis-muted);
+}
+button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible, summary:focus-visible,
+.opinion-settings:focus-visible, .opinion-post-text:focus-visible, .simulation-settings :focus-visible,
+.result-content:focus-visible, .emergency-content:focus-visible {
+  outline-color: var(--gis-action);
+}
+.map-canvas, .fire-scene-viewport { color-scheme: dark; color: #dce7f3; }
+.opinion-radar { color: #dce7f3; }
+.fire-scene-viewport button:focus-visible { outline-color: #6ad4c2; }
+.map-tools, .map-layer-panel { color-scheme: light; background: var(--gis-panel); border-color: var(--gis-line); box-shadow: none; }
+.map-tools .icon-button, .map-text-button, .zoom-level, .map-layer-panel label { color: var(--gis-ink); }
+.map-tools .icon-button:hover, .map-text-button:hover { background: var(--gis-hover); }
+.map-layer-panel input, .consent-checkbox input { accent-color: var(--gis-action); }
+
+.opinion-viewport, .opinion-entry, .error-metric, .runtime-details, .fire-scene-area,
+.emergency-demo-controls, .emergency-plan, .ground-truth-box, .model-summary {
+  background: var(--gis-subtle);
+}
+.opinion-viewport, .error-metric, .emergency-demo-controls, .emergency-plan,
+.ground-truth-box, .model-summary { border-color: transparent; }
+.opinion-post-text, .candidate-row strong, .error-metric > strong, .runtime-details dd,
+.fire-scene-info dd, .emergency-details dd, .emergency-plan h3, .emergency-plan li,
+.emergency-demo-controls label, .model-summary strong { color: var(--gis-ink); }
+.opinion-source, .opinion-caption, .opinion-placeholder, .opinion-post-meta, .opinion-post-details,
+.opinion-radar-note, .algorithm-status, .opinion-body .algorithm-status small,
+.poi-id, .score-note, .error-metric > div, .error-metric small, .candidate-heading small,
+.candidate-row small, .runtime-details summary, .runtime-details summary > span, .runtime-details dt,
+.fire-scene-area, .fire-scene-info dt, .emergency-source, .emergency-standby, .drone-fleet small,
+.drone-fleet em, .emergency-empty, .emergency-plan p, .emergency-cancelled p, .emergency-details dt,
+.emergency-details small, .emergency-plan li span, .emergency-demo-controls p,
+.field-label span, .ground-truth-box > svg, .ground-truth-box small, .ground-truth-box span,
+.simulation-settings .mode-note:not(.live), .confirm-modal > p, .confirm-modal > small, .model-summary { color: var(--gis-muted); }
+.opinion-caption progress { background: var(--gis-line); }
+.opinion-caption progress::-webkit-progress-bar { background: var(--gis-line); }
+.opinion-caption progress::-webkit-progress-value { background: var(--gis-action); }
+.opinion-caption progress::-moz-progress-bar { background: var(--gis-action); }
+
+.prediction-kicker, .candidate-heading, .empty-results h3, .emergency-phase,
+.drone-fleet > div, .field-label { color: var(--gis-ink); }
+.hit-badge, .emergency-source.online { background: #29483d; color: #a1dac6; border-radius: 2px; }
+.emergency-source.online { color: #85debd; }
+.miss-badge { background: #4d3824; border-radius: 2px; }
+.emergency-phase i { box-shadow: 0 0 0 1px #426961; }
+.emergency-phase[data-phase="failed"] i { box-shadow: 0 0 0 1px #805432; }
+.candidate-row, .drone-fleet > div { background: var(--gis-subtle); border-color: transparent; }
+.candidate-row { color: var(--gis-muted); }
+.candidate-row:hover { background: var(--gis-hover); border-color: var(--gis-line); }
+.candidate-row.selected { background: var(--gis-selected); border-color: #a5b7c9; }
+.candidate-row .candidate-score { color: var(--gis-ink); }
+.rank-number { background: #2b3f49; border-radius: 2px; }
+.candidate-row:first-child .rank-number { background: #4f363c; }
+.runtime-details, .fire-scene-info > div { border-color: var(--gis-line); }
+.empty-results > div { background: var(--gis-subtle); border-color: transparent; color: var(--gis-muted); }
+.empty-results p, .empty-results > span { color: var(--gis-muted); }
+.emergency-plan .emergency-policy { color: #f2cd95; background: #4b3928; border-radius: 2px; }
+
+.simulation-settings, .confirm-modal {
+  background: var(--gis-panel);
+  border-color: var(--gis-line);
+  color: var(--gis-ink);
+  box-shadow: none;
+}
+.modal-backdrop { background: #27323e70; backdrop-filter: none; }
+.simulation-settings::backdrop { background: #27323e70; }
+.simulation-settings select { background: var(--gis-panel); border-color: var(--gis-line); color: var(--gis-ink); }
+.simulation-settings .icon-button, .confirm-modal .icon-button { color: var(--gis-muted); }
+.simulation-settings .icon-button:hover, .confirm-modal .icon-button:hover { background: var(--gis-hover); }
+.mode-switch { background: var(--gis-subtle); border-color: var(--gis-line); }
+.mode-switch button { color: var(--gis-muted); }
+.mode-switch button.chosen { box-shadow: none; }
+.mode-switch button.chosen:not(.live) { background: var(--gis-selected); color: var(--gis-ink); }
+.mode-note.live { background: #433529; }

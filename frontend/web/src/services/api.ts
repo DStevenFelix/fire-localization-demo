@@ -1,4 +1,4 @@
-import type { Health, Mode, Poi, Session } from '../types';
+import type { Health, Mode, Poi, Session, SessionPosts } from '../types';
 import { normalizeSession } from '../utils/poiRegistry';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -31,5 +31,6 @@ export const api = {
     method: 'POST', body: JSON.stringify({ session_id, confirm_paid_api }),
   }).then(normalizeSession),
   session: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}`).then(normalizeSession),
+  posts: (id: string, signal?: AbortSignal) => request<SessionPosts>(`/localization/${encodeURIComponent(id)}/posts`, { signal }),
   reset: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}/reset`, { method: 'POST', body: '{}' }).then(normalizeSession),
 };

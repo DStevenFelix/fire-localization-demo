@@ -1,4 +1,16 @@
 export type Mode = 'offline' | 'live';
+export type OpinionPost = Readonly<{
+  id: string;
+  text: string;
+  timestamp?: string;
+  location_poi_id?: string;
+  urgency?: '低' | '中' | '高';
+}>;
+export type SessionPosts = Readonly<{
+  session_id: string;
+  post_count: number;
+  posts: readonly Required<OpinionPost>[];
+}>;
 export type TrafficControlMode = 'normal' | 'emergency_lockdown' | 'emergency_priority';
 export type SignalColor = 'red' | 'green';
 export type IntersectionSignalState = Readonly<{

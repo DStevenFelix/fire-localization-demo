@@ -107,6 +107,28 @@ class SessionService:
         with self.lock:
             return json.loads(json.dumps(self._get_locked(session_id)))
 
+    def posts(self, session_id: str) -> dict:
+        folder = self._folder(session_id)
+        with self.lock:
+            # The normal session lookup can recover an interrupted run and write to disk.
+            session = self.sessions.get(session_id)
+            if session is None:
+                try:
+                    session = json.loads((folder / "session.json").read_text(encoding="utf-8"))
+                except FileNotFoundError:
+                    raise HTTPException(404, "演示会话不存在") from None
+                if session.get("poi_fingerprint") != self.repository.fingerprint:
+                    raise HTTPException(409, "会话属于其他地图版本，请重新准备场景")
+                if session.get("spatial_fingerprint") != self.spatial_fingerprint:
+                    raise HTTPException(409, "扩展空间数据已变更，请重新准备场景")
+        try:
+            lines = (folder / "demo_posts.jsonl").read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            raise HTTPException(404, "会话帖子文件不存在") from None
+        posts = sorted((Post.model_validate_json(line) for line in lines if line.strip()),
+            key=lambda post: post.timestamp)
+        return {"session_id": session_id, "post_count": len(posts), "posts": posts}
+
     def _post_cache_path(self, request: PrepareRequest) -> Path:
         # Offline and Live use the same generated inputs. The seed and rules still matter.
         identity = (request.target_poi_id, request.seed, DEMO_POST_COUNT, Settings.radius_m,
@@ -321,6 +343,10 @@ def create_app(runtime_root: Path = RUNTIME_ROOT) -> FastAPI:
     @api.get("/api/localization/{session_id}")
     def get_session(session_id: str):
         return service.get(session_id)
+
+    @api.get("/api/localization/{session_id}/posts")
+    def get_posts(session_id: str):
+        return service.posts(session_id)
 
     @api.post("/api/localization/{session_id}/reset", status_code=201)
     def reset(session_id: str):

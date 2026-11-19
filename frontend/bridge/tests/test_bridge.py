@@ -62,6 +62,55 @@ def test_discovery_and_invalid_inputs(client):
     assert client.get("/api/localization/" + "0"*32).status_code == 404
 
 
+def test_posts_endpoint_reads_actual_session_posts_in_stable_order(client):
+    session = prepare(client)
+    session_id = session["session_id"]
+    service = client.app.state.service
+    folder = service._folder(session_id)
+    post_file = folder / "demo_posts.jsonl"
+    lines = post_file.read_text(encoding="utf-8").splitlines()
+    expected = sorted((server.Post.model_validate_json(line) for line in lines), key=lambda post: post.timestamp)
+    response = client.get(f"/api/localization/{session_id}/posts")
+    assert response.status_code == 200
+    assert response.json() == {
+        "session_id": session_id, "post_count": 100,
+        "posts": [post.model_dump(mode="json") for post in expected],
+    }
+
+    first, second, last = (post.model_dump(mode="json") for post in (expected[0], expected[1], expected[-1]))
+    second["timestamp"] = first["timestamp"]
+    post_file.write_text("\n".join(json.dumps(post) for post in (last, second, first)), encoding="utf-8")
+    assert client.get(f"/api/localization/{session_id}/posts").json() == {
+        "session_id": session_id, "post_count": 3, "posts": [second, first, last],
+    }
+
+
+def test_posts_endpoint_leaves_cold_running_session_untouched(client, monkeypatch):
+    session = prepare(client)
+    session_id = session["session_id"]
+    service = client.app.state.service
+    folder = service._folder(session_id)
+    state_file = folder / "session.json"
+    state_file.write_text(json.dumps({**session, "status": "running"}), encoding="utf-8")
+    service.sessions.clear()
+    paths = [state_file, *folder.glob("demo_posts.*"), *service.runtime_root.glob("_demo_posts/*.json")]
+    before = {path: path.read_bytes() for path in paths}
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Reading posts must not recover a session or run the generator or algorithm")
+
+    monkeypatch.setattr(service, "_persist", forbidden)
+    monkeypatch.setattr(server, "generate", forbidden)
+    monkeypatch.setattr(server, "FireLocalizer", forbidden)
+    assert client.get(f"/api/localization/{session_id}/posts").status_code == 200
+    assert service.sessions == {}
+    assert {path: path.read_bytes() for path in paths} == before
+    assert client.get("/api/localization/invalid/posts").status_code == 404
+    assert client.get(f"/api/localization/{'0'*32}/posts").status_code == 404
+    (folder / "demo_posts.jsonl").unlink()
+    assert client.get(f"/api/localization/{session_id}/posts").status_code == 404
+
+
 def test_original_offline_algorithm_and_labels_isolated(client):
     legacy = server.PROJECT_ROOT / "runtime/embedding_cache.json"
     before = legacy.read_bytes() if legacy.exists() else None

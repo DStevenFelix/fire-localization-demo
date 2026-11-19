@@ -15,6 +15,7 @@
 | POST /api/scenarios/prepare | target_poi_id（默认T-SW-01）、mode（offline或live）、seed（默认42，0..2^31-1） | 201 Session |
 | POST /api/localization/run | session_id；confirm_paid_api布尔值（默认false） | 202 Session |
 | GET /api/localization/{session_id} | 32位十六进制会话ID | Session |
+| GET /api/localization/{session_id}/posts | 32位十六进制会话ID | `{ session_id, post_count, posts: Post[] }` |
 | POST /api/localization/{session_id}/reset | {} | 201 新Session，旧会话保留 |
 
 prepare/run请求禁止额外字段。Live必须confirm_paid_api=true，字符串"true"无效；未确认为403。重复启动、运行中重置或旧数据指纹会话为409，非法输入422，未知会话404。prepare只支持原始储罐场景，不支持传EXT住宅ID作为Ground Truth；这不妨碍算法返回扩展候选。
@@ -51,6 +52,38 @@ type Post = {
 模型定义在fire_locator/models.py，禁止额外字段。时间按分钟、非递减输入；无时区时间按上海处理。Ground Truth不属于Post，不进入推理。
 
 Bridge自身产生演示Post并调用现有ingest；网页run端点不接收posts字段。真实业务帖子可通过算法模块自身入口接入，保持Post结构。
+
+### 3.1 舆情展示接入
+
+只读端点从 `runtime/frontend/<session_id>/demo_posts.jsonl` 返回该会话的实际帖子和条数，按定位使用的时间顺序排列。同一时间戳保留文件顺序，响应仅包含帖子字段和会话标识、条数。缺失会话或帖子文件返回 404，旧地图指纹返回 409。
+
+展示类型定义在 `frontend/web/src/types/index.ts`。
+
+```typescript
+type OpinionPost = {
+  id: string;
+  text: string;
+  timestamp?: string;           // 带时区的 ISO-8601，界面按上海时间显示
+  location_poi_id?: string;     // 发帖位置，未知 POI 直接显示标识
+  urgency?: '低' | '中' | '高';
+};
+```
+
+`frontend/web/src/utils/opinionFeed.ts` 导出 `createOpinionFeed(sessionId)`。`App.tsx` 随会话创建 feed，`OpinionPanel` 订阅该实例。当前 `useSessionPostReplay` 预取只读端点，定位请求成功后每秒调用一次 `receivePost`。预取列表长度和实际展示进度分开，定位进度由原 Session 更新。
+
+接入外部来源时，在 `App.tsx` 用实际订阅替换 `useSessionPostReplay`，由适配器转换字段并传入关联的本地会话 ID。订阅清理由外部接入负责，来源标签和状态通过面板 props 传入，未知总量可省略 `total`。已有 `opinionFeed` 可直接用于接入，例如在订阅回调里调用下列函数。
+
+```typescript
+function onExternalPost(sourceSessionId: string, post: OpinionPost) {
+  opinionFeed.receivePost(sourceSessionId, post);
+}
+
+function onExternalClear(sourceSessionId: string) {
+  opinionFeed.clearPosts(sourceSessionId);
+}
+```
+
+入口按会话接收连续到达的帖子，展示窗口更新到最新一条。模拟回放的总量和节奏由回放器控制。真实外部通信和真实帖子参与火情定位的联调由后续接入成员完成。
 
 ## 4. Prediction输出
 

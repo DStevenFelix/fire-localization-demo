@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 
+const sessionRoute = /\/api\/localization\/(?:run|[0-9a-f]{32}(?:\/reset)?)$/;
+
 async function ready(page: Page) {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/');
@@ -101,7 +103,9 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await expect(page.locator('[data-drone][data-status="idle"]')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
   await expect(page.getByTestId('run-button-state')).toHaveText('Ready');
+  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await page.getByLabel('火情场景').selectOption('T-SE-01');
+  await page.getByRole('button', { name: '关闭仿真设置' }).click();
   await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', 'T-SE-01');
   await page.reload();
   await expect(page.getByTestId('truth-marker')).toBeVisible();
@@ -117,7 +121,9 @@ test('Live requires explicit secondary confirmation; cancel makes no run request
   let runs = 0;
   page.on('request', request => { if (request.url().endsWith('/api/localization/run')) runs++; });
   await ready(page);
+  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await page.getByRole('button', { name: 'Live 付费模型', exact: true }).click();
+  await page.getByRole('button', { name: '关闭仿真设置' }).click();
   await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '开始定位', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -131,7 +137,7 @@ test('Live requires explicit secondary confirmation; cancel makes no run request
 });
 
 test('empty result displays no red prediction', async ({ page }) => {
-  await page.route('**/api/localization/**', async route => {
+  await page.route(sessionRoute, async route => {
     const response = await route.fetch();
     const body = await response.json();
     if (body.status === 'completed') {
@@ -148,7 +154,7 @@ test('empty result displays no red prediction', async ({ page }) => {
 });
 
 test('wrong prediction stays at its actual returned coordinates', async ({ page }) => {
-  await page.route('**/api/localization/**', async route => {
+  await page.route(sessionRoute, async route => {
     const response = await route.fetch();
     const body = await response.json();
     if (body.status === 'completed') {
@@ -168,7 +174,7 @@ test('wrong prediction stays at its actual returned coordinates', async ({ page 
 });
 
 test('worker errors expose a sanitized error state and permit reset', async ({ page }) => {
-  await page.route('**/api/localization/**', async route => {
+  await page.route(sessionRoute, async route => {
     const response = await route.fetch();
     const body = await response.json();
     if (body.status === 'completed') {

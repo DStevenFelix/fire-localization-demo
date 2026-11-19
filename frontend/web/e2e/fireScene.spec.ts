@@ -75,7 +75,9 @@ test('eight live scenarios, unchanged map geometry, 3D controls and responsive l
   for (const tank of sceneTanks) {
     await page.reload();
     await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
+    await page.getByRole('button', { name: '关闭仿真设置' }).click();
     await assess(page, tank.id);
     await expect(scene).toHaveAttribute('data-target-id', tank.id);
     await expect(scene).toHaveAttribute('data-rendered', 'true');
@@ -132,7 +134,7 @@ test('eight live scenarios, unchanged map geometry, 3D controls and responsive l
 
 test('real SVG truck positions reach the 3D view without moving the fire to an incorrect prediction', async ({ page }) => {
   test.setTimeout(90000);
-  await page.route('**/api/localization/**', async route => {
+  await page.route(/\/api\/localization\/(?:run|[0-9a-f]{32}(?:\/reset)?)$/, async route => {
     const response = await route.fetch();
     const body = await response.json();
     if (body.status === 'completed') {

@@ -87,7 +87,9 @@ test('F1 eight formal selections, correct groups and disposed old roots', async 
   const tanks: { id: string; parent_id: string }[] = spatial.pois.filter((p: { entity_type: string }) => p.entity_type === 'Tank');
   const results = [];
   for (const tank of tanks) {
+    await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
+    await page.getByRole('button', { name: '关闭仿真设置' }).click();
     await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', tank.id);
     await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-target-id', tank.id);
     await expect.poll(() => page.evaluate(() => window.postFrame.target)).toBe(tank.id);
@@ -99,10 +101,14 @@ test('F1 eight formal selections, correct groups and disposed old roots', async 
   for (const tank of tanks) {
     await page.reload();
     await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
+    await page.getByRole('button', { name: '关闭仿真设置' }).click();
     await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
     await assess(page, tank.id);
+    await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await expect(page.getByLabel('火情场景')).toBeDisabled();
+    await page.getByRole('button', { name: '关闭仿真设置' }).click();
     await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', tank.id);
     await expect.poll(() => page.evaluate(() => window.postFrame.fireTarget)).toBe(tank.id);
     const frame = await page.evaluate(() => window.postFrame);
@@ -118,6 +124,7 @@ test('F1 eight formal selections, correct groups and disposed old roots', async 
     await page.screenshot({ path: `${output}/tank-${tank.id}.png`, fullPage: true });
     results.push({ burning: tank.id, frame });
   }
+  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await page.screenshot({ path: `${output}/f1-active-target-locked.png`, fullPage: true });
   await writeFile(`${output}/f1-tank-switching.json`, JSON.stringify({ passed: true, results }, null, 2));
 });
@@ -172,9 +179,13 @@ test('F2 F3 real routes and identical frames through flight, telemetry, return a
   });
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'completed');
   const history = await page.evaluate(async () => { const path = '/src/utils/emergency.ts'; return (await import(path)).getEmergencyService().getSnapshot().incident; });
+  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await expect(page.getByLabel('火情场景')).toBeEnabled();
+  await page.getByRole('button', { name: '关闭仿真设置' }).click();
   for (const id of ['T-NW-01', 'T-SW-02', 'T-NE-02']) {
+    await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(id);
+    await page.getByRole('button', { name: '关闭仿真设置' }).click();
     await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
     await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', id);
     await expect.poll(() => page.evaluate(() => window.postFrame.target)).toBe(id);
