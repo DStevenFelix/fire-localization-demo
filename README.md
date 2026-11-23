@@ -55,42 +55,78 @@ fire/
 │   ├── web/            # React 前端、交通仿真与三维火场
 │   ├── start-bridge.ps1
 │   └── start-web.ps1
+├── socialnet/          # 居民发帖、火情初筛及独立社交网络应用
+├── device_access/      # 设备接入协议与 TCP 客户端示例
 ├── integration/        # 接口与数据契约
 ├── data/               # 项目输入数据
 ├── tests/              # Python 测试
+├── start.ps1           # Windows 一键启动
 └── README.md
 ```
 
 ## 快速开始
 
-### 环境要求
+### 准备环境
 
-- Anaconda `agent` 环境（本机为 `D:/Anaconda/envs/agent/python.exe`）
-- Node.js **22.12 或更高版本**
-- Windows PowerShell（以下命令适用于 Windows）
+以下命令适用于 Windows PowerShell，从仓库根目录执行。后端要求 Python 3.11 或以上，本机使用 Python 3.12。前端使用 Node.js 24 来加载 TypeScript 版 Vite 配置。
 
-### 安装依赖
-
-首次配置时，在已确认的 `agent` 环境中安装缺少的依赖：
+首次克隆且尚无 Python 环境时，安装两个后端的依赖。已有可用环境时可跳过。使用 Conda 等其他环境时，将下文的 Python 路径改为对应的解释器。
 
 ```powershell
-conda activate agent
-python -m pip install -r requirements.txt -r socialnet/requirements.txt
-
-cd frontend/web
-npm ci
-cd ../..
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r socialnet/requirements.txt
 ```
 
-### 启动服务
+如果 Node 和 npm 已在 PATH 上，首次安装前端依赖时运行 `npm.cmd --prefix frontend/web ci`。尚未安装 Node 时，可从根目录运行 `& .\frontend\setup-node.ps1`，下载仓库使用的免安装 Node 并安装前端依赖。
 
-在仓库根目录用 Git Bash 运行：
+### 启动主项目
 
-```bash
-bash start.sh
+在仓库根目录运行一个命令。
+
+```powershell
+.\start.ps1
 ```
 
-脚本启动 SocialNet 帖子源（8000）、定位桥接（8080），并打开前端（5173）。`bash stop.sh` 停止这三个服务。SocialNet 发帖读取 `socialnet/.env`，Live 定位读取仓库根目录的 `.env`。
+脚本会依次启动 SocialNet 帖子源（8000）、定位 Bridge（8080）和主项目的火灾定位前端（5173）。Bridge 从 SocialNet 后端读取帖子，网页由 `frontend/web` 提供。终端显示启动成功后，打开 <http://127.0.0.1:5173/>。
+
+脚本默认使用仓库的 `.venv`。如使用其他 Python 环境，先在当前终端设置 `$env:FIRE_PYTHON` 为对应 `python.exe` 的完整路径。前端优先使用 `frontend/setup-node.ps1` 安装的免安装 Node，其次使用 PATH 上的 Node。
+
+保持启动窗口打开，在同一窗口按 `Ctrl+C` 停止项目。端口被占用时，用 `Get-NetTCPConnection -State Listen -LocalPort 5173,8080,8000` 查看占用进程。
+
+如需单独检查各服务，在另一个 PowerShell 窗口执行以下命令，三个请求均应返回 `status: ok`。
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/post-source/health
+Invoke-RestMethod http://127.0.0.1:8080/api/health
+Invoke-RestMethod http://127.0.0.1:5173/api/health
+```
+
+### 配置模型并开始仿真
+
+服务健康检查和主页加载无需模型密钥。点击「开始仿真」前，将 `socialnet/.env.example` 复制为 `socialnet/.env`，填入 `OPENAI_API_KEY` 或 `DASHSCOPE_API_KEY` 及对应的模型配置，随后重启帖子源。Offline 模式的定位在本地运行，居民发帖仍会调用配置的模型。Live 定位还需根据根目录的 `.env.example` 配置项目根目录的 `.env`。
+
+如旧 Windows 工作副本报「整城场景校验失败」或「扩展 POI 校验失败」，可在仓库根目录执行以下修复。命令只在转换为 LF 后的 SHA-256 与清单一致时写回对应文件。
+
+```powershell
+@'
+import hashlib, json
+from pathlib import Path
+
+root = Path('socialnet/city_scene')
+expected = json.loads((root / 'import-manifest.json').read_bytes())['files']
+for name in ('city_scene.json', 'poi_catalog.json'):
+    path = root / name
+    original = path.read_bytes()
+    normalized = original.replace(b'\r\n', b'\n')
+    if hashlib.sha256(normalized).hexdigest() != expected[name]:
+        raise SystemExit(f'SHA-256 mismatch after LF conversion: {path}')
+    if normalized != original:
+        path.write_bytes(normalized)
+    print(f'{path}: SHA-256 OK')
+'@ | .\.venv\Scripts\python.exe -
+```
+
+`device_access/` 下的 TCP 客户端示例用于单独进行设备联调。
 
 ## 使用方式
 

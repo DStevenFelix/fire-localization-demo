@@ -1,0 +1,3 @@
+# SocialNet verifies these files byte for byte against the import manifest.
+/socialnet/city_scene/city_scene.json text eol=lf
+/socialnet/city_scene/poi_catalog.json text eol=lf
