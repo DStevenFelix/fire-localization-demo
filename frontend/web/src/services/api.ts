@@ -24,13 +24,19 @@ export const api = {
   health: () => request<Health>('/health'),
   pois: () => request<Poi[]>('/pois'),
   scenarios: () => request<{ scenarios: Poi[]; default_target_poi_id: string }>('/scenarios'),
+  active: () => request<Session | null>('/scenarios/active').then(value => value && normalizeSession(value)),
   prepare: (target_poi_id: string, mode: Mode, seed: number, signal?: AbortSignal) => request<Session>('/scenarios/prepare', {
-    method: 'POST', body: JSON.stringify({ target_poi_id, mode, seed }), signal,
+    method: 'POST', body: JSON.stringify({ target_poi_id, mode, seed, source: 'socialnet' }), signal,
   }).then(normalizeSession),
-  run: (session_id: string, confirm_paid_api = false) => request<Session>('/localization/run', {
-    method: 'POST', body: JSON.stringify({ session_id, confirm_paid_api }),
+  run: (session_id: string, confirm_paid_api = false, paused = false) => request<Session>('/localization/run', {
+    method: 'POST', body: JSON.stringify({ session_id, confirm_paid_api, ...(paused && { paused }) }),
   }).then(normalizeSession),
   session: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}`).then(normalizeSession),
   posts: (id: string, signal?: AbortSignal) => request<SessionPosts>(`/localization/${encodeURIComponent(id)}/posts`, { signal }),
   reset: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}/reset`, { method: 'POST', body: '{}' }).then(normalizeSession),
+  handoff: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}/handoff`, { method: 'POST' }).then(normalizeSession),
+  stop: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}/stop`, { method: 'POST' }).then(normalizeSession),
+  setPause: (id: string, paused: boolean) => request<Session>(`/localization/${encodeURIComponent(id)}/pause`, {
+    method: 'PUT', body: JSON.stringify({ paused }),
+  }).then(normalizeSession),
 };

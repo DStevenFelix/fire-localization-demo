@@ -1,0 +1,21 @@
+{
+  "source": "/home/panhao/Programme/fire-localization-demo-main",
+  "imported_on": "2026-11-16",
+  "source_files": {
+    "__init__.py": "ea00746103e2ca099021abd107612d9ffa5ed0ed90ccbcd4c27587607f7a5a86",
+    "config.py": "3ad28485fb78d736fcf720a67779d690542606b3bdea104700644c54b133df58",
+    "engine.py": "e0c1749722b2fa31ee061df9c0e1dd749e383b7a7f122702fd5e4fcfc80f513b",
+    "math_utils.py": "66a921dfde85b96b3a0e50e1e303537e1aac33d01ef3f5b4fe6612b0e2619bcc",
+    "memory.py": "c0e7b238d3594d8f6c82f0f12c8ee1e8915347dc31e4866394963334b40dfdd1",
+    "models.py": "0b08718be39c8e98b7bcd22a84804902849de0be12a9aeed9320af0eb33054d2",
+    "poi.py": "a6d32b8613caf85842431217b860565453c313c8121e0343f244fe1a338d97ea",
+    "providers.py": "fb2b0c16495990762228108d82c361444ea5ab4ffc668bea2a77d97886beeca7"
+  },
+  "adaptations": [
+    "Chat/Embedding injection",
+    "configurable transport attempts",
+    "authoritative Memory.restore",
+    "algorithm version signature",
+    "Chinese code comments"
+  ]
+}

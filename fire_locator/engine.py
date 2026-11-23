@@ -1,6 +1,7 @@
 import hashlib
 import json
 import threading
+from concurrent.futures import CancelledError
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -15,14 +16,17 @@ from .providers import BatchExtractor, OfflineEmbeddings, PoiMatcher, SiliconFlo
 
 class FireLocalizer:
     def __init__(self, settings: Settings | None = None, offline: bool = False,
-                 state_path: Path | None = None, resume: bool = False, *, poi_cache_path: Path | None = None):
+                 state_path: Path | None = None, resume: bool = False, *, poi_cache_path: Path | None = None,
+                 cancel_event: threading.Event | None = None, persist_text_embeddings: bool = True):
         self.settings = settings or Settings.load()
         self.offline = offline
+        self.cancel_event = cancel_event
         self.repository = PoiRepository(self.settings.root)
         if offline:
             self.embeddings = OfflineEmbeddings()
         else:
-            self.embeddings = SiliconFlowEmbeddings(self.settings, self.settings.root / "runtime" / "embedding_cache.json")
+            cache_path = self.settings.root / "runtime" / "embedding_cache.json" if persist_text_embeddings else None
+            self.embeddings = SiliconFlowEmbeddings(self.settings, cache_path)
         try:
             self.extractor = BatchExtractor(self.settings, self.repository, offline)
             if poi_cache_path is not None and isinstance(self.embeddings, SiliconFlowEmbeddings):
@@ -45,6 +49,7 @@ class FireLocalizer:
     def ingest(self, posts: list[Post | dict], flush: bool = False) -> dict:
         """接受 1/N 条帖子，累积到 batch_size；flush 显式处理不足一批的尾部。"""
         with self.lock:
+            self._check_cancelled()
             validated = [p if isinstance(p, Post) else Post.model_validate(p) for p in posts]
             staging = self.memory.clone()
             duplicates = 0
@@ -76,18 +81,27 @@ class FireLocalizer:
                     "llm_calls_this_process": self.extractor.calls,
                     "embedding_requests_this_process": self.embeddings.request_count}
 
+    def _check_cancelled(self):
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise CancelledError()
+
     def _process_batch(self, posts: list[Post]) -> dict:
+        self._check_cancelled()
         extractions = self.extractor.extract(posts)
+        self._check_cancelled()
         # 所有外部调用及验证完成后才修改簇，整批提交。
         resolved = []
         references = [item.reference for item in extractions if self.matcher.needs_embedding(item.reference)]
         self.embeddings.embed_documents(references)
         for post, item in zip(posts, extractions, strict=True):
+            self._check_cancelled()
             origin, similarity, reason = self.matcher.resolve(item, post.location_poi_id)
             candidates = self.repository.candidates(origin, item.direction, self.settings.radius_m, self.settings.sector_degrees)
             resolved.append((post, item, origin, similarity, reason, candidates))
         relevant = [post.text for post, _, _, _, _, candidates in resolved if candidates]
+        self._check_cancelled()
         vectors = iter(self.embeddings.embed_documents(relevant))
+        self._check_cancelled()
         staging = self.memory.clone()
         audit = []
         for post, item, origin, similarity, reason, candidates in resolved:
@@ -112,6 +126,7 @@ class FireLocalizer:
         staging.processed_count += len(posts)
         staging.batch_count += 1
         staging.last_batch = audit
+        self._check_cancelled()
         staging.save()
         self.memory = staging
         return {"batch_number": staging.batch_count, "batch_size": len(posts), "posts": audit,

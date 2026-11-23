@@ -1,3 +1,4 @@
+import { startWithPrediction } from './predictionFixture';
 import { expect, test, type Page } from '@playwright/test';
 import { Buffer } from 'node:buffer';
 import { mkdir } from 'node:fs/promises';
@@ -15,7 +16,7 @@ const sceneTanks: { id: string }[] = JSON.parse(readFileSync(new URL('../../../f
 
 async function ready(page: Page) {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-texture', 'ready');
   await page.getByRole('region', { name: '三维火场展示', exact: true }).scrollIntoViewIfNeeded();
@@ -74,7 +75,7 @@ test('eight live scenarios, unchanged map geometry, 3D controls and responsive l
   const initialView = await page.getByTestId('sandbox-svg').getAttribute('viewBox');
   for (const tank of sceneTanks) {
     await page.reload();
-    await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
     await page.getByRole('button', { name: '关闭仿真设置' }).click();
@@ -134,22 +135,17 @@ test('eight live scenarios, unchanged map geometry, 3D controls and responsive l
 
 test('real SVG truck positions reach the 3D view without moving the fire to an incorrect prediction', async ({ page }) => {
   test.setTimeout(90000);
-  await page.route(/\/api\/localization\/(?:run|[0-9a-f]{32}(?:\/reset)?)$/, async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    if (body.status === 'completed') {
-      body.prediction.coordinate_system = 'CITY90x75';
-      body.prediction.candidates[0] = { ...body.prediction.candidates[0], poi_id: 'T-SE-01', name: '华安能源东南罐区1号储罐', coordinates: { x_m: 47.446646, y_m: 33.960915 } };
-      body.evaluation = { top1_hit: false, top3_hit: false, target_rank: null, distance_m: 5.243 };
-    }
-    await route.fulfill({ response, json: body });
-  });
   await observeScene(page);
   await ready(page);
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
   await connectMock(page, 1);
-  await page.getByRole('button', { name: '开始定位', exact: true }).click();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Completed');
+  await startWithPrediction(page, session => {
+    session.analysis_frozen = true;
+    session.prediction!.candidates[0] = { ...session.prediction!.candidates[0], poi_id: 'T-SE-01',
+      name: '华安能源东南罐区1号储罐', coordinates: { x_m: 47.446646, y_m: 33.960915 } };
+    session.evaluation = { top1_hit: false, top3_hit: false, target_rank: null, distance_m: 5.243 };
+    return session;
+  });
   await expect(page.getByTestId('prediction-marker')).toHaveAttribute('data-poi-id', 'T-SE-01');
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-target-id', 'T-SW-01');
   await page.getByRole('button', { name: '确认并执行方案', exact: true }).click();

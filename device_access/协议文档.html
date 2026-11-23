@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>沙盘集成平台通信协议 v1.0 — 室内定位 TCP 二进制帧</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --text: #2d3436;
+    --muted: #636e72;
+    --border: #dfe6e9;
+    --blue: #0984e3;
+    --green: #00b894;
+    --orange: #e17055;
+    --purple: #6c5ce7;
+    --red: #d63031;
+    --code-bg: #2d3436;
+    --code-fg: #dfe6e9;
+    --table-head: #f1f3f5;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 24px;
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 {
+    text-align: center;
+    font-size: 26px;
+    padding: 32px 0 8px;
+    color: #1a1a2e;
+    border-bottom: 3px solid var(--blue);
+    margin-bottom: 32px;
+  }
+  h2 {
+    font-size: 20px;
+    margin: 36px 0 16px;
+    padding-left: 12px;
+    border-left: 4px solid var(--blue);
+    color: #1a1a2e;
+  }
+  h3 {
+    font-size: 16px;
+    margin: 20px 0 10px;
+    color: var(--blue);
+  }
+  .card {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 16px 0;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .card h3 { margin-top: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--table-head);
+    font-weight: 600;
+    color: #555;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { font-family: "Consolas", "Courier New", monospace; }
+  td:last-child { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; color: var(--muted); font-size: 13px; }
+  .frame-box {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+    overflow-x: auto;
+    margin: 10px 0;
+    letter-spacing: 0.5px;
+  }
+  .frame-box .hl-header { color: #74b9ff; }
+  .frame-box .hl-type { color: #fdcb6e; }
+  .frame-box .hl-rsv { color: #55efc4; }
+  .frame-box .hl-len { color: #fab1a0; }
+  .frame-box .hl-data { color: #a29bfe; }
+  .frame-box .hl-tail { color: #ff7675; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0 4px;
+  }
+  .badge-blue { background: var(--blue); }
+  .badge-green { background: var(--green); }
+  .badge-orange { background: var(--orange); }
+  .badge-purple { background: var(--purple); }
+  .badge-red { background: var(--red); }
+  .toc { list-style: none; padding: 0; }
+  .toc li { padding: 6px 0; border-bottom: 1px dotted var(--border); }
+  .toc a { color: var(--blue); text-decoration: none; font-size: 15px; }
+  .toc a:hover { text-decoration: underline; }
+  .note {
+    background: #fff3cd;
+    border-left: 4px solid #f0ad4e;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: #856404;
+  }
+  .code-inline {
+    background: #f1f3f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "Consolas", monospace;
+    font-size: 13px;
+  }
+  .footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 48px;
+    padding: 24px 0;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>沙盘集成平台通信协议 v1.0<br><small style="font-size:16px;color:var(--muted);">室内定位 TCP 二进制帧</small></h1>
+
+<!-- ===== 目录 ===== -->
+<div class="card">
+<h3>目录</h3>
+<ol class="toc">
+  <li><a href="#s1">1. 帧格式总览</a></li>
+  <li><a href="#s2">2. 轮式车 (Type=0x01)</a></li>
+  <li><a href="#s3">3. 无人机 (Type=0x02)</a></li>
+  <li><a href="#s4">4. 光谱无人机 (Type=0x03)</a></li>
+  <li><a href="#s5">5. 信号控制机 — 绿波方案 (Type=0x04)</a></li>
+  <li><a href="#s6">6. 火灾事故 (Type=0x05)</a></li>
+  <li><a href="#s7">7. Type/Rsv 常量速查表</a></li>
+  <li><a href="#s8">8. 字节序转换参考</a></li>
+  <li><a href="#s9">9. 二次开发 Demo 说明</a></li>
+</ol>
+</div>
+
+<!-- ===== 1. 帧格式总览 ===== -->
+<h2 id="s1">1. 帧格式总览</h2>
+
+<div class="card">
+<p>协议采用 <b>TCP 二进制帧</b>，大端字节序 (Big-Endian)。兼容双字节尾和单字节尾两种格式。</p>
+
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">Type</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">Rsv</span>
+&nbsp;|&nbsp;
+<span class="hl-len">Len</span>
+&nbsp;|&nbsp;
+<span class="hl-data">Data (Len 字节)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">55 AA</span>
+&nbsp;&nbsp;<em>← 标准帧尾</em>
+</div>
+<div class="frame-box" style="margin-top:4px;">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">Type</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">Rsv</span>
+&nbsp;|&nbsp;
+<span class="hl-len">Len</span>
+&nbsp;|&nbsp;
+<span class="hl-data">Data (Len 字节)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">AA</span>
+&nbsp;&nbsp;<em>← 兼容帧尾（单字节）</em>
+</div>
+
+<table>
+  <tr><th>偏移</th><th>字段</th><th>长度</th><th>说明</th></tr>
+  <tr><td>0</td><td>Header 1</td><td>1B</td><td>固定 <span class="code-inline">0xFF</span></td></tr>
+  <tr><td>1</td><td>Header 2</td><td>1B</td><td>固定 <span class="code-inline">0xFE</span></td></tr>
+  <tr><td>2</td><td>Type</td><td>1B</td><td>设备类型（见各设备章节）</td></tr>
+  <tr><td>3</td><td>Rsv</td><td>1B</td><td>消息类型（按设备类型语义不同）</td></tr>
+  <tr><td>4</td><td>Len</td><td>1B</td><td>Data 区字节长度 (0–255)</td></tr>
+  <tr><td>5</td><td>Data</td><td>Len</td><td>载荷数据</td></tr>
+  <tr><td>5+Len</td><td>Tail</td><td>1 或 2B</td><td><span class="code-inline">55 AA</span> 或 <span class="code-inline">AA</span></td></tr>
+</table>
+
+<div class="note">
+  <b>帧尾自动检测：</b>解析时先尝试匹配双字节尾 <span class="code-inline">55 AA</span>，失败则回退到单字节尾 <span class="code-inline">AA</span>。
+  光谱无人机 (Type=0x03) 使用单字节尾，其余设备使用双字节尾。
+</div>
+</div>
+
+<!-- ===== 2. 轮式车 ===== -->
+<h2 id="s2">2. 轮式车 <span class="badge badge-blue">Type=0x01</span></h2>
+
+<div class="card">
+<h3>帧结构</h3>
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">01</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">01</span>
+&nbsp;|&nbsp;
+<span class="hl-len">20</span>
+&nbsp;|&nbsp;
+<span class="hl-data">X(8B) Y(8B) Z(8B) Vel(4B) Yaw(4B)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">55 AA</span>
+</div>
+
+<h3>Data 区结构 (32 字节，大端)</h3>
+<table>
+  <tr><th>偏移</th><th>字段</th><th>类型</th><th>字节</th><th>说明</th></tr>
+  <tr><td>0</td><td>X</td><td>float64 BE</td><td>8</td><td>X 坐标 (米)</td></tr>
+  <tr><td>8</td><td>Y</td><td>float64 BE</td><td>8</td><td>Y 坐标 (米)</td></tr>
+  <tr><td>16</td><td>Z</td><td>float64 BE</td><td>8</td><td>Z 坐标 (米)，地面车辆恒为 0</td></tr>
+  <tr><td>24</td><td>Velocity</td><td>float32 BE</td><td>4</td><td>线速度 (米/秒)</td></tr>
+  <tr><td>28</td><td>Yaw</td><td>float32 BE</td><td>4</td><td>航向角 (度)</td></tr>
+</table>
+
+<h3>Python 构建示例</h3>
+<div class="frame-box">data = struct.pack('&gt;dddff', x, y, 0.0, velocity, yaw)  <em># 32 bytes</em>
+frame = b'\xFF\xFE\x01\x01\x20' + data + b'\x55\xAA'</div>
+</div>
+
+<!-- ===== 3. 无人机 ===== -->
+<h2 id="s3">3. 无人机 <span class="badge badge-orange">Type=0x02</span></h2>
+
+<div class="card">
+<h3>帧结构</h3>
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">02</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">01</span>
+&nbsp;|&nbsp;
+<span class="hl-len">20</span>
+&nbsp;|&nbsp;
+<span class="hl-data">X(8B) Y(8B) Z(8B) Vel(4B) Yaw(4B)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">55 AA</span>
+</div>
+
+<p>Data 区结构与轮式车<b>完全相同</b>（32 字节，大端）。区别仅在于：</p>
+<ul style="margin-left:20px;">
+  <li><b>Type 字段</b> = <span class="code-inline">0x02</span>（与轮式车 <span class="code-inline">0x01</span> 不同）</li>
+  <li><b>Z 坐标</b>有实际飞行高度值（轮式车恒为 0）</li>
+</ul>
+
+<table>
+  <tr><th>偏移</th><th>字段</th><th>类型</th><th>字节</th><th>说明</th></tr>
+  <tr><td>0</td><td>X</td><td>float64 BE</td><td>8</td><td>X 坐标 (米)</td></tr>
+  <tr><td>8</td><td>Y</td><td>float64 BE</td><td>8</td><td>Y 坐标 (米)</td></tr>
+  <tr><td>16</td><td>Z</td><td>float64 BE</td><td>8</td><td>Z 坐标 (米)，飞行高度</td></tr>
+  <tr><td>24</td><td>Velocity</td><td>float32 BE</td><td>4</td><td>线速度 (米/秒)</td></tr>
+  <tr><td>28</td><td>Yaw</td><td>float32 BE</td><td>4</td><td>航向角 (度)</td></tr>
+</table>
+
+<h3>Python 构建示例</h3>
+<div class="frame-box">data = struct.pack('&gt;dddff', x, y, z, velocity, yaw)  <em># 32 bytes</em>
+frame = b'\xFF\xFE\x02\x01\x20' + data + b'\x55\xAA'</div>
+</div>
+
+<!-- ===== 4. 光谱无人机 ===== -->
+<h2 id="s4">4. 光谱无人机 <span class="badge badge-green">Type=0x03</span></h2>
+
+<div class="card">
+<h3>帧结构</h3>
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">03</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">01</span>
+&nbsp;|&nbsp;
+<span class="hl-len">07</span>
+&nbsp;|&nbsp;
+<span class="hl-data">ID(1B) X(3B) Y(3B)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">AA</span>
+</div>
+
+<div class="note">
+  <b>与标准定位帧的关键差异：</b>Data 区仅 7 字节，<b>单字节尾 AA</b>（无 55 前导），坐标以<b>厘米</b>为单位传输。
+</div>
+
+<h3>Data 区结构 (7 字节，大端)</h3>
+<table>
+  <tr><th>偏移</th><th>字段</th><th>类型</th><th>字节</th><th>说明</th></tr>
+  <tr><td>0</td><td>RigidBodyId</td><td>uint8</td><td>1</td><td>刚体编号</td></tr>
+  <tr><td>1</td><td>X (cm)</td><td>int24 BE</td><td>3</td><td>X 坐标原始值 (厘米)，有符号</td></tr>
+  <tr><td>4</td><td>Y (cm)</td><td>int24 BE</td><td>3</td><td>Y 坐标原始值 (厘米)，有符号</td></tr>
+</table>
+
+<p>解析端自动 <span class="code-inline">÷ 100</span> 转为米。无 Z / Vel / Yaw 字段。</p>
+
+<h3>示例</h3>
+<div class="frame-box"><em># 01 FF FF D6 00 00 20 → 刚体 1, X=-42cm, Y=32cm</em></div>
+
+<h3>Python 构建示例</h3>
+<div class="frame-box"><em># int24 大端：X=-42 &rarr; FF FF D6，Y=32 &rarr; 00 00 20</em>
+data = bytes([rigid_body_id]) + b'\xFF\xFF\xD6' + b'\x00\x00\x20'
+frame = b'\xFF\xFE\x03\x01\x07' + data + b'\xAA'</div>
+</div>
+
+<!-- ===== 5. 信号控制机 ===== -->
+<h2 id="s5">5. 信号控制机 — 绿波方案 <span class="badge badge-purple">Type=0x04</span></h2>
+
+<div class="card">
+<h3>帧结构</h3>
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">04</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">01</span>
+&nbsp;|&nbsp;
+<span class="hl-len">Len</span>
+&nbsp;|&nbsp;
+<span class="hl-data">PlanName (UTF-8, Len 字节)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">55 AA</span>
+</div>
+
+<h3>Data 区结构</h3>
+<table>
+  <tr><th>字段</th><th>类型</th><th>长度</th><th>说明</th></tr>
+  <tr><td>PlanName</td><td>UTF-8 string</td><td>Len</td><td>绿波方案名称</td></tr>
+</table>
+
+<p>C# 端收到后自动执行：</p>
+<ol style="margin-left:20px;">
+  <li>查找 <span class="code-inline">SeuGreenWaveConfigHelper.GetSeuGreenWaveByName(planName)</span></li>
+  <li>读取 4 台信号机的方案名称和相位差 (ms)</li>
+  <li>按信号机顺序各自异步：<span class="code-inline">Task.Delay(相位差)</span> → <span class="code-inline">BusPhaseConfigHelper</span> → <span class="code-inline">PhasePaceHelper.CheckPaceListFlash</span> → <span class="code-inline">SignalAnalysisAgreement5.GetSendDataForPaces</span> → <span class="code-inline">UdpHelper.SendData(Ip, Port, ...)</span></li>
+  <li>弹出进度窗口显示 4 台信号机各自下发状态</li>
+</ol>
+
+<h3>Python 构建示例</h3>
+<div class="frame-box">data = "绿波方案1".encode("utf-8")
+frame = b'\xFF\xFE\x04\x01' + bytes([len(data)]) + data + b'\x55\xAA'</div>
+</div>
+
+<!-- ===== 6. 火灾事故 ===== -->
+<h2 id="s6">6. 火灾事故 <span class="badge badge-red">Type=0x05</span></h2>
+
+<div class="card">
+<h3>触发帧 (Rsv=0x01)</h3>
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">05</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">01</span>
+&nbsp;|&nbsp;
+<span class="hl-len">Len</span>
+&nbsp;|&nbsp;
+<span class="hl-data">Name(UTF-8) + X(8B) + Y(8B) [+ W(4B) + H(4B)]</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">55 AA</span>
+</div>
+
+<h3>取消帧 (Rsv=0x02)</h3>
+<div class="frame-box">
+<span class="hl-header">FF FE</span>
+&nbsp;|&nbsp;
+<span class="hl-type">05</span>
+&nbsp;|&nbsp;
+<span class="hl-rsv">02</span>
+&nbsp;|&nbsp;
+<span class="hl-len">Len</span>
+&nbsp;|&nbsp;
+<span class="hl-data">Name (UTF-8, Len 字节)</span>
+&nbsp;|&nbsp;
+<span class="hl-tail">55 AA</span>
+</div>
+
+<h3>Data 区结构 — 触发帧</h3>
+<table>
+  <tr><th>偏移</th><th>字段</th><th>类型</th><th>字节</th><th>说明</th></tr>
+  <tr><td>0</td><td>Name</td><td>UTF-8</td><td>Len-coord</td><td>事故名称</td></tr>
+  <tr><td>Len-coord</td><td>X</td><td>float64 BE</td><td>8</td><td>X 坐标 (米)</td></tr>
+  <tr><td>Len-coord+8</td><td>Y</td><td>float64 BE</td><td>8</td><td>Y 坐标 (米)</td>
+	  <tr><td>Len-coord+16</td><td>W</td><td>float32 BE</td><td>4</td><td>显示宽度 (像素)，可选，缺省=64</td></tr>
+	  <tr><td>Len-coord+20</td><td>H</td><td>float32 BE</td><td>4</td><td>显示高度 (像素)，可选，缺省=64</td></tr></tr>
+</table>
+
+<h3>Data 区结构 — 取消帧</h3>
+<table>
+  <tr><th>字段</th><th>类型</th><th>长度</th><th>说明</th></tr>
+  <tr><td>Name</td><td>UTF-8</td><td>Len</td><td>要取消的事故名称（与触发时一致）</td></tr>
+</table>
+
+<p>C# 端处理：触发 → 在地图上 <span class="code-inline">SetOverlay("火灾", pixelX, pixelY, width, height)</span> 显示 <span class="code-inline">ic_fire</span> 图标（默认 64×64）；
+取消 → <span class="code-inline">RemoveOverlay("FIRE_" + name)</span> 移除。</p>
+
+<h3>Python 构建示例</h3>
+<div class="frame-box"><em># 触发火灾</em>
+name_bytes = "火灾点1".encode("utf-8")
+data = name_bytes + struct.pack('&gt;dd', 3.0, 5.0)   # 不带宽高（默认 64×64）
+frame = b'\xFF\xFE\x05\x01' + bytes([len(data)]) + data + b'\x55\xAA'
+
+<em># 取消火灾</em>
+data = "火灾点1".encode("utf-8")
+frame = b'\xFF\xFE\x05\x02' + bytes([len(data)]) + data + b'\x55\xAA'</div>
+</div>
+
+<!-- ===== 7. 常量速查表 ===== -->
+<h2 id="s7">7. Type / Rsv 常量速查表</h2>
+
+<div class="card">
+<h3>设备类型 (Type)</h3>
+<table>
+  <tr><th>常量</th><th>值</th><th>设备</th><th>帧尾</th></tr>
+  <tr><td><span class="code-inline">DEV_TYPE_CAR</span></td><td><span class="badge badge-blue">0x01</span></td><td>轮式车</td><td>55 AA</td></tr>
+  <tr><td><span class="code-inline">DEV_TYPE_DRONE</span></td><td><span class="badge badge-orange">0x02</span></td><td>无人机</td><td>55 AA</td></tr>
+  <tr><td><span class="code-inline">DEV_TYPE_SPECTRAL_DRONE</span></td><td><span class="badge badge-green">0x03</span></td><td>光谱无人机</td><td>AA</td></tr>
+  <tr><td><span class="code-inline">DEV_TYPE_SIGNAL_CONTROLLER</span></td><td><span class="badge badge-purple">0x04</span></td><td>信号控制机</td><td>55 AA</td></tr>
+  <tr><td><span class="code-inline">DEV_TYPE_FIRE_ACCIDENT</span></td><td><span class="badge badge-red">0x05</span></td><td>火灾事故</td><td>55 AA</td></tr>
+</table>
+
+<h3>消息类型 (Rsv) — 按设备类型</h3>
+<table>
+  <tr><th>设备 Type</th><th>Rsv 值</th><th>含义</th></tr>
+  <tr><td>0x01, 0x02</td><td><span class="code-inline">0x01</span></td><td>定位帧</td></tr>
+  <tr><td>0x01, 0x02</td><td><span class="code-inline">0x02</span></td><td>状态帧（预留）</td></tr>
+  <tr><td>0x01, 0x02</td><td><span class="code-inline">0x03</span></td><td>告警帧（预留）</td></tr>
+  <tr><td>0x03</td><td><span class="code-inline">0x01</span></td><td>定位帧</td></tr>
+  <tr><td>0x04</td><td><span class="code-inline">0x01</span></td><td>绿波方案名称</td></tr>
+  <tr><td>0x05</td><td><span class="code-inline">0x01</span></td><td>触发火灾事故</td></tr>
+  <tr><td>0x05</td><td><span class="code-inline">0x02</span></td><td>取消火灾事故</td></tr>
+</table>
+</div>
+
+<!-- ===== 8. 字节序 ===== -->
+<h2 id="s8">8. 字节序转换参考</h2>
+
+<div class="card">
+<h3>Python</h3>
+<div class="frame-box"><em># float64 大端读写</em>
+value = struct.unpack('&gt;d', data[offset:offset+8])[0]
+data = struct.pack('&gt;d', value)
+
+<em># float32 大端读写</em>
+value = struct.unpack('&gt;f', data[offset:offset+4])[0]
+data = struct.pack('&gt;f', value)
+
+<em># int24 有符号大端读写</em>
+b0, b1, b2 = data[offset], data[offset+1], data[offset+2]
+value = (b0 &lt;&lt; 16) | (b1 &lt;&lt; 8) | b2
+if value &amp; 0x800000:
+    value |= -1 &lt;&lt; 24  <em># 符号扩展</em></div>
+
+<h3>C#</h3>
+<div class="frame-box"><em>// float64 大端读写</em>
+byte[] buf = new byte[8];
+Array.Copy(data, offset, buf, 0, 8);
+if (BitConverter.IsLittleEndian) Array.Reverse(buf);
+double value = BitConverter.ToDouble(buf, 0);
+
+<em>// float32 大端读写</em>
+byte[] buf = new byte[4];
+Array.Copy(data, offset, buf, 0, 4);
+if (BitConverter.IsLittleEndian) Array.Reverse(buf);
+float value = BitConverter.ToSingle(buf, 0);
+
+<em>// int24 有符号大端</em>
+int b0 = data[offset] &amp; 0xFF, b1 = data[offset+1] &amp; 0xFF, b2 = data[offset+2] &amp; 0xFF;
+int value = (b0 &lt;&lt; 16) | (b1 &lt;&lt; 8) | b2;
+if ((value &amp; 0x800000) != 0) value |= unchecked((int)0xFF000000);</div>
+</div>
+
+<!-- ===== 9. Demo 说明 ===== -->
+<h2 id="s9">9. 二次开发 Demo 说明</h2>
+
+<div class="card">
+<h3>文件结构</h3>
+<table>
+  <tr><th>文件</th><th>说明</th></tr>
+  <tr><td><span class="code-inline">seu_demo.py</span></td><td>Python Tkinter GUI Demo — TCP 客户端 + 5 种设备帧构建与发送</td></tr>
+  <tr><td><span class="code-inline">协议文档.html</span></td><td>本协议文档</td></tr>
+</table>
+
+<h3>Python Demo 启动</h3>
+<div class="frame-box">python seu_demo.py</div>
+
+<p>窗口最大化启动，顶部工具栏输入服务器 IP/端口 → 点击「连接并发送」→ 自动发送三台定位设备帧 + 手动触发绿波方案/火灾事故。</p>
+
+<h3>接口清单</h3>
+<table>
+  <tr><th>面板</th><th>功能</th><th>发送方式</th></tr>
+  <tr><td>轮式车</td><td>模拟圆周运动定位帧</td><td>周期自动</td></tr>
+  <tr><td>无人机</td><td>模拟 3D 螺旋运动定位帧</td><td>周期自动</td></tr>
+  <tr><td>光谱无人机</td><td>模拟厘米级定位帧 (int24)</td><td>周期自动</td></tr>
+  <tr><td>信号控制机</td><td>发送绿波方案名称</td><td>手动触发</td></tr>
+  <tr><td>火灾事故</td><td>触发 / 取消火灾图标</td><td>手动触发</td></tr>
+</table>
+</div>
+
+<div class="footer">
+  沙盘集成平台通信协议 v1.0 &nbsp;|&nbsp; 室内定位 TCP 二进制帧 &nbsp;|&nbsp; 2026-07
+</div>
+
+</div>
+</body>
+</html>

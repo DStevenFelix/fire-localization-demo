@@ -65,17 +65,17 @@ fire/
 
 ### 环境要求
 
-- Python **3.11 或更高版本**
+- Anaconda `agent` 环境（本机为 `D:/Anaconda/envs/agent/python.exe`）
 - Node.js **22.12 或更高版本**
 - Windows PowerShell（以下命令适用于 Windows）
 
 ### 安装依赖
 
-在仓库根目录执行：
+首次配置时，在已确认的 `agent` 环境中安装缺少的依赖：
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+conda activate agent
+python -m pip install -r requirements.txt -r socialnet/requirements.txt
 
 cd frontend/web
 npm ci
@@ -84,34 +84,28 @@ cd ../..
 
 ### 启动服务
 
-在两个 PowerShell 终端中，分别进入仓库根目录并执行：
+在仓库根目录用 Git Bash 运行：
 
-**终端 1：定位服务**
-
-```powershell
-.\frontend\start-bridge.ps1
+```bash
+bash start.sh
 ```
 
-**终端 2：前端页面**
-
-```powershell
-.\frontend\start-web.ps1
-```
-
-浏览器访问 **http://127.0.0.1:5173**。定位服务默认运行在 **http://127.0.0.1:8080**。
+脚本启动 SocialNet 帖子源（8000）、定位桥接（8080），并打开前端（5173）。`bash stop.sh` 停止这三个服务。SocialNet 发帖读取 `socialnet/.env`，Live 定位读取仓库根目录的 `.env`。
 
 ## 使用方式
 
 1. 在二维地图中浏览城市道路、建筑、储罐和应急资源，使用图层控制和缩放功能查看不同区域。
-2. 在火情场景配置中选择目标储罐，启动定位流程，观察按批次更新的候选火点、定位进度及最终排名。
+2. 在仿真设置中选择储罐，点击「开始仿真」。SocialNet 按指定储罐生成帖子并做规则初筛，主项目收到每 3 条火情帖后更新一次定位。舆情面板每秒切换一条，有新帖时优先展示，空档循环近期帖子。
 3. 查看地图、定位结果和对应储罐的三维场景。
 4. 通过系统的应急事件接口接收无人机、消防车辆和火情状态，展示任务执行、交通优先通行及火场变化。
 
-定位支持 Offline 模式；如配置 Live 模型服务，相关调用需要显式确认。首次运行建议使用 Offline 模式。
+Offline 定位使用本地规则和向量，Live 定位调用 Chat 和 Embedding。两种模式下，SocialNet 居民发帖均使用已配置的模型，开始前需要确认 API 费用。
 
-定位完成后，在「应急联动指挥」中点击「移交应急处置」，将最终 Top1 交给模拟无人机。通过「确认设置」应用小火、中火或大火，系统会分配 1、2 或 3 辆消防车。处置中确认新等级会立即重新调车。消防车开始喷水后，点击「确认已灭火」结束本次灭火作业，无人机和车辆随即返站。
+第一次出现定位候选后即可点击「移交应急处置」。定位结果立即冻结，面板继续滚动新帖。无人机依次巡查移交时的候选，最后飞往主项目选定的真实火点。通过「确认设置」应用火情等级，系统分配 1、2 或 3 辆消防车。点击「确认已灭火」后，发帖和滚动停止，无人机和消防车返站。
 
-点击「全局重置」可结束当前模拟处置，清空定位结果并回到开始分析帖子前。已选场景和定位模式会保留，可以直接开始下一轮实验。
+「全局暂停」会暂停沙盘、SocialNet 发帖和帖子滚动，并暂停启动新的定位批次。点击「继续仿真」会从当前会话继续。点击「全局重置」会停止 SocialNet，清空滚动、定位和处置状态，并清理 `runtime/frontend` 中的旧演示会话和帖子缓存。主项目将流式原帖和每帖文本向量保留在内存中，共享的地图 POI 向量缓存继续复用。之后可以更换储罐并开始下一轮。
+
+SocialNet 把每轮生成的群聊原帖存到 `socialnet/runtime/post_runs` 下的 `UTC 启动时间_会话ID` 目录。达到 30 轮或 128 MiB 时按时间轮换，单轮持续过久时轮换该轮最早的帖子分卷。全局重置保留 SocialNet 的归档。历史群聊和报告仍保存在旧 SQLite 存档，当前发帖服务仅运行发帖与规则初筛。
 
 模拟事件源位于 `frontend/web/src/utils/emergencyDemo.ts`。接入真实系统时，在前端设置 `VITE_EMERGENCY_DEMO=false` 并重启 Vite，然后通过 `connectEmergencyAdapter` 注册外部 `EmergencyAdapter`。演示适配器由页面作为默认源，已注册的外部适配器优先。
 

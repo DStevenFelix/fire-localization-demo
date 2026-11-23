@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url)).replaceAll('\\', '/');
-// 默认使用工程虚拟环境，也允许通过环境变量指定已有 Python。
-const pythonExecutable = process.env.FIRE_PYTHON || `${projectRoot}.venv/${process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python'}`;
+const pythonExecutable = process.env.FIRE_PYTHON || 'D:/Anaconda/envs/agent/python.exe';
+const reuseExistingServer = process.env.FIRE_E2E_REUSE === '1';
 // Bridge 批次审计频繁原子替换文件；放入进程隔离的临时目录，避开工作区报告和文件监视器的共享目录。
 const runtimeRoot = (process.env.FIRE_TEST_RUNTIME || join(tmpdir(), 'fire-sandbox-e2e', String(process.pid))).replaceAll('\\', '/');
 const bridgeCode = `import sys; sys.path.insert(0, '${projectRoot}'); from pathlib import Path; from frontend.bridge.server import create_app; import uvicorn; uvicorn.run(create_app(Path('${runtimeRoot}')), host='127.0.0.1', port=8080)`;
@@ -19,9 +19,9 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:5173', viewport: { width: 1440, height: 1000 },
     channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge', headless: true, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   webServer: [
-    { command: `"${pythonExecutable}" -B -c "${bridgeCode}"`,
+    ...(process.env.FIRE_E2E_MOCK_ONLY === '1' ? [] : [{ command: `"${pythonExecutable}" -B -c "${bridgeCode}"`,
       env: { PYTHONUTF8: '1', PYTHONDONTWRITEBYTECODE: '1', LANGSMITH_TRACING: 'false', LANGCHAIN_TRACING_V2: 'false' },
-      url: 'http://127.0.0.1:8080/api/health', timeout: 60000, reuseExistingServer: false },
-    { command: 'npm run dev', url: 'http://127.0.0.1:5173', timeout: 60000, reuseExistingServer: false },
+      url: 'http://127.0.0.1:8080/api/health', timeout: 60000, reuseExistingServer }]),
+    { command: 'npm run dev', url: 'http://127.0.0.1:5173', timeout: 60000, reuseExistingServer },
   ],
 });

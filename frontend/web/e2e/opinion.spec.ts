@@ -1,203 +1,169 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Session, SessionPosts } from '../src/types';
+import type { OpinionPost, Poi, Prediction, Session } from '../src/types';
 
-declare global {
-  interface Window {
-    opinionSamples: { id: string; text: string; at: number; fits: boolean; signal: boolean }[];
-  }
+const tanks: Poi[] = [
+  { poi_id: 'T-SW-01', name: '西南 1 号储罐', type: 'tank', coordinates: { x_m: 9.72, y_m: 8.99 }, can_post: false },
+  { poi_id: 'T-NE-01', name: '东北 1 号储罐', type: 'tank', coordinates: { x_m: 17.58, y_m: 15.42 }, can_post: false },
+  { poi_id: 'T-SE-01', name: '东南 1 号储罐', type: 'tank', coordinates: { x_m: 17.45, y_m: 8.96 }, can_post: false },
+  { poi_id: 'T-NW-01', name: '西北 1 号储罐', type: 'tank', coordinates: { x_m: 9.79, y_m: 16.23 }, can_post: false },
+];
+const prediction: Prediction = { candidates: tanks.slice(0, 3).map((tank, i) => ({ ...tank,
+  rank: i + 1, votes: 3 - i, confidence: 1, score: 3 - i, relative_score: (3 - i) / 6 })),
+  processed_count: 3, pending_count: 0, active_cluster_count: 3, cold_cluster_count: 0, status: 'located_candidates' };
+
+async function socialNetFixture(page: Page) {
+  let session: Session;
+  let posts: OpinionPost[] = [];
+  let sequence = 0;
+  const actions: string[] = [];
+  const prepare = (target: string): Session => ({ session_id: String(++sequence).padStart(32, '0'), target_poi_id: target,
+    seed: 42, mode: 'offline', status: 'prepared', analysis_frozen: false, paused: false, post_count: 0, processed_count: 0,
+    ignored_count: 0, batch_count: 0, ground_truth: tanks.find(tank => tank.poi_id === target)!,
+    prediction: null, evaluation: null, error: null, created_at: '', started_at: null, completed_at: null });
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname.slice(4);
+    if (path === '/health') return route.fulfill({ json: { status: 'ok' } });
+    if (path === '/pois') return route.fulfill({ json: tanks });
+    if (path === '/scenarios') return route.fulfill({ json: { scenarios: tanks, default_target_poi_id: tanks[0].poi_id } });
+    if (path === '/scenarios/active') return route.fulfill({ json: session?.status === 'running' ? session : null });
+    if (path === '/scenarios/prepare') {
+      const { target_poi_id, source } = route.request().postDataJSON();
+      expect(source).toBe('socialnet');
+      session = prepare(target_poi_id);
+    } else if (path === '/localization/run') {
+      const { paused = false, ...body } = route.request().postDataJSON();
+      expect(body).toEqual({ session_id: session.session_id, confirm_paid_api: true });
+      actions.push('start:' + session.target_poi_id);
+      session.status = 'running';
+      session.paused = paused;
+    } else if (path.endsWith('/posts')) {
+      return route.fulfill({ json: { session_id: session.session_id, post_count: posts.length, posts } });
+    } else if (path.endsWith('/pause')) {
+      session.paused = route.request().postDataJSON().paused;
+      actions.push(session.paused ? 'pause' : 'resume');
+    } else if (path.endsWith('/handoff')) {
+      actions.push('handoff');
+      session.analysis_frozen = true;
+    } else if (path.endsWith('/stop')) {
+      actions.push('stop');
+      session.status = 'completed';
+    } else if (path.endsWith('/reset')) {
+      actions.push('reset');
+      posts = [];
+      session = prepare(session.target_poi_id);
+    }
+    return route.fulfill({ json: session });
+  });
+  return { actions, add(...items: string[]) {
+    for (const text of items) posts.push({ id: 'post-' + (posts.length + 1), text });
+    session.post_count = posts.length;
+    if (posts.length >= 3 && !session.analysis_frozen) {
+      Object.assign(session, { processed_count: 3, batch_count: 1, prediction });
+    }
+  } };
 }
 
-const postsPath = /\/api\/localization\/[0-9a-f]{32}\/posts$/;
-const panel = (page: Page) => page.getByRole('region', { name: '舆情监测 Agent', exact: true });
-const start = (page: Page) => page.getByRole('button', { name: '开始定位', exact: true });
-const currentPost = (page: Page) => panel(page).locator('.opinion-entry-current');
-const radar = (page: Page) => panel(page).locator('.opinion-radar');
-const sweep = (page: Page) => radar(page).locator('.opinion-radar-sweep');
-const signal = (page: Page) => radar(page).locator('.opinion-radar-signal');
+const start = (page: Page) => page.getByRole('button', { name: '开始仿真', exact: true });
+const current = (page: Page) => page.locator('.opinion-entry-current strong');
 
-test('real session plays all 100 posts once at the display cadence after localization completes', async ({ page }, testInfo) => {
-  test.setTimeout(150000);
-  await page.setViewportSize({ width: 320, height: 740 });
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  const postResponse = page.waitForResponse(response => postsPath.test(response.url()) && response.ok());
-  await page.goto('/');
-  const data: SessionPosts = await (await postResponse).json();
-  expect(data.post_count).toBe(100);
-  await expect(panel(page).getByText('PUBLIC OPINION MONITORING', { exact: true })).toBeVisible();
-  await expect(panel(page).getByText('已展示 0 / 100', { exact: true })).toBeVisible();
-  await expect(currentPost(page)).toHaveCount(0);
-  await expect(radar(page)).toHaveAttribute('data-active', 'false');
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'paused');
-  await expect(signal(page)).toHaveCount(0);
-  await page.evaluate(() => {
-    window.opinionSamples = [];
-    const viewport = document.querySelector('.opinion-viewport')!;
-    let last: Element | null = null;
-    let lastSignal: Element | null = null;
-    new MutationObserver(() => {
-      const post = viewport.querySelector('.opinion-entry-current');
-      if (!post || post === last) return;
-      last = post;
-      const body = post.querySelector('.opinion-post-text')!;
-      const signal = document.querySelector('.opinion-radar-signal');
-      window.opinionSamples.push({
-        id: post.querySelector('strong')!.textContent!,
-        text: body.textContent!,
-        at: performance.now(),
-        fits: body.scrollHeight <= body.clientHeight,
-        signal: signal !== null && signal !== lastSignal,
-      });
-      lastSignal = signal;
-    }).observe(viewport, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-  });
-  const accepted = page.waitForResponse(response => response.url().endsWith('/api/localization/run') && response.status() === 202);
+async function startConfirmed(page: Page) {
   await start(page).click();
-  const run: Session = await (await accepted).json();
-  expect(run.session_id).toBe(data.session_id);
-  await expect(currentPost(page).locator('strong')).toHaveText(data.posts[0].id);
-  await expect(radar(page)).toHaveAttribute('data-active', 'true');
-  await expect(sweep(page)).toHaveCSS('animation-duration', '4s');
-  await expect(sweep(page)).toHaveCSS('animation-timing-function', 'linear');
-  await expect(currentPost(page)).toHaveCSS('animation-duration', '0.35s');
-  await expect(currentPost(page).locator('time')).toHaveAttribute('datetime', data.posts[0].timestamp);
-  await expect(currentPost(page)).toContainText('发帖位置');
-  await expect(currentPost(page)).toContainText(`紧急程度 · ${data.posts[0].urgency}`);
-  await expect(currentPost(page).locator('strong')).toHaveText(data.posts[1].id);
-  await expect(panel(page).locator('.opinion-entry-outgoing')).toHaveCSS('visibility', 'hidden');
-  await expect(currentPost(page).locator('.opinion-post-text')).toHaveJSProperty('scrollTop', 0);
-  await expect(page.getByTestId('run-button-state')).toHaveText('Completed');
-  await expect(panel(page).getByText('播放中', { exact: true })).toBeVisible();
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'running');
-  await expect.poll(() => sweep(page).evaluate(element => element.getAnimations()[0]?.effect?.getComputedTiming().currentIteration)).toBeGreaterThanOrEqual(1);
-  await expect(panel(page).getByText('定位已处理 100 / 100 条 · 10 批', { exact: true })).toBeVisible();
-  await expect(panel(page).getByText('播放完成', { exact: true })).toBeVisible({ timeout: 120000 });
-  await expect(panel(page).getByText('已展示 100 / 100', { exact: true })).toBeVisible();
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'paused');
-  const stoppedAngle = await sweep(page).evaluate(element => getComputedStyle(element).transform);
-  await page.waitForTimeout(1100);
-  await expect(sweep(page)).toHaveCSS('transform', stoppedAngle);
-  await expect(signal(page)).toHaveCSS('visibility', 'hidden');
-  const samples = await page.evaluate(() => window.opinionSamples);
-  expect(samples.map(({ id, text }) => ({ id, text }))).toEqual(data.posts.map(({ id, text }) => ({ id, text })));
-  expect(samples.every(sample => sample.fits)).toBe(true);
-  expect(samples.filter(sample => sample.signal)).toHaveLength(100);
-  const intervals = samples.slice(1).map((sample, index) => sample.at - samples[index].at);
-  expect(intervals.every(interval => interval >= 750 && interval <= 1500)).toBe(true);
-  await testInfo.attach('replay-timing', {
-    body: JSON.stringify({ count: samples.length, signalCount: samples.filter(sample => sample.signal).length,
-      spanMs: samples.at(-1)!.at - samples[0].at, minIntervalMs: Math.min(...intervals), maxIntervalMs: Math.max(...intervals) }),
-    contentType: 'application/json',
-  });
-  await testInfo.attach('radar-stopped', { body: await panel(page).screenshot(), contentType: 'image/png' });
-});
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: '确认并开始仿真' }).click();
+}
 
-test('accepted failure waits for the post response then replays and resets cleanly', async ({ page }) => {
-  let releasePosts!: () => void;
-  const gate = new Promise<void>(resolve => { releasePosts = resolve; });
-  await page.route(postsPath, async route => {
-    await gate;
-    await route.continue();
-  });
-  await page.route('**/api/localization/run', async route => {
-    const sessionId = route.request().postDataJSON().session_id;
-    const session: Session = await (await page.request.get(`/api/localization/${sessionId}`)).json();
-    await route.fulfill({ status: 202, json: { ...session, status: 'failed',
-      error: { error_type: 'RuntimeError', message: '测试运行失败' } } });
-  });
-  await page.goto('/');
-  await start(page).click();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Failed');
-  await expect(panel(page).getByText('正在加载帖子', { exact: true })).toBeVisible();
-  await expect(currentPost(page)).toHaveCount(0);
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'paused');
-  releasePosts();
-  await expect(panel(page).getByText('已展示 2 / 100', { exact: true })).toBeVisible();
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'running');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(sweep(page)).toHaveCSS('animation-name', 'none');
-  const next = page.waitForResponse(response => postsPath.test(response.url()) && response.ok());
-  await page.getByRole('button', { name: '全局重置', exact: true }).click();
-  await next;
-  await expect(panel(page).getByText('等待定位启动', { exact: true })).toBeVisible();
-  await page.waitForTimeout(1100);
-  await expect(currentPost(page)).toHaveCount(0);
-  await expect(radar(page)).toHaveAttribute('data-active', 'false');
-  await expect(signal(page)).toHaveCount(0);
-  await expect(panel(page).getByText('已展示 0 / 100', { exact: true })).toBeVisible();
-});
+async function advance(page: Page, seconds: number) {
+  await page.evaluate(async seconds => {
+    const modulePath = '/src/utils/emergency.ts';
+    const sim = (await import(modulePath)).getEmergencyService().traffic;
+    for (let time = 0; time < seconds; time += .1) sim.tick(.1);
+  }, seconds);
+}
 
-test('canceled Live confirmation and rejected run leave the feed waiting', async ({ page }) => {
-  let requests = 0;
-  await page.route('**/api/localization/run', async route => {
-    requests++;
-    await route.fulfill({ status: 409, json: { detail: '测试启动请求被拒绝' } });
-  });
+test('cycles the SocialNet display, freezes predictions at handoff and stops on extinction', async ({ page }) => {
+  test.setTimeout(60000);
+  const mock = await socialNetFixture(page);
   await page.goto('/');
   await expect(start(page)).toBeEnabled();
-  const settings = page.getByRole('button', { name: '仿真设置', exact: true });
-  await settings.click();
-  const dialog = page.getByRole('dialog', { name: '仿真设置', exact: true });
-  await expect(dialog.getByLabel('火情场景').locator('option')).toHaveCount(8);
-  await expect(dialog).toContainText('GROUND TRUTH');
-  await dialog.getByRole('button', { name: 'Live 付费模型', exact: true }).click();
-  await page.keyboard.press('Escape');
-  await expect(settings).toBeFocused();
-  await start(page).click();
-  await page.getByRole('button', { name: '取消', exact: true }).click();
-  expect(requests).toBe(0);
-  await expect(panel(page).getByText('等待定位启动', { exact: true })).toBeVisible();
-  await settings.click();
-  await dialog.getByRole('button', { name: 'Offline 离线模拟', exact: true }).click();
-  await dialog.getByRole('button', { name: '关闭仿真设置', exact: true }).click();
-  await start(page).click();
-  await expect(page.getByRole('alert')).toBeVisible();
-  await page.waitForTimeout(1100);
-  expect(requests).toBe(1);
-  await expect(currentPost(page)).toHaveCount(0);
-  await expect(radar(page)).toHaveAttribute('data-active', 'false');
-  await expect(panel(page).getByText('已展示 0 / 100', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '全局暂停', exact: true }).click();
+  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
+  await page.getByLabel('火情场景').selectOption('T-NW-01');
+  await page.getByRole('button', { name: '关闭仿真设置' }).click();
+  await startConfirmed(page);
+  await expect(page.getByText('滚动已暂停')).toBeVisible();
+  await page.getByRole('button', { name: '继续仿真', exact: true }).click();
+  await expect(page.getByText('等待 SocialNet 发帖')).toBeVisible();
+  expect(mock.actions).toEqual(['start:T-NW-01', 'resume']);
+
+  mock.add('看到黑烟', '罐区有火光');
+  await expect(current(page)).toHaveText('post-1');
+  await expect(current(page)).toHaveText('post-2');
+  await expect(current(page)).toHaveText('post-1');
+  await expect(page.getByRole('button', { name: '移交应急处置' })).toHaveCount(0);
+  mock.add('火光越来越大');
+  await expect(current(page)).toHaveText('post-3');
+  await page.getByRole('button', { name: '全局暂停', exact: true }).click();
+  await expect(page.getByRole('button', { name: '移交应急处置' })).toBeEnabled();
+  await page.getByRole('button', { name: '移交应急处置' }).click();
+  await expect(page.getByTestId('prediction-marker')).toHaveAttribute('data-poi-id', 'T-SW-01');
+  await expect(page.getByTestId('fire-marker')).toHaveAttribute('data-poi-id', 'T-NW-01');
+  const route = await page.evaluate(async () => {
+    const servicePath = '/src/utils/emergency.ts', registryPath = '/src/utils/poiRegistry.ts';
+    const [{ getEmergencyService }, { poiRegistry }] = await Promise.all([import(servicePath), import(registryPath)]);
+    const drone = getEmergencyService().getSnapshot().drones[0];
+    return drone.path.slice(1).map(({ x, y }: { x: number; y: number }) => [...poiRegistry.values()].find(poi =>
+      poi.type === 'Tank' && Math.hypot(poi.center[0] + 30 - x, poi.center[1] + 25 - y) < 0.001)?.id);
+  });
+  expect(route).toEqual(['T-SW-01', 'T-NE-01', 'T-SE-01', 'T-NW-01']);
+  await page.getByRole('button', { name: '继续仿真', exact: true }).click();
+  mock.add('移交后仍然接收新帖');
+  await expect(current(page)).toHaveText('post-4');
+  await expect(page.getByText('已收 4 条 · 定位 3 条 / 1 批')).toBeVisible();
+  await advance(page, 140);
+  await expect(page.getByTestId('emergency-plan')).toBeVisible();
+  await advance(page, 160);
+  await page.getByRole('button', { name: '确认已灭火' }).click();
+  await expect(page.getByText('滚动已停止')).toBeVisible();
+  const stopped = await current(page).textContent();
+  await page.waitForTimeout(1150);
+  await expect(current(page)).toHaveText(stopped!);
+  expect(mock.actions).toEqual(['start:T-NW-01', 'resume', 'pause', 'handoff', 'resume', 'stop']);
+  await page.getByRole('button', { name: '全局重置' }).click();
+  await expect(current(page)).toHaveCount(0);
+  await expect(start(page)).toBeEnabled();
+  expect(mock.actions.at(-1)).toBe('reset');
 });
 
-test('changing the scenario discards a late response from the previous session', async ({ page }) => {
-  let releaseOldPosts!: () => void;
-  const oldResponseGate = new Promise<void>(resolve => { releaseOldPosts = resolve; });
-  let oldPath: string | undefined;
-  await page.route(postsPath, async route => {
-    if (oldPath !== undefined) {
-      await route.continue();
-      return;
-    }
-    oldPath = route.request().url();
-    const response = await route.fetch();
-    await oldResponseGate;
-    await route.fulfill({ response });
-  });
-
-  const initialRequest = page.waitForRequest(request => postsPath.test(request.url()));
+test('global pause freezes the visible post and resumes the same session', async ({ page }) => {
+  const mock = await socialNetFixture(page);
   await page.goto('/');
-  const original = await initialRequest;
-  const idleAngle = await sweep(page).evaluate(element => getComputedStyle(element).transform);
-  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '仿真设置', exact: true });
-  const newResponse = page.waitForResponse(response => postsPath.test(response.url()) && response.url() !== original.url() && response.ok());
-  await dialog.getByLabel('火情场景').selectOption('T-SE-01');
-  await dialog.getByRole('button', { name: '关闭仿真设置' }).click();
-  const data: SessionPosts = await (await newResponse).json();
-  releaseOldPosts();
-  await expect(panel(page).getByText('等待定位启动', { exact: true })).toBeVisible();
-  await expect(radar(page)).toHaveAttribute('data-active', 'false');
-  await expect(signal(page)).toHaveCount(0);
-  await start(page).click();
-  await expect(currentPost(page).locator('p')).toHaveText(data.posts[0].text);
-  await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', 'T-SE-01');
-  await expect(page.getByTestId('run-button-state')).toHaveText('Completed');
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'running');
+  await startConfirmed(page);
+  mock.add('第一条初筛帖子', '第二条初筛帖子');
+  await expect(current(page)).toHaveText('post-1');
+  await page.getByRole('button', { name: '全局暂停', exact: true }).click();
+  const resume = page.getByRole('button', { name: '继续仿真', exact: true });
+  await expect(resume).toBeEnabled();
+  await expect(page.getByText('滚动已暂停')).toBeVisible();
+  await expect(page.getByTestId('sandbox-svg')).toHaveAttribute('data-simulation-paused', 'true');
+  await page.waitForTimeout(1150);
+  await expect(current(page)).toHaveText('post-1');
+  expect(mock.actions).toEqual(['start:T-SW-01', 'pause']);
+  await resume.click();
+  await expect(current(page)).toHaveText('post-2');
+  await expect(page.getByTestId('sandbox-svg')).toHaveAttribute('data-simulation-paused', 'false');
+  expect(mock.actions).toEqual(['start:T-SW-01', 'pause', 'resume']);
+});
 
-  await page.getByRole('button', { name: '仿真设置', exact: true }).click();
-  await dialog.getByLabel('火情场景').selectOption('T-SW-01');
-  await dialog.getByRole('button', { name: '关闭仿真设置' }).click();
-  await expect(panel(page).getByText('等待定位启动', { exact: true })).toBeVisible();
-  await expect(sweep(page)).toHaveCSS('animation-play-state', 'paused');
-  await expect(sweep(page)).toHaveCSS('transform', idleAngle);
-  await expect(signal(page)).toHaveCount(0);
+test('a refreshed page can reset the running source before the first prediction', async ({ page }) => {
+  const mock = await socialNetFixture(page);
+  await page.goto('/');
+  await startConfirmed(page);
+  mock.add('第一条初筛帖子');
+  await expect(current(page)).toHaveText('post-1');
+  await page.reload();
+  await expect(current(page)).toHaveText('post-1');
+  await page.getByRole('button', { name: '全局重置' }).click();
+  await expect(current(page)).toHaveCount(0);
+  await expect(start(page)).toBeEnabled();
+  expect(mock.actions).toEqual(['start:T-SW-01', 'reset']);
 });

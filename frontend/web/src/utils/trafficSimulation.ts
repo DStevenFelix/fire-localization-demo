@@ -641,8 +641,20 @@ export class TrafficSimulation {
           if (step <= 1e-8) return yieldToReturn ? 'yield' : undefined;
         } else {
           if (vehicle.fire && this.signals.hasPedestrianInZone(control.intersection.id)) return;
-          if (others.some(v => v !== vehicle && v.junction && this.signals.sharesClearanceZone(v.junction, control.intersection.id))) return;
           const exit = this.junctionExit(vehicle, control.intersection.id);
+          const departingStation = inGarage && ignoreSignal;
+          if (others.some(v => {
+            if (v === vehicle || !v.junction || !this.signals.sharesClearanceZone(v.junction, control.intersection.id)) return false;
+            if (!departingStation || v.fire) return true;
+            const lane = v.cursor.piece;
+            // The opposite lane starts beyond the driveway merge and leads away from it.
+            if (lane !== upcoming && lane.road && lane.road === upcoming?.road && lane.from === control.intersection.id) return false;
+            const { from, to } = (lane.road ? lane : lane.next[0]) ?? lane;
+            // An ordinary car already leaving the shared zone via a different physical
+            // junction no longer crosses this departure. Keep protecting shared links and turns on this route.
+            return !exit?.from || !from || !to || from === exit.from ||
+              !this.signals.sharesClearanceZone(control.intersection.id, from) || this.signals.sharesClearanceZone(control.intersection.id, to);
+          })) return;
           // Keep the receiving lane open between green phases while its remaining traffic drains.
           if (atEntry && !vehicle.fire && !ignoreSignal && exit && reservations.exits.some(request => request.exit === exit &&
             this.signals.sharesClearanceZone(request.junction, control.intersection.id) &&

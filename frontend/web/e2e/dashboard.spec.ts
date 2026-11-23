@@ -2,15 +2,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 
-const sessionRoute = /\/api\/localization\/(?:run|[0-9a-f]{32}(?:\/reset)?)$/;
+import { startWithPrediction } from './predictionFixture';
 
 async function ready(page: Page) {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('truth-marker')).toBeVisible();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Ready');
-  await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText('0 批 · 0 / 100 条', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText('0 批 · 0 / 0 条', { exact: true })).toBeVisible();
 }
 
 async function verifyOverlay(page: Page, withPrediction = true) {
@@ -37,7 +36,7 @@ async function verifyOverlay(page: Page, withPrediction = true) {
   }
 }
 
-test('real Offline prepare, run, measured map, layers, zoom, reset and refresh', async ({ page }) => {
+test('streaming prediction, measured map, layers, zoom, reset and refresh', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -61,19 +60,12 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await page.mouse.wheel(0, -100);
   await page.getByRole('button', { name: '重置地图视图' }).click();
   await expect(page.getByTestId('sandbox-svg')).toHaveAttribute('viewBox', '1313 1050 1313 1050');
-  // 验证轮询期间真实批次候选可见。
-  await page.route('**/api/localization/run', async route => {
-    await new Promise(resolve => setTimeout(resolve, 600));
-    await route.continue();
-  });
-  await page.getByRole('button', { name: '开始定位', exact: true }).click();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Analyzing...');
+  await startWithPrediction(page);
   await expect(page.getByTestId('evidence-marker').first()).toBeVisible();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Analyzing...');
   await expect(page.locator('.candidate-row')).toHaveCount(3);
+  await page.getByRole('button', { name: '移交应急处置' }).click();
   await expect(page.getByTestId('prediction-marker')).toBeVisible();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Completed');
-  await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText(/^\d+ 批 · 100 \/ 100 条$/)).toBeVisible();
+  await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText('1 批 · 3 / 3 条', { exact: true })).toBeVisible();
   await expect(page.getByTestId('truth-marker').locator('text')).toHaveText('Ground Truth');
   await expect(page.getByTestId('prediction-marker').locator('text')).toHaveText('最终定位 · Top1');
   await verifyOverlay(page);
@@ -95,14 +87,12 @@ test('real Offline prepare, run, measured map, layers, zoom, reset and refresh',
   await page.setViewportSize({ width: 1366, height: 900 });
   await verifyOverlay(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole('button', { name: '移交应急处置', exact: true }).click();
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'drone_dispatched');
   await page.getByRole('button', { name: '全局重置' }).click();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'idle');
   await expect(page.locator('[data-drone][data-status="idle"]')).toHaveCount(2);
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
-  await expect(page.getByTestId('run-button-state')).toHaveText('Ready');
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await page.getByLabel('火情场景').selectOption('T-SE-01');
   await page.getByRole('button', { name: '关闭仿真设置' }).click();
@@ -124,12 +114,12 @@ test('Live requires explicit secondary confirmation; cancel makes no run request
   await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await page.getByRole('button', { name: 'Live 付费模型', exact: true }).click();
   await page.getByRole('button', { name: '关闭仿真设置' }).click();
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: '开始定位', exact: true }).click();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '开始仿真', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('dialog')).toContainText('100 条模拟帖子');
-  await expect(page.getByRole('dialog')).toContainText('共 10 批');
-  await expect(page.getByRole('button', { name: '确认并开始 Live' })).toBeDisabled();
+  await expect(page.getByRole('dialog')).toContainText('SocialNet 会调用已配置的模型');
+  await expect(page.getByRole('dialog')).toContainText('每 3 条');
+  await expect(page.getByRole('button', { name: '确认并开始仿真' })).toBeDisabled();
   await page.getByRole('button', { name: '取消', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(runs).toBe(0);
@@ -137,34 +127,21 @@ test('Live requires explicit secondary confirmation; cancel makes no run request
 });
 
 test('empty result displays no red prediction', async ({ page }) => {
-  await page.route(sessionRoute, async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    if (body.status === 'completed') {
-      body.prediction.candidates = [];
-      body.prediction.status = 'no_active_evidence';
-      body.evaluation = { top1_hit: false, top3_hit: false, target_rank: null, distance_m: null };
-    }
-    await route.fulfill({ response, json: body });
-  });
   await ready(page);
-  await page.getByRole('button', { name: '开始定位', exact: true }).click();
+  await startWithPrediction(page, session => ({ ...session, status: 'completed', prediction: { ...session.prediction!, candidates: [], status: 'no_active_evidence' } }));
   await expect(page.getByText('当前没有定位候选')).toBeVisible();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
 });
 
 test('wrong prediction stays at its actual returned coordinates', async ({ page }) => {
-  await page.route(sessionRoute, async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    if (body.status === 'completed') {
-      body.prediction.candidates[0] = { ...body.prediction.candidates[0], poi_id: 'T-SE-01', name: '华安能源东南罐区1号储罐', coordinates: { x_m: 47.446646, y_m: 33.960915 } };
-      body.evaluation = { top1_hit: false, top3_hit: false, target_rank: null, distance_m: 5.243 };
-    }
-    await route.fulfill({ response, json: body });
-  });
   await ready(page);
-  await page.getByRole('button', { name: '开始定位', exact: true }).click();
+  await startWithPrediction(page, session => {
+    session.analysis_frozen = true;
+    session.prediction!.candidates[0] = { ...session.prediction!.candidates[0], poi_id: 'T-SE-01',
+      name: '华安能源东南罐区1号储罐', coordinates: { x_m: 47.446646, y_m: 33.960915 } };
+    session.evaluation = { top1_hit: false, top3_hit: false, target_rank: null, distance_m: 5.243 };
+    return session;
+  });
   await expect(page.getByTestId('prediction-marker')).toHaveAttribute('data-poi-id', 'T-SE-01', { timeout: 30000 });
   await expect(page.getByText('未命中真实火点', { exact: true })).toBeVisible();
   const circle = page.getByTestId('prediction-marker').locator('circle').first();
@@ -174,28 +151,20 @@ test('wrong prediction stays at its actual returned coordinates', async ({ page 
 });
 
 test('worker errors expose a sanitized error state and permit reset', async ({ page }) => {
-  await page.route(sessionRoute, async route => {
-    const response = await route.fetch();
-    const body = await response.json();
-    if (body.status === 'completed') {
-      body.status = 'failed'; body.prediction = null; body.evaluation = null;
-      body.error = { error_type: 'RuntimeError', message: '测试异常状态，运行模式未切换。' };
-    }
-    await route.fulfill({ response, json: body });
-  });
   await ready(page);
-  await page.getByRole('button', { name: '开始定位', exact: true }).click();
+  await startWithPrediction(page, session => ({ ...session, status: 'failed', prediction: null, evaluation: null,
+    error: { error_type: 'RuntimeError', message: '测试异常状态，运行模式未切换。' } }));
   await page.locator('.run-error summary').click();
   await expect(page.getByText('RuntimeError', { exact: true })).toBeVisible();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
   await page.getByRole('button', { name: '全局重置' }).click();
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
 });
 
 test('unavailable bridge has an explicit error and disabled run', async ({ page }) => {
   await page.route('**/api/**', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: '测试桥接服务不可用' }) }));
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('桥接服务未连接');
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeDisabled();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
 });

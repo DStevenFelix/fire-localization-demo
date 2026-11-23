@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
-export default function LiveConfirmation({ postCount, onCancel, onConfirm }: { postCount: number; onCancel: () => void; onConfirm: () => void }) {
+export default function LiveConfirmation({ live, onCancel, onConfirm }: { live: boolean; onCancel: () => void; onConfirm: () => void }) {
   const [checked, setChecked] = useState(false);
   const cancelButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
@@ -17,12 +17,11 @@ export default function LiveConfirmation({ postCount, onCancel, onConfirm }: { p
       }}>
       <button className="icon-button modal-close" aria-label="关闭确认" onClick={onCancel}><X size={18} /></button>
       <div className="warning-icon"><AlertTriangle size={25} /></div>
-      <h2 id="live-confirm-title">确认本次 Live 模型调用</h2>
-      <p>本轮将真实调用已配置的 Chat 与 Embedding API，对 {postCount} 条模拟帖子及 POI 名称进行编码和定位，每批 10 条，共 {Math.ceil(postCount / 10)} 批，产生模型 API 费用。</p>
-      <div className="model-summary"><span>Chat <strong>deepseek-v4.1-flash</strong></span><span>Embedding <strong>qwen3-embedding-4b</strong></span></div>
+      <h2 id="live-confirm-title">确认启动 SocialNet 仿真</h2>
+      <p>SocialNet 会调用已配置的模型持续生成帖子，直到确认已灭火或全局重置。{live ? '定位还会每 3 条调用 Chat 与 Embedding API。' : '定位使用本地规则与向量。'}</p>
       <label className="consent-checkbox"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />我确认并批准本次付费模型调用</label>
       <small>模型失败时会显示错误，不会自动切换离线模式。</small>
-      <div className="modal-actions"><button className="secondary-button" onClick={onCancel} ref={cancelButton}>取消</button><button className="primary-button" disabled={!checked} onClick={onConfirm}>确认并开始 Live</button></div>
+      <div className="modal-actions"><button className="secondary-button" onClick={onCancel} ref={cancelButton}>取消</button><button className="primary-button" disabled={!checked} onClick={onConfirm}>确认并开始仿真</button></div>
     </div>
   </div>;
 }

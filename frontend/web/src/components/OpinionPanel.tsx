@@ -9,7 +9,7 @@ type Props = {
   source: string;
   status: string;
   scanning?: boolean;
-  total?: number;
+  receivedTotal?: number;
   error?: string;
   onOpenSettings: () => void;
   children: ReactNode;
@@ -17,7 +17,7 @@ type Props = {
 
 const signalPositions = [[36, 41], [78, 31], [88, 65], [52, 87], [34, 64], [72, 81]];
 
-export default function OpinionPanel({ feed, source, status, scanning = status === '播放中', total, error, onOpenSettings, children }: Props) {
+export default function OpinionPanel({ feed, source, status, scanning = status === '播放中', receivedTotal, error, onOpenSettings, children }: Props) {
   const { current, previous, shown } = useSyncExternalStore(feed.subscribe, feed.getSnapshot);
 
   return <section className="control-card opinion-card" aria-labelledby="opinion-title">
@@ -36,16 +36,15 @@ export default function OpinionPanel({ feed, source, status, scanning = status =
             <span role="status">{status}</span>
           </div>
           <div className="opinion-caption">
-            <span>已展示 {shown}{total !== undefined && ` / ${total}`}</span>
-            {total !== undefined && total > 0 && <progress aria-label="帖子展示进度" value={shown} max={total} />}
+            <span>累计收到 {receivedTotal ?? 0} 条</span>
           </div>
-          <p className="opinion-radar-note">光点表示帖子到达</p>
+          <p className="opinion-radar-note">有新帖优先展示，空档循环近期帖子</p>
         </div>
       </div>
       <div className="opinion-viewport" role="region" aria-label="当前帖子">
         {previous && <PostEntry key={shown - 1} post={previous} outgoing />}
         {current ? <PostEntry key={shown} post={current} /> :
-          <p className="opinion-placeholder">{error ?? (total === 0 ? '当前会话暂无帖子' : '等待本轮帖子展示')}</p>}
+          <p className="opinion-placeholder">{error ?? '等待本轮帖子展示'}</p>}
       </div>
       <div className="opinion-radar-controls">
         {children}

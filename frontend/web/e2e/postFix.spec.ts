@@ -37,7 +37,7 @@ async function ready(page: Page) {
     await route.fulfill({ response, body: observed });
   });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
   await mkdir(output, { recursive: true });
@@ -100,11 +100,11 @@ test('F1 eight formal selections, correct groups and disposed old roots', async 
   }
   for (const tank of tanks) {
     await page.reload();
-    await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
     await page.getByRole('button', { name: '关闭仿真设置' }).click();
-    await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
     await assess(page, tank.id);
     await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await expect(page.getByLabel('火情场景')).toBeDisabled();
@@ -186,7 +186,7 @@ test('F2 F3 real routes and identical frames through flight, telemetry, return a
     await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(id);
     await page.getByRole('button', { name: '关闭仿真设置' }).click();
-    await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
     await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', id);
     await expect.poll(() => page.evaluate(() => window.postFrame.target)).toBe(id);
     await expect.poll(() => page.evaluate(() => window.postFrame.fire || window.postFrame.smoke)).toBe(false);

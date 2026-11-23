@@ -16,13 +16,13 @@ import { severityLabels, type EmergencyService } from '../utils/emergency';
 import type { DemoNotice } from '../utils/emergencyDemo';
 import { drone_station } from '../../../../city_scene/fire_resources.json';
 
-type Props = { traffic: TrafficSimulation; emergency?: EmergencyService; pois: Poi[]; session: Session | null; targetId?: string | null; highlighted: Candidate | null; sceneActors: { current: readonly SceneActorSnapshot[] }; severity: Severity; onSeverityChange?: (severity: Severity) => void; demoNotice?: DemoNotice };
+type Props = { traffic: TrafficSimulation; emergency?: EmergencyService; pois: Poi[]; session: Session | null; targetId?: string | null; highlighted: Candidate | null; sceneActors: { current: readonly SceneActorSnapshot[] }; severity: Severity; onSeverityChange?: (severity: Severity) => void; demoNotice?: DemoNotice; paused: boolean; pauseBusy: boolean; onTogglePause: () => void };
 const layerNames = {roads:'城市道路',buildings:'建筑与设施',pois:'POI',vehicles:'车辆',pedestrians:'行人',signals:'交通信号灯',prediction:'火灾预测'};
 const stationPoint=sceneToPixel({x_m:fire_station_reserve.center[0],y_m:fire_station_reserve.center[1]});
 const stationView=zoomView({...ORIGINAL_VIEW,x:stationPoint.x-ORIGINAL_VIEW.width/2,y:stationPoint.y-ORIGINAL_VIEW.height/2},2.1);
 const droneStationPoint=sceneToPixel({x_m:drone_station.center[0],y_m:drone_station.center[1]});
 const droneStationView=zoomView({...ORIGINAL_VIEW,x:droneStationPoint.x-ORIGINAL_VIEW.width/2,y:droneStationPoint.y-ORIGINAL_VIEW.height/2},2.1);
-export default function SandboxMap({ pois, session, targetId, highlighted, sceneActors, severity, onSeverityChange, traffic, emergency, demoNotice }: Props) {
+export default function SandboxMap({ pois, session, targetId, highlighted, sceneActors, severity, onSeverityChange, traffic, emergency, demoNotice, paused, pauseBusy, onTogglePause }: Props) {
   const hasPedestrians = traffic.pedestrians.actors.length > 0;
   const [layers,setLayers]=useState({roads:true,buildings:true,pois:true,vehicles:true,pedestrians:true,signals:false,prediction:true});
   const [selectedSignal, setSelectedSignal] = useState<string | null>(null);
@@ -32,7 +32,6 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
   const [view,setView]=useState<MapView>(ORIGINAL_VIEW);
   const [hover,setHover]=useState<Poi|null>(null);
   const [info,setInfo]=useState<string|null>(null);
-  const [paused,setPaused]=useState(false);
   const [speed,setSpeed]=useState(1);
   const [resetMode,setResetMode]=useState<ResetMode>('garage');
   const [vehicleReset,setVehicleReset]=useState({mode:'garage' as ResetMode,version:0});
@@ -47,7 +46,7 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
   const fireIncident=emergency?.getSnapshot().incident;
   const fireStatus=fireIncident?.targetPoiId===targetId ? fireIncident?.fireStatus : undefined;
   const noticePoint=demoNotice ? sceneToPixel({ x_m: demoNotice.target.x, y_m: demoNotice.target.y }) : null;
-  const finalTop1=session?.status==='completed'?session.prediction?.candidates.find(c=>c.rank===1):null;
+  const finalTop1=(session?.status==='completed'||session?.analysis_frozen)?session.prediction?.candidates.find(c=>c.rank===1):null;
   const finalPoint=finalTop1?sceneToPixel(finalTop1.coordinates,session?.prediction?.coordinate_system??'LOCAL30x25'):null;
   const incident=useMemo<Point|null>(()=>{
     if(!finalTop1)return null;
@@ -74,7 +73,7 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
       </>}
       <button type="button" onClick={()=>setView(stationView)}>查看消防站</button>
       <button type="button" onClick={()=>setView(droneStationView)}>查看无人机站</button>
-      <button type="button" onClick={()=>setPaused(value=>!value)}>{paused?<Play size={14}/>:<Pause size={14}/>} {paused?'继续仿真':'全局暂停'}</button>
+      <button type="button" disabled={pauseBusy} onClick={onTogglePause}>{paused?<Play size={14}/>:<Pause size={14}/>} {paused?'继续仿真':'全局暂停'}</button>
       <label>仿真倍速<select value={speed} onChange={event=>setSpeed(Number(event.target.value))}>
         <option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option>
       </select></label>
@@ -128,7 +127,7 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
       {hover&&<div className="poi-tooltip" role="status"><strong>{hover.name}</strong><span>{hover.poi_id}</span><span>局部 X {hover.coordinates.x_m.toFixed(3)} · Y {hover.coordinates.y_m.toFixed(3)}</span></div>}
       {info&&<div className="candidate-info" role="status"><span>{info}</span><button aria-label="关闭地图信息" onClick={()=>setInfo(null)}>×</button></div>}
       {layers.signals && selectedSignal && <TrafficSignalDetails signals={traffic.signals} id={selectedSignal} close={() => setSelectedSignal(null)}/>}
-      <div className="map-progress">{session?.batch_count??0} 批 · {session?.processed_count??0} / {session?.post_count??100} 条</div>
+      <div className="map-progress">{session?.batch_count??0} 批 · {session?.processed_count??0} / {session?.post_count??0} 条</div>
     </div>
     <div className="map-legend"><span><i className="legend-truth"/>真实火点</span><span><i className="legend-prediction"/>当前 Top3 / 最终定位</span><span><i className="legend-history"/>历史候选</span><span className="evidence-legend">弱 <i/> 强</span><small>西南原点 · X 向东 · Y 向北 · 颜色表示证据强度</small></div>
     <p className="map-footnote"><ShieldCheck size={13} />真实火点仅用于展示与评估，不参与推理和候选排名。</p>

@@ -1,0 +1,9 @@
+{
+  "name": "socialnet-spatial-map",
+  "private": true,
+  "type": "module",
+  "scripts": {"build": "vite build"},
+  "dependencies": {"react": "^19.2.0", "react-dom": "^19.2.0", "lucide-react": "^0.468.0"},
+  "devDependencies": {"vite": "^8.0.0", "typescript": "~5.9.3"},
+  "engines": {"node": ">=22.12.0"}
+}

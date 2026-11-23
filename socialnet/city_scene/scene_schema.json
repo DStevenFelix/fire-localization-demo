@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fire:city-scene:1.0",
+  "title": "CITY90x75 城市扩展场景",
+  "type": "object",
+  "required": ["scene_config", "coordinate_system", "original_map_placement", "buildings", "roads", "intersections", "nodes", "edges", "pedestrian_paths", "traffic_routes", "scene_pois", "fire_station_reserve"],
+  "additionalProperties": false,
+  "properties": {
+    "scene_config": {"type": "object", "required": ["name", "version", "extent", "scene_pixels"], "properties": {"extent": {"const": [0,0,90,75]}, "scene_pixels": {"const": {"width":3939,"height":3150}}}},
+    "coordinate_system": {"type":"object", "required":["id","origin","x_axis","y_axis","unit","extent"], "properties":{"id":{"const":"CITY90x75"},"origin":{"const":"southwest"},"x_axis":{"const":"east"},"y_axis":{"const":"north"},"unit":{"const":"simulation_unit"},"extent":{"const":[0,0,90,75]}}},
+    "original_map_placement": {"type":"object", "required":["coordinate_system","offset","extent","pixels","source","sha256"], "properties":{"coordinate_system":{"const":"LOCAL30x25"},"offset":{"const":[30,25]},"extent":{"const":[30,25,60,50]},"pixels":{"const":{"x":1313,"y":1050,"width":1313,"height":1050}},"source":{"const":"fire_poi/map_original.png"},"sha256":{"const":"300f7e00b2d285e98c146e2e5f43846e862e5cd3bec59377846c275a84449eea"}}},
+    "landscape": {"type":"object","required":["trees","flowerbeds","paths"],"properties":{"trees":{"type":"array"},"flowerbeds":{"type":"array"},"paths":{"type":"array"}}},
+    "buildings": {"type":"array","items":{"$ref":"#/$defs/poi"}},
+    "roads": {"type":"array","items":{"allOf":[{"$ref":"#/$defs/poi"},{"type":"object","required":["centerline","bidirectional","vehicle_allowed","width","sidewalk_width","lanes","lane_directions","node_ids","edge_ids"],"properties":{"centerline":{"$ref":"#/$defs/line"},"bidirectional":{"const":true},"vehicle_allowed":{"const":true},"width":{"type":"number","exclusiveMinimum":0},"sidewalk_width":{"type":"number","exclusiveMinimum":0},"lanes":{"type":"object","required":["forward","backward"],"properties":{"forward":{"type":"integer","minimum":1},"backward":{"type":"integer","minimum":1}}},"original_connection":{"type":"object","required":["node_id","local_center","global_center","road_ids"]}}}]}},
+    "intersections": {"type":"array","uniqueItems":true,"items":{"type":"string","pattern":"^EXT-J-"}},
+    "nodes": {"type":"array","items":{"allOf":[{"$ref":"#/$defs/poi"},{"type":"object","required":["road_ids","edge_ids","junction_type"]}]}},
+    "edges": {"type":"array","items":{"type":"object","required":["id","road_id","from_node","to_node","bidirectional","vehicle_allowed","geometry"],"properties":{"geometry":{"$ref":"#/$defs/line"},"bidirectional":{"const":true},"vehicle_allowed":{"const":true}}}},
+    "pedestrian_paths": {"type":"array","items":{"$ref":"#/$defs/motion"}},
+    "traffic_routes": {"type":"array","items":{"$ref":"#/$defs/motion"}},
+    "scene_pois": {"type":"array","items":{"$ref":"#/$defs/poi"}},
+    "fire_station_reserve": {"allOf":[{"$ref":"#/$defs/poi"},{"type":"object","required":["reserved_use","vehicle_capacity","access","parking_spaces"],"properties":{"reserved_use":{"const":"fire_station_future"},"vehicle_capacity":{"const":3},"access":{"type":"object","required":["road_id","entrance","road_connection"]},"parking_spaces":{"type":"array","minItems":3,"maxItems":3}}}]}
+  },
+  "$defs": {
+    "point": {"type":"array","minItems":2,"maxItems":2,"prefixItems":[{"type":"number","minimum":0,"maximum":90},{"type":"number","minimum":0,"maximum":75}]},
+    "line": {"type":"object","required":["type","coordinates"],"properties":{"type":{"const":"LineString"},"coordinates":{"type":"array","minItems":2,"items":{"$ref":"#/$defs/point"}}}},
+    "geometry": {"oneOf":[{"$ref":"#/$defs/line"},{"type":"object","required":["type","coordinates"],"properties":{"type":{"const":"Point"},"coordinates":{"$ref":"#/$defs/point"}}},{"type":"object","required":["type","coordinates"],"properties":{"type":{"const":"Polygon"},"coordinates":{"type":"array","minItems":1,"items":{"type":"array","minItems":4,"items":{"$ref":"#/$defs/point"}}}}}]},
+    "poi": {"type":"object","required":["id","name","aliases","type","category","center","geometry","description","can_post","coordinate_system"],"properties":{"id":{"type":"string","pattern":"^EXT-"},"name":{"type":"string","minLength":1},"aliases":{"type":"array","items":{"type":"string"}},"type":{"enum":["building","road","intersection","park","reserve"]},"category":{"type":"string"},"center":{"$ref":"#/$defs/point"},"geometry":{"$ref":"#/$defs/geometry"},"description":{"type":"string"},"can_post":{"type":"boolean"},"coordinate_system":{"const":"CITY90x75"},"parent_id":{"type":["string","null"]}}},
+    "motion": {"type":"object","required":["id","geometry","speed","phase"],"properties":{"geometry":{"$ref":"#/$defs/line"},"speed":{"type":"number","exclusiveMinimum":0},"phase":{"type":"number","minimum":0,"maximum":1}}}
+  }
+}

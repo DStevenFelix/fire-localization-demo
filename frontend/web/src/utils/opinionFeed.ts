@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
-import type { OpinionPost, SessionPosts } from '../types';
+import type { OpinionPost } from '../types';
 
 type OpinionSnapshot = Readonly<{
   current?: OpinionPost;
@@ -35,51 +35,51 @@ export function createOpinionFeed(sessionId: string | undefined) {
 
 export type OpinionFeed = ReturnType<typeof createOpinionFeed>;
 
-type ReplayLoad = { id: string; data: SessionPosts } | { id: string; error: string };
-
-export function useSessionPostReplay(sessionId: string | undefined, accepted: boolean, feed: OpinionFeed) {
-  const [load, setLoad] = useState<ReplayLoad>();
-  const [finishedId, setFinishedId] = useState<string>();
-  const current = sessionId && load?.id === sessionId ? load : undefined;
-  const data = current && 'data' in current ? current.data : undefined;
+export function useSocialNetPosts(sessionId: string | undefined, running: boolean, paused: boolean, feed: OpinionFeed) {
+  const [failure, setFailure] = useState<{ id: string; message: string }>();
+  const [received, setReceived] = useState<{ id: string; total: number }>();
+  const queue = useMemo(() => ({ recent: [] as readonly OpinionPost[], fresh: [] as OpinionPost[], total: 0, next: 0 }), [sessionId]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !running) return;
     const controller = new AbortController();
-    api.posts(sessionId, controller.signal).then(result => {
-      if (controller.signal.aborted) return;
-      if (result.session_id !== sessionId) throw new Error('帖子数据与当前会话不匹配。');
-      setLoad({ id: sessionId, data: result });
-    }).catch(error => {
-      if (controller.signal.aborted) return;
-      setLoad({ id: sessionId, error: error instanceof Error ? error.message : '无法加载本轮演示帖子。' });
-    });
-    return () => controller.abort();
-  }, [sessionId]);
+    let requestTimer: number | undefined;
+
+    async function poll() {
+      try {
+        const data = await api.posts(sessionId!, controller.signal);
+        if (controller.signal.aborted || data.session_id !== sessionId) return;
+        if (data.post_count > queue.total) {
+          queue.fresh = [...queue.fresh, ...data.posts.slice(-Math.min(data.post_count - queue.total, data.posts.length))].slice(-60);
+          queue.recent = data.posts;
+          queue.total = data.post_count;
+          setReceived({ id: sessionId!, total: queue.total });
+        }
+        setFailure(undefined);
+      } catch (error) {
+        if (!controller.signal.aborted) setFailure({ id: sessionId!, message: error instanceof Error ? error.message : '读取帖子失败' });
+      } finally {
+        if (!controller.signal.aborted) requestTimer = window.setTimeout(poll, 1000);
+      }
+    }
+
+    void poll();
+    return () => {
+      controller.abort();
+      window.clearTimeout(requestTimer);
+    };
+  }, [sessionId, running, queue]);
 
   useEffect(() => {
-    if (!sessionId || !accepted || !data?.posts.length) return;
-    let index = 0;
-    let finish: number | undefined;
-    const timer = window.setInterval(() => {
-      feed.receivePost(sessionId, data.posts[index++]);
-      if (index !== data.posts.length) return;
-      window.clearInterval(timer);
-      finish = window.setTimeout(() => setFinishedId(sessionId), 350);
+    if (!sessionId || !running || paused) return;
+    const playback = window.setInterval(() => {
+      const post = queue.fresh.shift() ?? (queue.recent.length ? queue.recent[queue.next++ % queue.recent.length] : undefined);
+      if (post) feed.receivePost(sessionId, post);
     }, 1000);
-    return () => {
-      window.clearInterval(timer);
-      window.clearTimeout(finish);
-    };
-  }, [sessionId, accepted, data, feed]);
+    return () => window.clearInterval(playback);
+  }, [sessionId, running, paused, feed, queue]);
 
-  if (!sessionId) return { status: '等待场景' };
-  if (!data) return current && 'error' in current
-    ? { status: '加载失败', error: current.error }
-    : { status: '正在加载帖子' };
-  if (!data.post_count) return { status: '暂无帖子', total: 0 };
-  return {
-    status: !accepted ? '等待定位启动' : finishedId === sessionId ? '播放完成' : '播放中',
-    total: data.post_count,
-  };
+  const total = received?.id === sessionId ? received?.total : undefined;
+  return { status: running ? paused ? '滚动已暂停' : total ? '播放中' : '等待 SocialNet 发帖' : total ? '滚动已停止' : '等待开始仿真',
+    scanning: running && !paused, receivedTotal: total, error: running && failure?.id === sessionId ? failure?.message : undefined };
 }

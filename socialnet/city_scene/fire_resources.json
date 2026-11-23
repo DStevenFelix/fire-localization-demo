@@ -1,0 +1,137 @@
+{
+  "version": "1.0.0",
+  "station_poi_id": "EXT-P-FIRE",
+  "status": "reserved",
+  "coordinate_system": "CITY90x75",
+  "access": {
+    "road_id": "EXT-R-009",
+    "entrance": [
+      20,
+      17.6
+    ],
+    "road_connection": [
+      20,
+      20
+    ]
+  },
+  "road_node_ids": [
+    "EXT-J-015",
+    "EXT-J-038",
+    "EXT-J-042",
+    "EXT-J-032",
+    "EXT-J-036",
+    "EXT-J-046",
+    "EXT-J-050",
+    "EXT-J-016"
+  ],
+  "vehicles": [
+    {
+      "id": "EXT-FIRE-VEHICLE-01",
+      "station_poi_id": "EXT-P-FIRE",
+      "status": "reserved",
+      "center": [
+        18.35,
+        16.0
+      ],
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              17.8,
+              14.8
+            ],
+            [
+              18.900000000000002,
+              14.8
+            ],
+            [
+              18.900000000000002,
+              17.2
+            ],
+            [
+              17.8,
+              17.2
+            ],
+            [
+              17.8,
+              14.8
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "id": "EXT-FIRE-VEHICLE-02",
+      "station_poi_id": "EXT-P-FIRE",
+      "status": "reserved",
+      "center": [
+        20.0,
+        16.0
+      ],
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              19.45,
+              14.8
+            ],
+            [
+              20.55,
+              14.8
+            ],
+            [
+              20.55,
+              17.2
+            ],
+            [
+              19.45,
+              17.2
+            ],
+            [
+              19.45,
+              14.8
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "id": "EXT-FIRE-VEHICLE-03",
+      "station_poi_id": "EXT-P-FIRE",
+      "status": "reserved",
+      "center": [
+        21.65,
+        16.0
+      ],
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              21.099999999999998,
+              14.8
+            ],
+            [
+              22.2,
+              14.8
+            ],
+            [
+              22.2,
+              17.2
+            ],
+            [
+              21.099999999999998,
+              17.2
+            ],
+            [
+              21.099999999999998,
+              14.8
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

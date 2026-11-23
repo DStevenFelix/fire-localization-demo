@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "model_version": "1.1.0-confirmed-image5-20261023",
+  "crs": "LOCAL30x25",
+  "source_sha256": "300f7e00b2d285e98c146e2e5f43846e862e5cd3bec59377846c275a84449eea",
+  "geometry_precision_note": "坐标保留6位仅用于往返一致性，不代表测量精度；边界为图像人工描绘。",
+  "title": "云港新区火灾应急沙盘空间模型",
+  "source": {
+    "file": "map_original.png",
+    "uploaded_name": "沙盘模拟图(5).png",
+    "width_px": 1313,
+    "height_px": 1050,
+    "sha256": "300f7e00b2d285e98c146e2e5f43846e862e5cd3bec59377846c275a84449eea"
+  },
+  "coordinate_system": {
+    "id": "LOCAL30x25",
+    "origin": "southwest",
+    "x_axis": "east",
+    "y_axis": "north",
+    "extent": [
+      0,
+      0,
+      30,
+      25
+    ],
+    "unit": "simulation_unit",
+    "is_real_physical_measurement": false
+  },
+  "display_transform": {
+    "pixel_convention": "source pixel center index; u=0..1312, v=0..1049",
+    "local_to_pixel": {
+      "u": "x * 1312 / 30",
+      "v": "(25 - y) * 1049 / 25"
+    },
+    "pixel_to_local": {
+      "x": "u * 30 / 1312",
+      "y": "(1049 - v) * 25 / 1049"
+    },
+    "image_edge_ui_note": "For CSS image outer-edge coordinates [0,W]x[0,H], first convert to source center indices u=edgeX*(W-1)/W, v=edgeY*(H-1)/H. Do not mix conventions."
+  },
+  "mapping_note": "30×25定义仿真范围。原图像素长宽比不等于30/25，所以x/y像素比例略不同；显示始终保持原图比例，不拉伸底图。",
+  "precision": {
+    "authoring_method": "manual_image_interpretation",
+    "roundtrip_tolerance_px": 0.001,
+    "geometry_accuracy": "approximate_visible_outline_not_surveyed",
+    "typical_manual_error_px": [
+      2,
+      6
+    ]
+  },
+  "render": {
+    "overlay_size_px": [
+      1313,
+      1050
+    ],
+    "scale": 1,
+    "resampling": "none",
+    "full_overlay": "POI_overlay.png",
+    "simple_overlay": "POI_simple.png",
+    "separate_layers_directory": "layers",
+    "map_frame_in_atlas_px": [
+      88,
+      180,
+      2626,
+      2100
+    ]
+  },
+  "routing": {
+    "graph": "mode_filtered_undirected_abstract_centerline",
+    "lane_restrictions_modeled": false,
+    "entry_permissions_known": false,
+    "vehicle_paths_require_access_confirmation": true,
+    "pedestrian_only_road_ids": [
+      "R-08",
+      "R-09",
+      "R-10",
+      "R-11"
+    ],
+    "profile_files": {
+      "motor_vehicle": "RoadGraph_motor_vehicle.json",
+      "pedestrian": "RoadGraph_pedestrian.json"
+    },
+    "remaining_vehicle_permissions": "baseline_abstract_assumption; no_lane_level_claim"
+  },
+  "classification_exclusions": [
+    {
+      "region_id": "A-NORTH-GREEN",
+      "excluded": [
+        "Building",
+        "Facility"
+      ],
+      "scope": "蓝白地面装饰形状"
+    },
+    {
+      "region_id": "A-PAVE-SW",
+      "excluded": [
+        "Building",
+        "Facility"
+      ]
+    },
+    {
+      "region_id": "A-PAVE-SE",
+      "excluded": [
+        "Building",
+        "Facility"
+      ]
+    }
+  ],
+  "names": {
+    "all_formal_names": "simulation_design",
+    "actual_physical_names_verified": false
+  }
+}

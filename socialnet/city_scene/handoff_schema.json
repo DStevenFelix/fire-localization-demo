@@ -1,0 +1,844 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "poiCatalog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "aliases",
+          "type",
+          "category",
+          "parent_id",
+          "region_id",
+          "community_id",
+          "center",
+          "geometry",
+          "coordinate_system",
+          "can_post",
+          "post_policy",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "type": {
+            "enum": [
+              "community",
+              "functional_area",
+              "building",
+              "entrance",
+              "facility",
+              "park",
+              "road",
+              "intersection",
+              "node",
+              "reserve"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "community_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "center": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            }
+          },
+          "geometry": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "coordinates"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "Point"
+                  },
+                  "coordinates": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "coordinates"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "LineString"
+                  },
+                  "coordinates": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "coordinates"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "Polygon"
+                  },
+                  "coordinates": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "coordinates"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "MultiPolygon"
+                  },
+                  "coordinates": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "items": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "coordinate_system": {
+            "const": "CITY90x75"
+          },
+          "can_post": {
+            "type": "boolean"
+          },
+          "post_policy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "dataset",
+              "file",
+              "object_id"
+            ],
+            "properties": {
+              "dataset": {
+                "const": "city_full_extension"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "object_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "pedestrianNetwork": {
+      "type": "object",
+      "required": [
+        "version",
+        "coordinate_system",
+        "nodes",
+        "edges",
+        "crosswalks",
+        "routes",
+        "original_road_permissions"
+      ],
+      "properties": {
+        "version": {
+          "const": "3.0.0"
+        },
+        "coordinate_system": {
+          "const": "CITY90x75"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "center",
+              "coordinate_system"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "center": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number"
+                }
+              },
+              "coordinate_system": {
+                "const": "CITY90x75"
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "from_node",
+              "to_node",
+              "kind",
+              "geometry",
+              "width",
+              "road_id",
+              "pedestrian_allowed",
+              "vehicle_allowed",
+              "bidirectional"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "from_node": {
+                "type": "string",
+                "minLength": 1
+              },
+              "to_node": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "enum": [
+                  "sidewalk",
+                  "crosswalk",
+                  "original_walk_only"
+                ]
+              },
+              "geometry": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "Point"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "LineString"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "items": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "Polygon"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "MultiPolygon"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "items": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "road_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pedestrian_allowed": {
+                "const": true
+              },
+              "vehicle_allowed": {
+                "const": false
+              },
+              "bidirectional": {
+                "const": true
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "crosswalk"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "crosswalk_id",
+                    "motor_edge_id"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "crosswalks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "junction_id",
+              "motor_edge_id",
+              "center_pixels",
+              "direction_pixels",
+              "half_length_pixels",
+              "half_width_pixels",
+              "source"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "junction_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "motor_edge_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "center_pixels": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number"
+                }
+              },
+              "direction_pixels": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number"
+                }
+              },
+              "half_length_pixels": {
+                "const": 82
+              },
+              "half_width_pixels": {
+                "const": 12.5
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "node_ids",
+              "edge_ids",
+              "length",
+              "loop",
+              "speed",
+              "phase"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "node_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "edge_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "length": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "loop": {
+                "const": true
+              },
+              "speed": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "phase": {
+                "type": "number",
+                "minimum": 0,
+                "exclusiveMaximum": 1
+              }
+            }
+          }
+        },
+        "original_road_permissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "road_id",
+              "vehicle_allowed",
+              "allowed_modes"
+            ],
+            "properties": {
+              "road_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "vehicle_allowed": {
+                "type": "boolean"
+              },
+              "allowed_modes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "poiHierarchy": {
+      "type": "object",
+      "required": [
+        "version",
+        "relations"
+      ],
+      "properties": {
+        "version": {
+          "const": "3.0.0"
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "subject_id",
+              "relation",
+              "object_id",
+              "source"
+            ],
+            "properties": {
+              "subject_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "relation": {
+                "const": "part_of"
+              },
+              "object_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "const": "city_full_extension"
+              }
+            }
+          }
+        }
+      }
+    },
+    "fireResources": {
+      "type": "object",
+      "required": [
+        "version",
+        "station_poi_id",
+        "status",
+        "coordinate_system",
+        "access",
+        "road_node_ids",
+        "vehicles"
+      ],
+      "properties": {
+        "version": {
+          "const": "1.0.0"
+        },
+        "station_poi_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "reserved"
+        },
+        "coordinate_system": {
+          "const": "CITY90x75"
+        },
+        "access": {
+          "type": "object",
+          "required": [
+            "road_id",
+            "entrance",
+            "road_connection"
+          ],
+          "properties": {
+            "road_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "entrance": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              }
+            },
+            "road_connection": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "road_node_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "vehicles": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "station_poi_id",
+              "status",
+              "center",
+              "geometry"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "station_poi_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "const": "reserved"
+              },
+              "center": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number"
+                }
+              },
+              "geometry": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "Point"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "LineString"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "items": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "Polygon"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "coordinates"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "MultiPolygon"
+                      },
+                      "coordinates": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "items": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "runtimeManifest": {
+      "type": "object",
+      "required": [
+        "version",
+        "scene_sha256",
+        "files"
+      ],
+      "properties": {
+        "version": {
+          "const": "3.0.0"
+        },
+        "scene_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

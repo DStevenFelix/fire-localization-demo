@@ -8,15 +8,17 @@ type Props = {
   handoff?: { sessionId: string; groundTruth: Session['ground_truth']; candidates: readonly Candidate[] };
   active: boolean;
   pending: boolean;
+  onHandoff: () => Promise<void>;
+  onExtinguish: () => Promise<void>;
 };
 
-export default function EmergencyDemoControls({ demo, handoff, active, pending }: Props) {
+export default function EmergencyDemoControls({ demo, handoff, active, pending, onHandoff, onExtinguish }: Props) {
   const [applied, setApplied] = useState(demo.getSeverity());
   const [draft, setDraft] = useState(applied);
   const [error, setError] = useState<string>();
   const dirty = draft !== applied;
-  const perform = (action: () => void) => {
-    try { action(); setError(undefined); }
+  const perform = async (action: () => void | Promise<void>) => {
+    try { await action(); setError(undefined); }
     catch (error) { setError(error instanceof Error ? error.message : '操作失败，请重试'); }
   };
 
@@ -33,10 +35,10 @@ export default function EmergencyDemoControls({ demo, handoff, active, pending }
     {handoff && !active && !demo.hasStarted(handoff.sessionId) ? <>
       <p>按候选排名巡查，最后到真实火点 · {handoff.groundTruth.name}</p>
       <button type="button" className="primary-button" disabled={dirty || pending}
-        onClick={() => perform(() => demo.start(handoff.sessionId, handoff.groundTruth.poi_id, handoff.candidates))}>移交应急处置</button>
-    </> : !active && !handoff && <p>完成帖子定位并获得 Top1 后，可移交应急处置。</p>}
-    <button type="button" className="secondary-button" disabled={!demo.canConfirmExtinction()}
-      onClick={() => perform(() => demo.confirmExtinction())}>确认已灭火</button>
+        onClick={() => void perform(onHandoff)}>移交应急处置</button>
+    </> : !active && !handoff && <p>首次出现定位候选后，可移交应急处置。</p>}
+    <button type="button" className="secondary-button" disabled={pending || !demo.canConfirmExtinction()}
+      onClick={() => void perform(onExtinguish)}>确认已灭火</button>
     {error && <p className="emergency-error" role="alert">{error}</p>}
   </div>;
 }

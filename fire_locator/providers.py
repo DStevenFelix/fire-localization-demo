@@ -34,14 +34,14 @@ def atomic_json(path: Path, data):
 class SiliconFlowEmbeddings(Embeddings):
     """LangChain Embeddings 适配器；VL 使用 {text: ...}，缓存不保存 key。"""
 
-    def __init__(self, settings: Settings, cache_path: Path):
+    def __init__(self, settings: Settings, cache_path: Path | None):
         self.model = settings.embedding_model
         self.base_url = settings.embedding_base.rstrip("/")
         self.api_key = os.getenv("SILICONFLOW_API_KEY", "")
         if not self.api_key or self.api_key == "replace_me":
             raise ValueError("请在 .env 配置 SILICONFLOW_API_KEY")
         self.path = cache_path
-        self.cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+        self.cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path and cache_path.exists() else {}
         self.poi_cache: dict[str, list[float]] = {}
         self.client = httpx.Client(timeout=90)
         self.request_count = 0
@@ -79,7 +79,7 @@ class SiliconFlowEmbeddings(Embeddings):
             return vectors
         raise RuntimeError("Embedding 重试失败")
 
-    def _fill_cache(self, missing: dict[str, str], cache: dict[str, list[float]], path: Path) -> None:
+    def _fill_cache(self, missing: dict[str, str], cache: dict[str, list[float]], path: Path | None) -> None:
         # 实测 VL 接口在一次超过 8 条时会在内部子批次重置 index。
         # 控制编码子批次为 8，保留可靠的全局一一对应；LLM 仍每次提取 10 条帖子。
         names = list(missing)
@@ -87,7 +87,8 @@ class SiliconFlowEmbeddings(Embeddings):
             batch = names[start:start+8]
             for text, vector in zip(batch, self._request(batch), strict=True):
                 cache[missing[text]] = vector
-            atomic_json(path, cache)
+            if path is not None:
+                atomic_json(path, cache)
 
     def preload_poi_names(self, names: list[str], path: Path) -> None:
         # 同时启动的会话共用首次填充。共享文件只接受地图里的 POI 名称。

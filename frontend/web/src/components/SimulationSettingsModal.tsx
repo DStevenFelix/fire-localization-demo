@@ -52,7 +52,7 @@ export default function SimulationSettingsModal(props: Props) {
         <button type="button" className={props.mode === 'offline' ? 'chosen' : ''} disabled={props.busy || props.activeIncident} onClick={() => props.onModeChange('offline')}>Offline <span>离线模拟</span></button>
         <button type="button" className={props.mode === 'live' ? 'chosen live' : ''} disabled={props.busy || props.activeIncident} onClick={() => props.onModeChange('live')}>Live <span>付费模型</span></button>
       </div>
-      <p className={`mode-note ${props.mode}`}>{props.mode === 'offline' ? '规则提取 + 字符哈希向量 · 无外部模型调用' : '真实 Chat + Embedding · 启动前确认 API 费用'}</p>
+      <p className={`mode-note ${props.mode}`}>{props.mode === 'offline' ? '定位使用本地规则和向量，SocialNet 发帖仍使用模型' : 'SocialNet 发帖及 Chat / Embedding 定位均使用模型'}</p>
     </div>
   </dialog>;
 }

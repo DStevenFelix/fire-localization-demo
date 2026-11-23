@@ -1,0 +1,1481 @@
+{
+  "version": "3.0.0",
+  "relations": [
+    {
+      "subject_id": "EXT-Z-001",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-002",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-003",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-004",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-005",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-006",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-007",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-Z-008",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-001",
+      "relation": "part_of",
+      "object_id": "EXT-Z-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-001",
+      "relation": "part_of",
+      "object_id": "EXT-B-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-002",
+      "relation": "part_of",
+      "object_id": "EXT-Z-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-002",
+      "relation": "part_of",
+      "object_id": "EXT-B-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-003",
+      "relation": "part_of",
+      "object_id": "EXT-Z-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-003",
+      "relation": "part_of",
+      "object_id": "EXT-B-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-004",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-004",
+      "relation": "part_of",
+      "object_id": "EXT-B-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-005",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-005",
+      "relation": "part_of",
+      "object_id": "EXT-B-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-006",
+      "relation": "part_of",
+      "object_id": "EXT-Z-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-006",
+      "relation": "part_of",
+      "object_id": "EXT-B-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-007",
+      "relation": "part_of",
+      "object_id": "EXT-Z-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-007",
+      "relation": "part_of",
+      "object_id": "EXT-B-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-008",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-008",
+      "relation": "part_of",
+      "object_id": "EXT-B-008",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-009",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-009",
+      "relation": "part_of",
+      "object_id": "EXT-B-009",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-010",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-010",
+      "relation": "part_of",
+      "object_id": "EXT-B-010",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-011",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-011",
+      "relation": "part_of",
+      "object_id": "EXT-B-011",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-012",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-012",
+      "relation": "part_of",
+      "object_id": "EXT-B-012",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-013",
+      "relation": "part_of",
+      "object_id": "EXT-Z-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-013",
+      "relation": "part_of",
+      "object_id": "EXT-B-013",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-014",
+      "relation": "part_of",
+      "object_id": "EXT-Z-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-014",
+      "relation": "part_of",
+      "object_id": "EXT-B-014",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-015",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-015",
+      "relation": "part_of",
+      "object_id": "EXT-B-015",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-016",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-016",
+      "relation": "part_of",
+      "object_id": "EXT-B-016",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-017",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-017",
+      "relation": "part_of",
+      "object_id": "EXT-B-017",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-018",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-018",
+      "relation": "part_of",
+      "object_id": "EXT-B-018",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-019",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-019",
+      "relation": "part_of",
+      "object_id": "EXT-B-019",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-020",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-020",
+      "relation": "part_of",
+      "object_id": "EXT-B-020",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-021",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-021",
+      "relation": "part_of",
+      "object_id": "EXT-B-021",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-022",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-022",
+      "relation": "part_of",
+      "object_id": "EXT-B-022",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-023",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-023",
+      "relation": "part_of",
+      "object_id": "EXT-B-023",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-024",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-024",
+      "relation": "part_of",
+      "object_id": "EXT-B-024",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-025",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-025",
+      "relation": "part_of",
+      "object_id": "EXT-B-025",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-026",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-026",
+      "relation": "part_of",
+      "object_id": "EXT-B-026",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-027",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-027",
+      "relation": "part_of",
+      "object_id": "EXT-B-027",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-028",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-028",
+      "relation": "part_of",
+      "object_id": "EXT-B-028",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-029",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-029",
+      "relation": "part_of",
+      "object_id": "EXT-B-029",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-030",
+      "relation": "part_of",
+      "object_id": "EXT-Z-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-030",
+      "relation": "part_of",
+      "object_id": "EXT-B-030",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-031",
+      "relation": "part_of",
+      "object_id": "EXT-Z-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-031",
+      "relation": "part_of",
+      "object_id": "EXT-B-031",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-032",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-032",
+      "relation": "part_of",
+      "object_id": "EXT-B-032",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-033",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-033",
+      "relation": "part_of",
+      "object_id": "EXT-B-033",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-034",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-034",
+      "relation": "part_of",
+      "object_id": "EXT-B-034",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-035",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-035",
+      "relation": "part_of",
+      "object_id": "EXT-B-035",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-036",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-036",
+      "relation": "part_of",
+      "object_id": "EXT-B-036",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-037",
+      "relation": "part_of",
+      "object_id": "EXT-Z-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-037",
+      "relation": "part_of",
+      "object_id": "EXT-B-037",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-038",
+      "relation": "part_of",
+      "object_id": "EXT-Z-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-038",
+      "relation": "part_of",
+      "object_id": "EXT-B-038",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-039",
+      "relation": "part_of",
+      "object_id": "EXT-Z-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-039",
+      "relation": "part_of",
+      "object_id": "EXT-B-039",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-040",
+      "relation": "part_of",
+      "object_id": "EXT-Z-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-040",
+      "relation": "part_of",
+      "object_id": "EXT-B-040",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-041",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-041",
+      "relation": "part_of",
+      "object_id": "EXT-B-041",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-042",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-042",
+      "relation": "part_of",
+      "object_id": "EXT-B-042",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-043",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-043",
+      "relation": "part_of",
+      "object_id": "EXT-B-043",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-044",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-044",
+      "relation": "part_of",
+      "object_id": "EXT-B-044",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-045",
+      "relation": "part_of",
+      "object_id": "EXT-Z-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-045",
+      "relation": "part_of",
+      "object_id": "EXT-B-045",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-046",
+      "relation": "part_of",
+      "object_id": "EXT-Z-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-046",
+      "relation": "part_of",
+      "object_id": "EXT-B-046",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-047",
+      "relation": "part_of",
+      "object_id": "EXT-Z-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-047",
+      "relation": "part_of",
+      "object_id": "EXT-B-047",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-048",
+      "relation": "part_of",
+      "object_id": "EXT-Z-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-048",
+      "relation": "part_of",
+      "object_id": "EXT-B-048",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-049",
+      "relation": "part_of",
+      "object_id": "EXT-Z-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-049",
+      "relation": "part_of",
+      "object_id": "EXT-B-049",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-050",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-050",
+      "relation": "part_of",
+      "object_id": "EXT-B-050",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-051",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-051",
+      "relation": "part_of",
+      "object_id": "EXT-B-051",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-052",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-052",
+      "relation": "part_of",
+      "object_id": "EXT-B-052",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-053",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-053",
+      "relation": "part_of",
+      "object_id": "EXT-B-053",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-054",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-054",
+      "relation": "part_of",
+      "object_id": "EXT-B-054",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-055",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-055",
+      "relation": "part_of",
+      "object_id": "EXT-B-055",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-056",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-056",
+      "relation": "part_of",
+      "object_id": "EXT-B-056",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-057",
+      "relation": "part_of",
+      "object_id": "EXT-Z-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-057",
+      "relation": "part_of",
+      "object_id": "EXT-B-057",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-058",
+      "relation": "part_of",
+      "object_id": "EXT-Z-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-058",
+      "relation": "part_of",
+      "object_id": "EXT-B-058",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-059",
+      "relation": "part_of",
+      "object_id": "EXT-Z-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-059",
+      "relation": "part_of",
+      "object_id": "EXT-B-059",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-060",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-060",
+      "relation": "part_of",
+      "object_id": "EXT-B-060",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-061",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-061",
+      "relation": "part_of",
+      "object_id": "EXT-B-061",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-062",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-062",
+      "relation": "part_of",
+      "object_id": "EXT-B-062",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-063",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-063",
+      "relation": "part_of",
+      "object_id": "EXT-B-063",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-064",
+      "relation": "part_of",
+      "object_id": "EXT-Z-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-064",
+      "relation": "part_of",
+      "object_id": "EXT-B-064",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-065",
+      "relation": "part_of",
+      "object_id": "EXT-Z-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-065",
+      "relation": "part_of",
+      "object_id": "EXT-B-065",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-066",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-066",
+      "relation": "part_of",
+      "object_id": "EXT-B-066",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-067",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-067",
+      "relation": "part_of",
+      "object_id": "EXT-B-067",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-068",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-068",
+      "relation": "part_of",
+      "object_id": "EXT-B-068",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-069",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-069",
+      "relation": "part_of",
+      "object_id": "EXT-B-069",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-070",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-070",
+      "relation": "part_of",
+      "object_id": "EXT-B-070",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-071",
+      "relation": "part_of",
+      "object_id": "EXT-Z-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-071",
+      "relation": "part_of",
+      "object_id": "EXT-B-071",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-072",
+      "relation": "part_of",
+      "object_id": "EXT-Z-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-072",
+      "relation": "part_of",
+      "object_id": "EXT-B-072",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-073",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-073",
+      "relation": "part_of",
+      "object_id": "EXT-B-073",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-074",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-074",
+      "relation": "part_of",
+      "object_id": "EXT-B-074",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-075",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-075",
+      "relation": "part_of",
+      "object_id": "EXT-B-075",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-076",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-076",
+      "relation": "part_of",
+      "object_id": "EXT-B-076",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-077",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-077",
+      "relation": "part_of",
+      "object_id": "EXT-B-077",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-078",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-078",
+      "relation": "part_of",
+      "object_id": "EXT-B-078",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-079",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-079",
+      "relation": "part_of",
+      "object_id": "EXT-B-079",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-080",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-080",
+      "relation": "part_of",
+      "object_id": "EXT-B-080",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-081",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-081",
+      "relation": "part_of",
+      "object_id": "EXT-B-081",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-082",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-082",
+      "relation": "part_of",
+      "object_id": "EXT-B-082",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-083",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-083",
+      "relation": "part_of",
+      "object_id": "EXT-B-083",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-084",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-084",
+      "relation": "part_of",
+      "object_id": "EXT-B-084",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-085",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-085",
+      "relation": "part_of",
+      "object_id": "EXT-B-085",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-086",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-086",
+      "relation": "part_of",
+      "object_id": "EXT-B-086",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-087",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-087",
+      "relation": "part_of",
+      "object_id": "EXT-B-087",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-088",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-088",
+      "relation": "part_of",
+      "object_id": "EXT-B-088",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-089",
+      "relation": "part_of",
+      "object_id": "EXT-Z-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-089",
+      "relation": "part_of",
+      "object_id": "EXT-B-089",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-090",
+      "relation": "part_of",
+      "object_id": "EXT-Z-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-090",
+      "relation": "part_of",
+      "object_id": "EXT-B-090",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-091",
+      "relation": "part_of",
+      "object_id": "EXT-Z-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-091",
+      "relation": "part_of",
+      "object_id": "EXT-B-091",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-092",
+      "relation": "part_of",
+      "object_id": "EXT-Z-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-092",
+      "relation": "part_of",
+      "object_id": "EXT-B-092",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-093",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-093",
+      "relation": "part_of",
+      "object_id": "EXT-B-093",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-094",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-094",
+      "relation": "part_of",
+      "object_id": "EXT-B-094",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-095",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-095",
+      "relation": "part_of",
+      "object_id": "EXT-B-095",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-096",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-096",
+      "relation": "part_of",
+      "object_id": "EXT-B-096",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-097",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-097",
+      "relation": "part_of",
+      "object_id": "EXT-B-097",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-098",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-098",
+      "relation": "part_of",
+      "object_id": "EXT-B-098",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-099",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-099",
+      "relation": "part_of",
+      "object_id": "EXT-B-099",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-100",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-100",
+      "relation": "part_of",
+      "object_id": "EXT-B-100",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-101",
+      "relation": "part_of",
+      "object_id": "EXT-Z-008",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-101",
+      "relation": "part_of",
+      "object_id": "EXT-B-101",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-102",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-102",
+      "relation": "part_of",
+      "object_id": "EXT-B-102",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-103",
+      "relation": "part_of",
+      "object_id": "EXT-Z-008",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-103",
+      "relation": "part_of",
+      "object_id": "EXT-B-103",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-104",
+      "relation": "part_of",
+      "object_id": "EXT-Z-008",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-104",
+      "relation": "part_of",
+      "object_id": "EXT-B-104",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-105",
+      "relation": "part_of",
+      "object_id": "EXT-Z-008",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-105",
+      "relation": "part_of",
+      "object_id": "EXT-B-105",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-B-106",
+      "relation": "part_of",
+      "object_id": "EXT-Z-008",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-B-106",
+      "relation": "part_of",
+      "object_id": "EXT-B-106",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-001-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-001-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-001",
+      "relation": "part_of",
+      "object_id": "EXT-B-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-002-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-002-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-002",
+      "relation": "part_of",
+      "object_id": "EXT-B-022",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-003-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-003-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-003",
+      "relation": "part_of",
+      "object_id": "EXT-B-044",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-004-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-004-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-004",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-004",
+      "relation": "part_of",
+      "object_id": "EXT-B-051",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-005-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-005-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-005",
+      "relation": "part_of",
+      "object_id": "EXT-B-074",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-006-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-006-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-006",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-006",
+      "relation": "part_of",
+      "object_id": "EXT-B-027",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-007-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-EN-C-007-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-007",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-F-007",
+      "relation": "part_of",
+      "object_id": "EXT-B-102",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-P-1",
+      "relation": "part_of",
+      "object_id": "EXT-C-001",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-P-2",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-P-3",
+      "relation": "part_of",
+      "object_id": "EXT-C-003",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-P-4",
+      "relation": "part_of",
+      "object_id": "EXT-C-005",
+      "source": "city_full_extension"
+    },
+    {
+      "subject_id": "EXT-P-FIRE",
+      "relation": "part_of",
+      "object_id": "EXT-C-002",
+      "source": "city_full_extension"
+    }
+  ]
+}

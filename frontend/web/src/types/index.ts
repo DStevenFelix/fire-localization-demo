@@ -54,6 +54,8 @@ export type Prediction = {
 };
 export type Session = {
   session_id: string; mode: Mode; status: 'prepared' | 'running' | 'completed' | 'failed';
+  analysis_frozen?: boolean;
+  paused?: boolean;
   target_poi_id: string; seed: number; post_count: number; ground_truth: Pick<Poi, 'poi_id' | 'name' | 'coordinates'>;
   prediction: Prediction | null;
   evaluation: { top1_hit: boolean; top3_hit: boolean; target_rank: number | null; distance_m: number | null } | null;

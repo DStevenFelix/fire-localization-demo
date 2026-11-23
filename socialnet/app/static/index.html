@@ -1,0 +1,208 @@
+<!doctype html>
+<!-- 主页面骨架；app.js 通过固定 ID 更新状态与内容，交互逻辑不写在模板中。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>火灾应急管理仿真社交网络系统</title>
+  <link rel="stylesheet" href="/static/styles.css?v=20261120-chat">
+</head>
+<body>
+  <!-- 顶部真实控制入口与仿真时钟：时钟显示仿真分钟，存档时间另按真实时间显示。 -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="brand-copy">
+        <h1>火灾应急管理仿真社交网络系统</h1>
+        <p>云港新区 · 多智能体社区仿真</p>
+      </div>
+    </div>
+    <h2 class="brand-section-title">多智能体事件发现agent</h2>
+    <div class="status-strip">
+      <div><span class="eyebrow">仿真时刻</span><strong id="sim-time">08:00</strong></div>
+      <div><span class="eyebrow">居民智能体</span><strong id="agent-count">300</strong></div>
+      <div><span class="eyebrow">系统状态</span><strong id="system-status"><i class="status-dot"></i> 已暂停</strong></div>
+      <div class="simulation-buttons">
+        <button id="start-button" class="primary-button" type="button"><i data-lucide="play"></i>开始仿真</button>
+        <button id="archive-button" class="archive-button" type="button" aria-haspopup="dialog" aria-controls="archive-dialog"><i data-lucide="folder-open"></i>存档</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="persistence-strip"><span id="persistence-status" role="status">正在读取存档…</span><span id="persistence-error" role="alert" hidden></span></div>
+  <!-- 存档列表弹窗：分页、兼容性提示、载入与永久删除由 app.js 对接后端。 -->
+  <dialog id="archive-dialog" class="archive-dialog" aria-labelledby="archive-title">
+    <div class="archive-heading"><div><h2 id="archive-title">仿真存档</h2><p>自动保存 · 载入后暂停，继续时更新原记录</p></div><button id="archive-close" class="ghost-button" type="button" aria-label="关闭存档窗口"><i data-lucide="x"></i></button></div>
+    <div id="archive-feedback" class="archive-feedback" role="status" hidden></div>
+    <div id="archive-cleanup" class="archive-cleanup" role="status" hidden></div>
+    <div id="archive-list" class="archive-list" aria-label="存档列表"></div>
+    <div class="archive-pagination"><button id="archive-prev" class="ghost-button" type="button">上一页</button><span id="archive-page" role="status"></span><button id="archive-next" class="ghost-button" type="button">下一页</button><button id="archive-refresh" class="ghost-button" type="button"><i data-lucide="refresh-cw"></i>刷新</button></div>
+  </dialog>
+  <!-- 永久删除的二次确认；删除当前存档时后端同时创建空白暂停轮次。 -->
+  <dialog id="archive-delete-dialog" class="archive-delete-dialog" aria-labelledby="archive-delete-title">
+    <h2 id="archive-delete-title">永久删除存档</h2><p id="archive-delete-description"></p>
+    <p class="archive-delete-warning">将删除该轮全部群聊、发现记录、监测报告、定位状态和对应缓存，无法恢复。</p>
+    <div class="archive-delete-actions"><button id="archive-delete-cancel" class="ghost-button" type="button" autofocus>取消</button><button id="archive-delete-confirm" class="danger-button" type="button">确认永久删除</button></div>
+  </dialog>
+  <!-- 完整历史详情容器：消息/报告已退出实时窗口时仍可从数据库查询。 -->
+  <dialog id="history-detail" class="history-detail" aria-labelledby="history-detail-title">
+    <div class="history-detail-header"><strong id="history-detail-title"></strong><button id="history-detail-close" class="ghost-button" type="button" aria-label="关闭历史详情">关闭</button></div>
+    <div id="history-detail-body"></div>
+  </dialog>
+  <!-- 居民或监测生成错误会暂停并回滚本步；定位错误在独立定位面板展示。 -->
+  <section id="generation-error" class="generation-error" role="alert" hidden>
+    <i data-lucide="triangle-alert" aria-hidden="true"></i>
+    <div><strong>仿真已暂停</strong><p id="generation-error-message"></p><small id="generation-error-context"></small></div>
+  </section>
+  <!-- 主工作区：地图、社区群聊和右侧监测/定位分析列。 -->
+  <main class="workspace">
+    <!-- 地图容器由构建后的 React 组件接管；真值火焰与预测候选使用不同叠加标记。 -->
+    <section class="map-panel panel">
+      <div class="panel-header">
+        <div class="panel-heading">
+          <h2>云港新区应急仿真片区</h2>
+        </div>
+        <div class="map-actions">
+          <button id="fire-settings-button" class="ghost-button" type="button" title="火源概率设置" aria-label="火源概率设置" aria-expanded="false" aria-controls="fire-settings"><i data-lucide="sliders-horizontal"></i></button>
+          <button id="clear-fire" class="ghost-button" type="button" title="清除全部火源" aria-label="清除全部火源" disabled><i data-lucide="flame-kindling"></i></button>
+          <button id="reset-button" class="ghost-button" type="button" title="重置仿真" aria-label="重置仿真"><i data-lucide="rotate-ccw"></i></button>
+          <form id="fire-settings" class="fire-settings" hidden>
+            <strong>火源概率 · 单火源</strong>
+            <label for="fire-base-probability">无火源时每步概率 <output id="fire-base-value">30%</output></label>
+            <input id="fire-base-probability" type="range" min="0" max="100" step="1" value="30">
+            <div class="fire-probability-summary">已有火源时 <strong>停止新增</strong></div>
+            <div class="fire-probability-summary">三步内首发概率 <strong id="three-step-probability">65.7%</strong></div>
+            <button id="save-fire-settings" class="primary-button" type="submit"><i data-lucide="check"></i>应用</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="map-error" class="map-error" role="alert" hidden></div>
+      <div id="map-motion-controls"></div>
+      <div id="map-shell" class="map-shell">
+        <div id="community-map" aria-label="云港新区地图"></div>
+        <div id="entity-inspector" class="entity-inspector" role="dialog" aria-label="地图实体详情" hidden>
+          <div class="entity-inspector-heading">
+            <div id="entity-icon" class="entity-icon" aria-hidden="true"></div>
+            <div class="entity-title"><strong id="entity-name"></strong><code id="entity-id"></code></div>
+            <button id="close-inspector" type="button" title="关闭实体详情" aria-label="关闭实体详情"><i data-lucide="x"></i></button>
+          </div>
+          <div class="entity-inspector-body">
+            <div class="entity-section-heading"><span>基本信息</span><span id="entity-type" class="entity-type"></span></div>
+            <dl id="entity-fields" class="entity-fields"></dl>
+            <div id="entity-aliases" class="entity-aliases"></div>
+            <section id="entity-resident-section" class="entity-resident-section" hidden>
+              <div class="entity-section-heading"><span>住户</span><span id="entity-resident-count"></span></div>
+              <div id="entity-residents" class="entity-residents"></div>
+            </section>
+            <dl id="entity-fire-details" class="entity-fields entity-context-fields" hidden></dl>
+          </div>
+          <div class="entity-inspector-footer"><span id="entity-source"></span><button id="clear-selected-fire" class="danger-button" type="button" hidden><i data-lucide="flame-kindling"></i>清除此火源</button></div>
+        </div>
+      </div>
+      <div class="map-toolbar">
+        <div class="map-search-field">
+          <i data-lucide="search"></i>
+          <input id="map-search" type="search" placeholder="名称 / 编号 / 别名" aria-label="查找地图实体" autocomplete="off" aria-controls="map-search-results">
+          <div id="map-search-results" role="listbox" hidden></div>
+        </div>
+        <label class="layer-toggle"><input id="show-poi-labels" type="checkbox" checked>POI 编号</label>
+        <label class="layer-toggle"><input id="show-area-boundaries" type="checkbox">区域边界</label>
+        <div class="map-zoom">
+          <button id="zoom-out" type="button" title="缩小" aria-label="缩小"><i data-lucide="zoom-out"></i></button>
+          <span id="map-zoom-value">100%</span>
+          <button id="zoom-in" type="button" title="放大" aria-label="放大"><i data-lucide="zoom-in"></i></button>
+          <button id="zoom-fit" type="button" title="显示全图" aria-label="显示全图"><i data-lucide="maximize"></i></button>
+        </div>
+      </div>
+      <div class="map-legend">
+        <span><i class="legend-building"></i>建筑</span><span><i class="legend-factory"></i>储罐</span>
+        <span><i class="legend-poi"></i>POI</span><span><i class="legend-junction"></i>路口</span>
+        <span><i class="legend-fire"></i>真实火源</span><span><i class="legend-prediction"></i>预测 Top1</span><span><i class="legend-candidate"></i>其他候选</span><span><i class="legend-history"></i>历史候选</span>
+      </div>
+      <div class="map-footer">
+        <div><span>火情状态</span><strong id="fire-status">当前无火情</strong></div>
+        <div><span>下一步新增概率</span><strong id="next-fire-probability">65.0%</strong></div>
+        <div><span>火源所在区域</span><strong id="fire-location">—</strong></div>
+        <div><span>监测报告</span><strong id="report-count">0 份</strong></div>
+        <button id="step-button" class="step-button" type="button">推进 5 分钟<i data-lucide="step-forward"></i></button>
+      </div>
+    </section>
+
+    <div class="chat-column">
+    <!-- 群聊展示与成员切换只影响浏览，不影响后台所有居民群并行推进。 -->
+    <aside class="chat-panel panel" aria-label="社区群聊">
+      <div class="panel-header chat-header">
+        <button id="community-back" class="ghost-button" type="button" title="社区列表" aria-label="社区列表" hidden><i data-lucide="arrow-left"></i></button>
+        <div class="panel-heading chat-heading">
+          <h2 id="chat-title">社区居民群聊</h2>
+          <p><i class="live-dot"></i><span id="chat-subtitle">10 个社区 · 300 人在线</span></p>
+        </div>
+        <button id="community-members-button" class="ghost-button" type="button" title="群成员" aria-label="群成员" aria-pressed="false" hidden><i data-lucide="users"></i></button>
+      </div>
+      <div id="community-navigation" class="community-navigation" hidden>
+        <select id="community-switch" aria-label="切换社区群聊"></select>
+        <span id="message-count" class="counter">0 条</span>
+      </div>
+      <div class="chat-body">
+        <nav id="community-list" aria-label="社区列表"></nav>
+        <div id="chat-list" class="chat-list" role="log" aria-label="当前社区消息" hidden></div>
+        <div id="community-members" class="community-members" hidden></div>
+      </div>
+      <div id="chat-note" class="chat-note">锦安 20 人 · 东源 16 人 · 南庭 8 人 · 南苑 4 人</div>
+    </aside>
+
+    <aside class="discovery-panel panel" aria-labelledby="discovery-title">
+      <div class="panel-header"><div class="panel-heading"><h2 id="discovery-title">事件发现</h2><p>本地规则筛选 · 疑似危情帖，待核实</p></div><i data-lucide="scan-search" aria-hidden="true"></i></div>
+      <div class="discovery-metrics" aria-label="全城事件发现累计统计">
+        <span>已扫描<strong id="discovery-scanned">0</strong></span><span>疑似帖<strong id="discovery-total">0</strong></span>
+        <span>火情送检<strong id="discovery-forwarded">0</strong></span><span>跳过监测<strong id="discovery-skipped">0</strong></span>
+      </div>
+      <div class="discovery-controls">
+        <label>类别<select id="discovery-category" aria-label="筛选危情类别"><option value="">全部类别</option><option value="fire">火灾</option><option value="gas">燃气</option><option value="traffic">交通</option><option value="flood">积水</option><option value="facility">建筑及公共设施</option><option value="security">治安</option><option value="rescue">人员求助</option></select></label>
+        <label>来源<select id="discovery-community" aria-label="筛选来源社区"><option value="">全部社区</option></select></label>
+      </div>
+      <details class="discovery-window"><summary>全城近15分钟发帖统计</summary><div id="discovery-window-stats"></div><p>作者、社区与重复量仅为发帖统计，不代表独立证人数或同一事故。</p></details>
+      <div id="discovery-list" class="discovery-list" aria-live="polite"><p class="discovery-empty">等待本地筛选。</p></div>
+      <div class="discovery-footer"><span id="discovery-scope">全部社区 · 最近50条候选</span><div><button id="discovery-latest" type="button" hidden>回到最新</button><button id="discovery-older" type="button">更早记录</button></div><small id="discovery-start"></small><span id="discovery-error" role="alert" hidden></span></div>
+    </aside>
+    </div>
+
+    <div class="analysis-column">
+    <!-- 监测报告展示文本研判与证据来源，报告者住宅不是确认的异常位置。 -->
+    <aside class="monitor-panel panel">
+      <div class="panel-header">
+        <div class="panel-heading">
+          <h2>监测 Agent</h2>
+          <p><i class="monitor-dot"></i> LLM 语义研判</p>
+        </div>
+      </div>
+      <div class="monitor-summary">
+        <div class="scan-visual"><span></span><span></span><i></i></div>
+        <div><strong id="monitor-headline">正在监听居民群聊</strong><p id="monitor-subtitle">尚未发现火情相关话题</p></div>
+      </div>
+      <div id="report-list" class="report-list">
+        <div class="empty-report"><span>✓</span><p>暂无风险报告</p></div>
+      </div>
+    </aside>
+    <!-- 定位展示全局 Top3、证据簇和任务队列；候选排名不等于多处真实火灾。 -->
+    <aside class="localization-panel panel" aria-label="火情定位">
+      <div class="panel-header"><div class="panel-heading"><h2>火情定位</h2><p id="localization-status">等待疑似火灾报告</p></div><i data-lucide="crosshair" aria-hidden="true"></i></div>
+      <div class="localization-body">
+        <div id="localization-error" class="localization-error" role="alert" hidden></div>
+        <div class="localization-metrics"><span>已处理原帖 <strong id="localization-post-count">0</strong></span><span>活跃证据簇 <strong id="localization-cluster-count">0</strong></span></div>
+        <div id="localization-candidate-heading" class="candidate-heading">全局 Top3</div>
+        <div id="localization-candidates" class="localization-candidates"><p class="localization-empty">暂无定位结果</p></div>
+        <details class="localization-clusters localization-jobs"><summary>证据簇</summary><div id="localization-cluster-list"></div></details>
+        <details class="localization-jobs"><summary>定位任务 <span id="localization-job-count">0</span></summary><div id="localization-job-list"></div></details>
+      </div>
+    </aside>
+    </div>
+  </main>
+
+  <!-- defer 脚本依次执行：图标库、当前地图控制器、主页面逻辑；旧 static/map.js 未加载。 -->
+  <script src="/static/lucide.min.js" defer></script>
+  <script src="/static/spatial/map.js?v=20261119-dynamic-map" defer></script>
+  <script src="/static/app.js?v=20261120-chat" defer></script>
+</body>
+</html>

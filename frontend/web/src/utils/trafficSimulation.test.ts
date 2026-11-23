@@ -31,6 +31,27 @@ test('parks in all three marked stalls and returns deselected trucks to their ow
   expect(sim.trucks.filter(t=>t.status==='idle')).toHaveLength(1);
 });
 
+test('cars leaving the far side of the station clearance zone do not hold the driveway', () => {
+  const sim = new TrafficSimulation();
+  sim.tick(13);
+  sim.setTankZoneClosed(true);
+  sim.setIncident(sw, 3);
+  let longest = 0;
+  const waiting = sim.trucks.map(() => 0);
+  for (let elapsed = 0; elapsed < 35 && sim.trucks.some(truck => garage.includes(truck.cursor.piece)); elapsed += .25) {
+    const before = sim.trucks.map(truck => truck.cursor);
+    sim.tick(.25);
+    sim.trucks.forEach((truck, index) => {
+      waiting[index] = truck.cursor === before[index] && garage.includes(truck.cursor.piece) && truck.cursor.distance > 1
+        ? waiting[index] + .25 : 0;
+      longest = Math.max(longest, waiting[index]);
+    });
+    expect(sim.trucks.some(truck => sim.all.some(other => other !== truck && conflicts(truck, other, 0)))).toBe(false);
+  }
+  expect(sim.trucks.every(truck => !garage.includes(truck.cursor.piece))).toBe(true);
+  expect(longest).toBeLessThan(13);
+});
+
 test.each([false, true])('a car with a stopped truck ahead can turn safely with a rear truck present: %s', (boxedIn) => {
   const sim = new TrafficSimulation();
   const lane = westFireLane;

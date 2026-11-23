@@ -15,7 +15,7 @@ async function ready(page: Page) {
     await route.fulfill({ response, body: observed });
   });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '开始定位', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
   await mkdir(screenshots, { recursive: true });

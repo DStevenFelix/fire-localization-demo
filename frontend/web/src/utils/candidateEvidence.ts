@@ -24,7 +24,7 @@ export function candidateMarkers(session: Session | null): EvidenceMarker[] {
   for (const candidate of session.prediction?.candidates ?? []) {
     const marker = markers.get(candidate.poi_id)!;
     marker.current = true; marker.candidate = candidate;
-    marker.final = session.status === 'completed' && candidate.rank === 1;
+    marker.final = (session.status === 'completed' || session.analysis_frozen === true) && candidate.rank === 1;
   }
   return [...markers.values()];
 }

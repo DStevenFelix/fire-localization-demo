@@ -1,0 +1,21 @@
+{
+  "source": "/home/panhao/Programme/fire-localization-demo-main",
+  "files": {
+    "README.md": "493ddd532013596151209f39d1fb28181666bc2a24bb68357477fffd640897ae",
+    "assets/physical-foliage-atlas.png": "38a53f726a6c9ed685d376e4775088d5d9faae22eeef22a9dc887ce055463784",
+    "assets/physical-material-atlas.png": "6836d291b5dc448992e0e3973645c0048cd2fd9d86ed6e193bf72afa686e2ea6",
+    "assets/physical-model-atlas.png": "62550859a4c7db5bdb8d8389469743aa47eb0b5b15d4cfa8b22cf1d3f1cb7c56",
+    "assets/render-manifest.json": "c80b514ee74b143293231318627083efa1540fa93938c562402093bf97e1aea0",
+    "assets/sand-table-buildings.png": "491522287104ed32b5884e9fae089df8afcdbc29d1e54d374d6fa63ddc53bb94",
+    "assets/sand-table-roads.png": "271bb020d3d666596bda165085c5cfa82891ccf64e7b5396be63fc1cff967c14",
+    "city_scene.json": "f8c9b734a5ff06258709e217e876a9ef0d55a8cca930fd2ce2a50ee5d1923207",
+    "community_building_entrances.csv": "5c960ca964911017e6a4036bfb1b5822e7dc1665e5a41c9dcb786730afa4e85f",
+    "fire_resources.json": "1fea41a95d81232f3b4a6625700514f4f248f37018978f9e31ebb6537f3d72f1",
+    "handoff_schema.json": "93105106100bc6b8696f5951331810d1084b5ef475f097690e2ab16128ca1e20",
+    "pedestrian_animation.json": "887ac168e130b5b5bd40a24b74ab8b6e3059fd1567daa161229f185b7d8a7722",
+    "poi_catalog.json": "929ecb44f31273c525d7d7285dff2ccddd8a52d347c0c57a6c499fd20e762e10",
+    "poi_hierarchy.json": "984fe21d8cc64f9e17bbc60acbde880e1b0f0406d57e4fe11f7e176d6fd04f06",
+    "runtime-manifest.json": "4957ba1763d7ba5c672d79c25ec3bbfe4978bbd39e37297633dfa29a7e356dfe",
+    "scene_schema.json": "ecc95c79bc0ef988229bb7efa0d173be34d922bc54e223dac1a08d161f28a2ed"
+  }
+}
