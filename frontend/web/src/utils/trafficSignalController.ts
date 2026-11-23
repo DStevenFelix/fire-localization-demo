@@ -1,12 +1,21 @@
 import { fire_station_reserve, nodes, roads, original_map_placement } from '../../../../city_scene/city_scene.json';
+import { nodes as originalNodes } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import config from '../config/trafficControl.json';
-import type { IntersectionSignalState, TrafficControlMode, TrafficControlService } from '../types';
-import { distance, garage, lanes, pose, stationJunction, type Piece, type Point } from './roadNetwork';
+import type { IntersectionSignalState, SignalColor, TrafficControlMode, TrafficControlService } from '../types';
+import { distance, garage, lanes, pose, stationJunction, turnDirection, type Piece, type Point } from './roadNetwork';
 import { crosswalkGeometry, junctionKey, originalRoadWidths } from './trafficSignalGeometry';
+import { approachDirection, deviceIntersections, pedestrianSignalDirection, type HardwareSignals } from './liveTrafficSignals';
+
+const green = (color: SignalColor) => color === 'green' || color === 'green_flash';
 
 const roadWidths = new Map([...roads.map(r => [r.id, r.width] as const), ...originalRoadWidths]);
 export const signalCrosswalks = crosswalkGeometry.map(c => c.original ? c :
   { ...c, junction: junctionKey(nodes.find(n => n.id === c.junction)!.center) });
+const hardwareJunctions = new Set(Object.values(deviceIntersections));
+const walkingDirection = ({ points: [a, b] }: typeof signalCrosswalks[number]): Point => {
+  const length = distance(a, b);
+  return [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+};
 
 export const approachId = (lane: Piece) => lane.road ? `${lane.from}>${lane.to}` : 'STATION_ACCESS';
 const dot = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1];
@@ -40,7 +49,11 @@ const stationEntry = garage.reduce((best, lane) => distance(lane.points[0], acce
   distance(best.points[0], access.entrance as Point) ? lane : best);
 incoming.set(stationJunction, [...incoming.get(stationJunction)!, stationEntry]);
 
+const unsignalized = new Set(originalNodes.filter(node => config.unsignalizedOriginalJunctions.includes(node.id))
+  .map(node => junctionKey(node.center.map((value, axis) => value + original_map_placement.offset[axis]))));
+
 export const intersections = [...incoming].flatMap(([id, approaches]) => {
+  if (unsignalized.has(id)) return [];
   const point = id.split(',').map(Number) as Point;
   const crosswalks = signalCrosswalks.filter(c => c.junction === id);
   // 车道端点按统一城市坐标合并；度数 2 的连接边界和折点没有交叉冲突。
@@ -65,9 +78,14 @@ export const intersections = [...incoming].flatMap(([id, approaches]) => {
     const compatible = entries.filter(other => Math.abs(dot(entry.heading, other.heading)) > .999);
     groups.push({ id: `vehicle:${groups.length}`, kind: 'vehicle', members: compatible.map(e => e.id), duration: config.timing.vehicleGreen });
   });
+  const directionalPedestrianPhases = !hardwareJunctions.has(id);
   crosswalks.forEach(crossing => {
-    const compatible = groups.find(g => g.kind === 'pedestrian' && g.members.every(id =>
-      !crossingPathsConflict(crossing.points, crosswalks.find(c => c.id === id)!.points)));
+    const direction = walkingDirection(crossing);
+    const compatible = groups.find(g => g.kind === 'pedestrian' && g.members.every(id => {
+      const other = crosswalks.find(c => c.id === id)!;
+      return (!directionalPedestrianPhases || Math.abs(dot(direction, walkingDirection(other))) > .999) &&
+        !crossingPathsConflict(crossing.points, other.points);
+    }));
     if (compatible) { compatible.members.push(crossing.id); return; }
     groups.push({ id: `pedestrian:${groups.length}`, kind: 'pedestrian', members: [crossing.id], duration: config.timing.pedestrianGreen });
   });
@@ -130,8 +148,13 @@ export class TrafficSignalController implements TrafficControlService {
   private priorityApproaches: readonly Piece[] = [];
   private occupants = new Map(intersections.map(i => [i.id, new Map<string, Occupant>()]));
   private states = new Map<string, IntersectionSignalState>();
+  private hardware: HardwareSignals = {};
 
   constructor() { this.publish(); }
+  setHardwareSignals(signals: HardwareSignals) {
+    this.hardware = signals;
+    this.publish();
+  }
   getMode() { return this.mode; }
   setMode(mode: TrafficControlMode) {
     if (!['normal', 'emergency_lockdown', 'emergency_priority'].includes(mode)) throw new Error('未知交通控制模式');
@@ -168,14 +191,23 @@ export class TrafficSignalController implements TrafficControlService {
     return [...(clearanceZones.get(id) ?? [id])].some(key =>
       [...(this.occupants.get(key)?.values() ?? [])].some(occupant => occupant.kind === 'pedestrian'));
   }
-  isVehicleGreen(lane: Piece) {
+  isVehicleGreen(lane: Piece, next?: Piece) {
     const control = controlledLanes.get(lane);
-    return !control || this.states.get(control.intersection.id)!.vehicles[control.entry.id] === 'green';
+    if (!control) return true;
+    const { intersection, entry } = control;
+    const state = this.states.get(intersection.id)!;
+    if (state.hardware && next) {
+      const direction = approachDirection(-entry.heading[0], -entry.heading[1]);
+      const movement = { left: 0, straight: 1, right: 2 }[turnDirection(lane, next)];
+      return green(state.hardware.groups[4 * direction + movement].color);
+    }
+    return green(state.vehicles[entry.id]);
   }
   returnPriorityPhase(lane: Piece): 'green' | 'preparing' | undefined {
     const control = controlledLanes.get(lane);
     if (this.mode !== 'normal' || !control) return;
     if (this.isVehicleGreen(lane)) return 'green';
+    if (this.hardware[control.intersection.id]) return;
 
     const { intersection, entry } = control;
     const { index, elapsed, active, phases } = this.programByIntersection.get(intersection.id)!;
@@ -184,19 +216,20 @@ export class TrafficSignalController implements TrafficControlService {
     const group = next.groups.get(intersection.id);
     if (group !== undefined && intersection.groups[group].members.includes(entry.id)) return 'preparing';
   }
-  canEnterVehicle(lane: Piece, actorId: string, fire: boolean, ignoreSignal = false) {
+  canEnterVehicle(lane: Piece, actorId: string, fire: boolean, ignoreSignal = false, next?: Piece) {
     const control = controlledLanes.get(lane);
     if (!control) return true;
     const zone = [...clearanceZones.get(control.intersection.id)!];
     if (zone.some(id => this.isOccupied(id, actorId))) return false;
     if (this.occupants.get(control.intersection.id)!.get(actorId)?.kind === 'vehicle') return true;
     return ignoreSignal || (fire && this.authorized.has(actorId) && this.mode !== 'emergency_priority') ||
-      (zone.every(id => this.states.get(id)!.phase !== 'pedestrian') && this.isVehicleGreen(lane));
+      ((this.hardware[control.intersection.id] || zone.every(id => this.states.get(id)!.phase !== 'pedestrian')) &&
+        this.isVehicleGreen(lane, next));
   }
   canEnterPedestrian(crosswalkId: string) {
     const control = controlledCrossings.get(crosswalkId);
     if (!control) return false;
-    if (this.states.get(control.intersection.id)!.pedestrians[crosswalkId] !== 'green') return false;
+    if (!green(this.states.get(control.intersection.id)!.pedestrians[crosswalkId])) return false;
     return [...this.occupants.get(control.intersection.id)!.values()].every(occupant => occupant.kind === 'pedestrian' &&
       (occupant.crossing === crosswalkId || !crossingPathsConflict(control.crossing.points, controlledCrossings.get(occupant.crossing!)!.crossing.points)));
   }
@@ -233,6 +266,25 @@ export class TrafficSignalController implements TrafficControlService {
   }
   private publish() {
     intersections.forEach(intersection => {
+      const hardware = this.hardware[intersection.id];
+      if (hardware) {
+        const vehicles = Object.fromEntries(intersection.entries.map(entry => {
+          const direction = approachDirection(-entry.heading[0], -entry.heading[1]);
+          return [entry.id, hardware.groups[4 * direction + 1].color];
+        }));
+        const pedestrians = Object.fromEntries(intersection.crosswalks.map(crossing => {
+          const [a, b] = crossing.points;
+          const direction = pedestrianSignalDirection(intersection.id, (a[0] + b[0]) / 2 - intersection.point[0],
+            (a[1] + b[1]) / 2 - intersection.point[1]);
+          return [crossing.id, hardware.groups[4 * direction + 3].color];
+        }));
+        const vehicleOpen = hardware.groups.some((group, index) => index % 4 !== 3 && green(group.color));
+        const pedestrianOpen = hardware.groups.some((group, index) => index % 4 === 3 && green(group.color));
+        this.states.set(intersection.id, { intersectionId: intersection.id, hardware,
+          phase: vehicleOpen ? 'vehicle' : pedestrianOpen ? 'pedestrian' : 'all_red',
+          groupId: null, emergencyPriority: false, vehicles, pedestrians });
+        return;
+      }
       const state = this.runtime.get(intersection.id)!;
       const group = state.phase === 'all_red' ? undefined : intersection.groups[state.group];
       this.states.set(intersection.id, Object.freeze({ intersectionId: intersection.id, phase: state.phase, groupId: group?.id ?? null,

@@ -7,6 +7,36 @@ import { distance, garage, isFireStationOnly, isRightTurn, lanes, oppositeLane, 
 import { junctionKey } from './trafficSignalGeometry';
 import { crossingPathsConflict, intersections, signalCoverage, signalCrosswalks, TrafficSignalController } from './trafficSignalController';
 import { conflicts, TrafficSimulation } from './trafficSimulation';
+import { deviceIntersections } from './liveTrafficSignals';
+import type { HardwareSignal, SignalColor } from '../types';
+
+test('the north midblock crossing uses east/west device groups for pedestrians and vehicles', () => {
+  const north = deviceIntersections['192.168.1.115'];
+  const south = deviceIntersections['192.168.1.112'];
+  const colors: SignalColor[] = [
+    'red', 'yellow', 'red', 'green',
+    'green', 'green', 'green', 'yellow',
+    'red', 'green_flash', 'red', 'green',
+    'yellow', 'yellow', 'yellow', 'red',
+  ];
+  const hardware: HardwareSignal = { connected: true, groups: colors.map(color => ({ color, countdown: 0 })) };
+  const signals = new TrafficSignalController();
+  signals.setHardwareSignals({ [north]: hardware, [south]: hardware });
+
+  const northState = signals.getIntersectionState(north)!;
+  const northEntries = intersections.find(i => i.id === north)!.entries;
+  const eastEntry = northEntries.find(entry => entry.heading[0] < 0)!;
+  const westEntry = northEntries.find(entry => entry.heading[0] > 0)!;
+  expect(northState.vehicles[eastEntry.id]).toBe('yellow');
+  expect(northState.vehicles[westEntry.id]).toBe('green_flash');
+  expect(signals.isVehicleGreen(eastEntry.lane)).toBe(false);
+  expect(signals.isVehicleGreen(westEntry.lane)).toBe(true);
+  expect(northState.pedestrians['LOCAL-ZEBRA-017']).toBe('green');
+
+  const southState = signals.getIntersectionState(south)!;
+  expect(Object.values(southState.vehicles).sort()).toEqual(['green_flash', 'yellow']);
+  expect(southState.pedestrians['LOCAL-ZEBRA-020']).toBe('yellow');
+});
 
 const run = (signals: TrafficSignalController, seconds: number) => {
   for (let t = 0; t < seconds - 1e-8; t += .1) signals.advance(Math.min(.1, seconds - t));
@@ -40,17 +70,28 @@ function fixture(count = 1) {
   return { sim, cars, lane, control: sim.signals.getLaneControl(lane)! };
 }
 
-test('coverage derives actual vehicle branches, all city junctions, boundary joins and every crosswalk', () => {
+test('coverage excludes the three unsignalized tank-area junctions and retains their road turns', () => {
   const signals = new TrafficSignalController();
   const controlled = new Set(intersections.map(i => i.id));
+  const originalKey = (center: number[]) => junctionKey(center.map((v, i) => v + city.original_map_placement.offset[i]));
+  const tankJunctions = new Set(local.nodes.filter(n => ['J05', 'J06', 'J07'].includes(n.id)).map(n => originalKey(n.center)));
+  expect(tankJunctions.size).toBe(3);
   city.nodes.filter(n => n.edge_ids.length >= 3).forEach(n => expect(controlled.has(junctionKey(n.center))).toBe(true));
   local.nodes.forEach(n => {
-    const center = n.center.map((v, i) => v + city.original_map_placement.offset[i]);
-    const count = lanes.filter(l => l.to === junctionKey(center)).length;
-    expect(controlled.has(junctionKey(center))).toBe(count >= 3);
+    const id = originalKey(n.center);
+    const count = lanes.filter(l => l.to === id).length;
+    expect(controlled.has(id)).toBe(count >= 3 && !tankJunctions.has(id));
   });
   [...new Set(lanes.map(l => l.to!))].forEach(id => {
     if (id === stationJunction) return;
+    if (tankJunctions.has(id)) {
+      expect(signals.getIntersectionState(id)).toBeUndefined();
+      lanes.filter(l => l.to === id).forEach(lane => {
+        expect(signals.getLaneControl(lane)).toBeUndefined();
+        expect(lane.next.length).toBeGreaterThan(0);
+      });
+      return;
+    }
     expect(controlled.has(id)).toBe(lanes.filter(l => l.to === id).length >= 3 || signalCrosswalks.some(c => c.junction === id));
   });
   expect(signalCoverage.boundaryJoins).toHaveLength(8);
@@ -130,6 +171,32 @@ test('crossing pedestrian paths conflict; disjoint and shared sidewalk endpoints
   expect(crossingPathsConflict([[0, 0], [2, 0]], [[1, 0], [1, 2]])).toBe(true);
   intersections.forEach(i => i.groups.filter(g => g.kind === 'pedestrian').forEach(g => g.members.forEach((id, n) =>
     g.members.slice(n + 1).forEach(other => expect(crossingPathsConflict(i.crosswalks.find(c => c.id === id)!.points, i.crosswalks.find(c => c.id === other)!.points)).toBe(false)))));
+});
+
+test('simulated crossroads alternate between two parallel pairs of pedestrian crossings', () => {
+  const liveJunctions = new Set(Object.values(deviceIntersections));
+  const localCrossroads = intersections.filter(i => i.crosswalks.length === 4 && !liveJunctions.has(i.id));
+  expect(localCrossroads.length).toBeGreaterThan(0);
+  const signals = new TrafficSignalController();
+  const observed = localCrossroads.map(() => ({ last: null as string | null, axes: [] as string[] }));
+
+  for (let step = 0; step < 320; step++) {
+    signals.advance(.5);
+    localCrossroads.forEach((junction, index) => {
+      const state = signals.getIntersectionState(junction.id)!;
+      const sample = observed[index];
+      if (state.phase !== 'pedestrian') { sample.last = null; return; }
+      if (state.groupId === sample.last) return;
+      sample.last = state.groupId;
+      const open = junction.crosswalks.filter(crossing => state.pedestrians[crossing.id] === 'green');
+      expect(open).toHaveLength(2);
+      const axes = open.map(({ points: [a, b] }) => Math.abs(b[0] - a[0]) > Math.abs(b[1] - a[1]) ? 'east-west' : 'north-south');
+      expect(axes[0]).toBe(axes[1]);
+      expect(axes[0]).not.toBe(sample.axes.at(-1));
+      sample.axes.push(axes[0]);
+    });
+  }
+  observed.forEach(sample => expect(new Set(sample.axes).size).toBe(2));
 });
 
 test('overlapping short links share occupancy until the whole compound junction has cleared', () => {

@@ -12,7 +12,11 @@ export type SessionPosts = Readonly<{
   posts: readonly Required<OpinionPost>[];
 }>;
 export type TrafficControlMode = 'normal' | 'emergency_lockdown' | 'emergency_priority';
-export type SignalColor = 'red' | 'green';
+export type SignalColor = 'red' | 'green' | 'yellow' | 'off' | 'red_flash' | 'green_flash' | 'yellow_flash';
+export type HardwareSignal = Readonly<{
+  connected: boolean;
+  groups: readonly Readonly<{ color: SignalColor; countdown: number }>[];
+}>;
 export type IntersectionSignalState = Readonly<{
   intersectionId: string;
   phase: 'vehicle' | 'pedestrian' | 'all_red';
@@ -20,6 +24,7 @@ export type IntersectionSignalState = Readonly<{
   emergencyPriority: boolean;
   vehicles: Readonly<Record<string, SignalColor>>;
   pedestrians: Readonly<Record<string, SignalColor>>;
+  hardware?: HardwareSignal;
 }>;
 export interface TrafficControlService {
   setMode(mode: TrafficControlMode): void;

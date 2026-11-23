@@ -1,6 +1,7 @@
 {
   "vehicles": { "originalCars": 5, "emergencyFleetAuthorized": true },
   "pedestriansEnabled": false,
+  "unsignalizedOriginalJunctions": ["J05", "J06", "J07"],
   "timing": { "vehicleGreen": 10, "pedestrianGreen": 8, "allRed": 1.5 },
   "emergencyLookAhead": 12,
   "originalCrosswalkSource": "fire_poi/map_original.png",

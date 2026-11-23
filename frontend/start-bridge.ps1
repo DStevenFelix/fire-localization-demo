@@ -7,5 +7,5 @@ $env:PYTHONPYCACHEPREFIX = Join-Path $PSScriptRoot '.tools/pycache'
 $env:LANGSMITH_TRACING = 'false'
 $env:LANGCHAIN_TRACING_V2 = 'false'
 Set-Location -LiteralPath $projectRoot
-& $pythonExecutable -m uvicorn frontend.bridge.server:app --app-dir $projectRoot --host 127.0.0.1 --port 8080
+& $pythonExecutable -m uvicorn frontend.bridge.server:app --app-dir $projectRoot --host 127.0.0.1 --port 8080 --timeout-graceful-shutdown 3
 exit $LASTEXITCODE

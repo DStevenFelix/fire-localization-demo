@@ -25,9 +25,11 @@ const droneStationView=zoomView({...ORIGINAL_VIEW,x:droneStationPoint.x-ORIGINAL
 export default function SandboxMap({ pois, session, targetId, highlighted, sceneActors, severity, onSeverityChange, traffic, emergency, demoNotice, paused, pauseBusy, onTogglePause }: Props) {
   const hasPedestrians = traffic.pedestrians.actors.length > 0;
   const [layers,setLayers]=useState({roads:true,buildings:true,pois:true,vehicles:true,pedestrians:true,signals:false,prediction:true});
+  const [signalVisibility, setSignalVisibility] = useState<boolean>();
   const [selectedSignal, setSelectedSignal] = useState<string | null>(null);
   const [, setSignalRevision] = useState(0);
   useEffect(() => traffic.signals.subscribe(() => setSignalRevision(value => value + 1)), [traffic]);
+  const showSignals = signalVisibility ?? traffic.signals.getAllSignalStates().some(state => state.hardware);
   const [layerPanel,setLayerPanel]=useState(false);
   const [view,setView]=useState<MapView>(ORIGINAL_VIEW);
   const [hover,setHover]=useState<Poi|null>(null);
@@ -97,7 +99,7 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
           </g>;})}</g>
         </>}
         {hasPedestrians && <CityMotion pedestrians={layers.pedestrians} simulation={traffic}/>}
-        {layers.signals && <TrafficSignalLayer signals={traffic.signals} viewWidth={view.width} select={setSelectedSignal}/>}
+        {showSignals && <TrafficSignalLayer signals={traffic.signals} viewWidth={view.width} select={setSelectedSignal}/>}
         {layers.prediction&&<g data-layer="predictions">{markers.map(marker=>{const c=marker.candidate,p=sceneToPixel(c.coordinates,marker.system),color=evidenceColor(marker.strength,marker.final);return <g key={c.poi_id} data-candidate={c.poi_id} data-testid="evidence-marker" data-strength={marker.strength} data-current={marker.current} data-final={marker.final} tabIndex={0} role="button" aria-label={`${marker.current?'当前':'历史'}候选 ${c.name} 得分 ${c.score} 票数 ${c.votes}`}
           onClick={()=>setInfo(`${marker.current?'当前 Top'+c.rank:'历史候选'} · ${c.name} · 得分 ${c.score.toFixed(3)} · 票数 ${c.votes} · 展示强度不代表概率`)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')setInfo(`${c.name} · 得分 ${c.score.toFixed(3)} · 票数 ${c.votes}`);}}>
           <circle cx={p.x} cy={p.y} r="22" fill={color} fillOpacity={marker.current?.65:.2} stroke={color} strokeWidth={marker.current?4:2} strokeDasharray={marker.current?undefined:'5 6'} className="evidence-circle"/>
@@ -122,11 +124,14 @@ export default function SandboxMap({ pois, session, targetId, highlighted, scene
         <button className="icon-button" aria-label="放大地图" onClick={()=>setView(v=>zoomView(v,1.25))}><Plus size={18}/></button><span className="zoom-level">{(IMAGE_SIZE.width/view.width).toFixed(2)}×</span><button className="icon-button" aria-label="缩小地图" onClick={()=>setView(v=>zoomView(v,.8))}><Minus size={18}/></button>
         <button className="map-text-button" aria-label="全图" onClick={()=>setView(FULL_VIEW)}><Maximize2 size={14}/>全图</button><button className="map-text-button" aria-label="重置地图视图" onClick={()=>setView(ORIGINAL_VIEW)}><RotateCcw size={14}/>重置视图</button>
       </div>
-      {layerPanel&&<div className="map-layer-panel" aria-label="地图图层控制">{Object.entries(layerNames).filter(([key])=>key!=='pedestrians'||hasPedestrians).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key as keyof typeof layers]} onChange={()=>setLayers(v=>({...v,[key]:!v[key as keyof typeof layers]}))}/>{label}</label>)}</div>}
+      {layerPanel&&<div className="map-layer-panel" aria-label="地图图层控制">{Object.entries(layerNames).filter(([key])=>key!=='pedestrians'||hasPedestrians).map(([key,label])=><label key={key}><input type="checkbox" checked={key === 'signals' ? showSignals : layers[key as keyof typeof layers]} onChange={event => {
+        if (key === 'signals') setSignalVisibility(event.target.checked);
+        else setLayers(v=>({...v,[key]:!v[key as keyof typeof layers]}));
+      }}/>{label}</label>)}</div>}
       <div className="map-scale" style={{width:`${IMAGE_SIZE.width/30*5/view.width*100}%`}}><span/><p>5 仿真单位</p></div>
       {hover&&<div className="poi-tooltip" role="status"><strong>{hover.name}</strong><span>{hover.poi_id}</span><span>局部 X {hover.coordinates.x_m.toFixed(3)} · Y {hover.coordinates.y_m.toFixed(3)}</span></div>}
       {info&&<div className="candidate-info" role="status"><span>{info}</span><button aria-label="关闭地图信息" onClick={()=>setInfo(null)}>×</button></div>}
-      {layers.signals && selectedSignal && <TrafficSignalDetails signals={traffic.signals} id={selectedSignal} close={() => setSelectedSignal(null)}/>}
+      {showSignals && selectedSignal && <TrafficSignalDetails signals={traffic.signals} id={selectedSignal} close={() => setSelectedSignal(null)}/>}
       <div className="map-progress">{session?.batch_count??0} 批 · {session?.processed_count??0} / {session?.post_count??0} 条</div>
     </div>
     <div className="map-legend"><span><i className="legend-truth"/>真实火点</span><span><i className="legend-prediction"/>当前 Top3 / 最终定位</span><span><i className="legend-history"/>历史候选</span><span className="evidence-legend">弱 <i/> 强</span><small>西南原点 · X 向东 · Y 向北 · 颜色表示证据强度</small></div>

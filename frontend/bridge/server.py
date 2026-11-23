@@ -19,6 +19,7 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from fire_locator.config import Settings
@@ -28,6 +29,7 @@ from fire_locator.models import Post
 from fire_locator.poi import DEFAULT_TARGET_ID, PoiRepository
 from fire_locator.providers import atomic_json
 from .socialnet import BATCH_SIZE, PENDING_CAPACITY, POLL_SECONDS, SocialNet, StreamRun
+from .traffic_signals import TrafficSignals
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_ROOT = PROJECT_ROOT / "runtime" / "frontend"
@@ -585,15 +587,25 @@ def create_app(runtime_root: Path = RUNTIME_ROOT) -> FastAPI:
     os.environ["LANGSMITH_TRACING"] = "false"
     os.environ["LANGCHAIN_TRACING_V2"] = "false"
     service = SessionService(runtime_root)
+    signals = TrafficSignals(os.environ.get("FIRE_SIGNAL_HOST", "192.168.1.190"),
+                             int(os.environ.get("FIRE_SIGNAL_PORT", "5000")))
+
     @asynccontextmanager
     async def lifespan(_app):
         try:
+            await signals.start()
             yield
         finally:
+            await signals.stop()
             service.shutdown()
 
     api = FastAPI(title="火情可视化独立 Bridge", version="0.1.0", lifespan=lifespan)
     api.state.service = service
+
+    @api.get("/api/traffic-signals/stream")
+    async def signal_stream():
+        return StreamingResponse(signals.events(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @api.get("/api/health")
     def health():

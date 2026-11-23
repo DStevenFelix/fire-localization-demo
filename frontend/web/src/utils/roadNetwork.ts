@@ -137,13 +137,16 @@ stationArrivalLane.next.push(driveIn);
 driveIn.next.push(...garageEntries);
 export const isGarageAccess = (road: Piece) => road === driveIn || garageEntries.includes(road);
 
-export function isRightTurn(from: Piece, next: Piece | undefined) {
-  if (!next) return false;
-  if (from === stationArrivalLane && next === driveIn) return true;
+export function turnDirection(from: Piece, next: Piece | undefined) {
+  if (!next) return 'straight';
+  if (from === stationArrivalLane && next === driveIn) return 'right';
   const incoming = laneHeading.get(from);
   const outgoing = laneHeading.get(next.road ? next : next.next[0]);
-  return !!incoming && !!outgoing && incoming[0] * outgoing[1] - incoming[1] * outgoing[0] < -1e-6;
+  if (!incoming || !outgoing) return 'straight';
+  const turn = incoming[0] * outgoing[1] - incoming[1] * outgoing[0];
+  return turn < -1e-6 ? 'right' : turn > 1e-6 ? 'left' : 'straight';
 }
+export const isRightTurn = (from: Piece, next: Piece | undefined) => turnDirection(from, next) === 'right';
 
 // External planners receive the same directed lanes and connectors the simulator uses.
 export const roadPieces = new Map<string, Piece>([

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type { TrafficSimulation } from '../src/utils/trafficSimulation';
+import trafficConfig from '../src/config/trafficControl.json' with { type: 'json' };
 
 declare global { interface Window { trafficSimulation: TrafficSimulation } }
 const screenshots = process.env.FIRE_ACCEPTANCE_DIR ? `${process.env.FIRE_ACCEPTANCE_DIR}/existing/` : fileURLToPath(new URL('../screenshots/', import.meta.url));
@@ -25,6 +26,71 @@ async function showSignals(page: Page, visible: boolean) {
   await page.getByLabel('交通信号灯', { exact: true }).setChecked(visible);
   await page.getByRole('button', { name: '地图图层', exact: true }).click();
 }
+
+test('six hardware signals keep their lamp colors offline and refresh on reconnection', async ({ page }) => {
+  await page.route('**/api/scenarios/active', route => route.fulfill({ json: null }));
+  await page.addInitScript(() => {
+    class SignalSource extends EventTarget {
+      onmessage: ((event: MessageEvent) => void) | undefined;
+      onerror: (() => void) | undefined;
+      constructor() {
+        super();
+        window.addEventListener('hardware-test', this.receive);
+      }
+      private receive = (event: Event) => {
+        const devices = (event as CustomEvent).detail;
+        if (devices) this.onmessage?.(new MessageEvent('message', { data: JSON.stringify({ devices }) }));
+        else this.onerror?.();
+      };
+      close() { window.removeEventListener('hardware-test', this.receive); }
+    }
+    Object.defineProperty(window, 'EventSource', { value: SignalSource });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '全局暂停', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '全局暂停', exact: true }).click();
+  const send = async (color: string | null, connected = true) => page.evaluate(([color, connected]) => {
+    const devices = color && Object.fromEntries([111, 112, 113, 114, 115, 116].map(suffix =>
+      [`192.168.1.${suffix}`, { connected, groups: Array.from({ length: 16 }, () => ({ color, countdown: 2 })) }]));
+    window.dispatchEvent(new CustomEvent('hardware-test', { detail: devices }));
+  }, [color, connected] as const);
+  await send('green');
+  const live = page.locator('[data-hardware-status="online"]');
+  await expect(live).toHaveCount(6);
+  await expect(page.locator('[data-intersection="35.762195,37.631077"], [data-intersection="45.022866,37.631077"], [data-intersection="54.260671,37.631077"]')).toHaveCount(0);
+  const lampPositions = await page.locator('[data-pedestrian-signal^="LOCAL-ZEBRA-"]').evaluateAll(elements =>
+    Object.fromEntries(elements.map(element => {
+      const lamp = element as SVGGElement;
+      const { e, f } = lamp.transform.baseVal.getItem(0).matrix;
+      return [`${lamp.dataset.pedestrianSignal}:${lamp.dataset.signalEnd}`, [e, f]];
+    })));
+  expect(Object.keys(lampPositions)).toHaveLength(trafficConfig.originalCrosswalks.length * 2);
+  trafficConfig.originalCrosswalks.forEach(({ pixels: [x1, y1, x2, y2] }, index) => {
+    const id = `LOCAL-ZEBRA-${String(index + 1).padStart(3, '0')}`;
+    const centers = x2 - x1 > y2 - y1
+      ? [[x1 - 8, (y1 + y2) / 2], [x2 + 8, (y1 + y2) / 2]]
+      : [[(x1 + x2) / 2, y1 - 8], [(x1 + x2) / 2, y2 + 8]];
+    centers.forEach(([x, y], end) => {
+      expect(lampPositions[`${id}:${end}`][0]).toBeCloseTo(1313 + x, 3);
+      expect(lampPositions[`${id}:${end}`][1]).toBeCloseTo(1050 + y, 3);
+    });
+  });
+  const junction = page.locator('[data-intersection="35.762195,29.361296"]');
+  const vehicle = junction.locator('[data-vehicle-signal]').first();
+  await expect(vehicle).toHaveAttribute('data-signal-state', 'green');
+  await vehicle.click();
+  const details = page.getByRole('complementary', { name: '路口信号详情' });
+  await expect(details).toContainText('实机同步');
+  await send('green', false);
+  await expect(details).toContainText('信号机离线');
+  await expect(vehicle).toHaveAttribute('data-signal-state', 'green');
+  await send('yellow');
+  await expect(details).toContainText('实机同步');
+  await expect(vehicle).toHaveAttribute('data-signal-state', 'yellow');
+  await send(null);
+  await expect(details).toContainText('信号机离线');
+  await expect(vehicle).toHaveAttribute('data-signal-state', 'yellow');
+});
 
 test('default hidden signals, real traffic control, live details, all red, recovery and all viewport sizes', async ({ page }) => {
   const errors: string[] = [];
@@ -103,9 +169,6 @@ test('default hidden signals, real traffic control, live details, all red, recov
   expect(afterDrag.x).toBeCloseTo(beforeDrag.x, 6); expect(afterDrag.y).toBeCloseTo(beforeDrag.y, 6);
   await page.screenshot({ path: `${screenshots}/traffic-extension.png`, fullPage: true });
   await page.getByRole('button', { name: '重置地图视图', exact: true }).click();
-  await page.locator('[data-intersection="35.762195,37.631077"] [data-vehicle-signal]').first().click();
-  await expect(page.getByRole('complementary', { name: '路口信号详情' }).locator('dl > div')).toHaveCount(2);
-  await expect(page.getByRole('complementary', { name: '路口信号详情' })).not.toContainText('斑马线');
   for (const viewport of [{ width: 1366, height: 900 }, { width: 1440, height: 1000 }, { width: 1920, height: 1080 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

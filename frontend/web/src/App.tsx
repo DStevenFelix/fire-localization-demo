@@ -9,6 +9,7 @@ import { api } from './services/api';
 import type { Candidate, FireSceneSeverity, Mode, Poi, Session, SceneActorSnapshot } from './types';
 import { TrafficSimulation } from './utils/trafficSimulation';
 import { connectTrafficControl } from './utils/trafficSignalController';
+import { useLiveTrafficSignals } from './utils/liveTrafficSignals';
 import EmergencyPanel from './components/EmergencyPanel';
 import EmergencyDemoControls from './components/EmergencyDemoControls';
 import { EmergencyService } from './utils/emergency';
@@ -50,6 +51,8 @@ export default function App() {
   const [notice, setNotice] = useState<DemoNotice>();
   const [simulation, setSimulation] = useState(() => createSimulation(setNotice));
   const { traffic, emergency, demo } = simulation;
+  const liveSignals = useLiveTrafficSignals();
+  useEffect(() => traffic.signals.setHardwareSignals(liveSignals), [traffic, liveSignals]);
   useEffect(() => connectTrafficControl(traffic.signals), [traffic]);
   useEffect(() => emergency.attach(demo), [emergency, demo]);
   useEffect(() => {

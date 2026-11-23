@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import local from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import city from '../../../../city_scene/city_scene.json';
+import config from '../config/trafficControl.json';
 import { lanes } from './roadNetwork';
 import { originalCrosswalks, junctionKey } from './trafficSignalGeometry';
 import { intersections, signalCoverage, TrafficSignalController } from './trafficSignalController';
@@ -15,7 +16,7 @@ test('audit all 15 original junctions, every vehicle edge and all 20 zebra strip
     const incoming = lanes.filter(l => l.to === id);
     const controlled = intersections.find(i => i.id === id);
     const edges = local.edges.filter(e => e.geometry.coordinates.some(p => p.every((v, i) => v === node.center[i])));
-    expect(Boolean(controlled)).toBe(incoming.length >= 3);
+    expect(Boolean(controlled)).toBe(incoming.length >= 3 && !config.unsignalizedOriginalJunctions.includes(node.id));
     return { id: node.id, cityJunction: id, incomingVehicleLanes: incoming.length, controlled: Boolean(controlled),
       kind: controlled?.kind, vehicleRoads: [...new Set(edges.filter(e => e.vehicle_allowed).map(e => e.road_id))],
       pedestrianRoads: [...new Set(edges.filter(e => !e.vehicle_allowed).map(e => e.road_id))] };

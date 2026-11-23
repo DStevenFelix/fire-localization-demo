@@ -630,8 +630,8 @@ export class TrafficSimulation {
       if (d + step > stop) {
         // 进入停止线后保留通行承诺；切红时已经进入的对象继续清空，不在路中冻结。
         const bypassSignal = ignoreSignal || (this.signals.getMode() !== 'emergency_lockdown' && isRightTurn(p, upcoming));
-        const allowed = vehicle.fire ? bypassSignal || this.signals.isVehicleGreen(p) :
-          this.signals.canEnterVehicle(p, vehicle.id, false, bypassSignal);
+        const allowed = vehicle.fire ? bypassSignal || this.signals.isVehicleGreen(p, upcoming) :
+          this.signals.canEnterVehicle(p, vehicle.id, false, bypassSignal, upcoming);
         const atEntry = d <= stop + 1e-6;
         const waitForSignal = atEntry && !allowed;
         const yieldToReturn = atEntry && allowed && !ignoreSignal && this.mustYieldAtEntry(vehicle, control.intersection.id, reservations.priorities);
