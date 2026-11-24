@@ -60,6 +60,7 @@ export type Prediction = {
 export type Session = {
   session_id: string; mode: Mode; status: 'prepared' | 'running' | 'completed' | 'failed';
   analysis_frozen?: boolean;
+  handoff_trigger?: 'manual' | 'stable_top1';
   paused?: boolean;
   target_poi_id: string; seed: number; post_count: number; ground_truth: Pick<Poi, 'poi_id' | 'name' | 'coordinates'>;
   prediction: Prediction | null;

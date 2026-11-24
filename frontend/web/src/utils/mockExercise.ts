@@ -9,8 +9,12 @@ import { pose } from './roadNetwork';
 // Evidence fixtures are separate from the world state displayed on the map.
 const worldFire = 'T-NW-01';
 const mockEvidence = [
-  ['T-NW-02', 'T-NW-02', 'T-NE-01', 'T-NE-01', 'T-NW-01'],
-  ['T-NW-02', 'T-NW-01', 'T-NW-01'],
+  ['T-NW-02', 'T-NW-02', worldFire],
+  [worldFire, 'T-NW-02', 'T-NE-01'],
+  [worldFire, 'T-NW-02', 'T-NE-01'],
+  [worldFire, 'T-NW-02', 'T-NE-01'],
+  [worldFire, 'T-NW-02', 'T-NE-01'],
+  [worldFire, 'T-NW-02', 'T-NE-01'],
 ];
 export function observeSimulatedWorld(firePoiId: string) {
   return (candidatePoiId: string) => candidatePoiId === firePoiId ?
@@ -110,6 +114,7 @@ export function runMockExercise(
 ) {
   let session = { ...prepared, status: 'running' as Session['status'], started_at: new Date().toISOString() };
   let sequence = 0, elapsed = 0, spraying = 0, batch = 0;
+  let leader: string | undefined, streak = 0;
   const votes = new Map<string, number>();
   const send = (message: ScopedMessage) => input.consume({ ...message, sourceMode: 'simulation', sessionId: session.session_id,
     eventId: `${session.session_id}:${++sequence}`, occurredAt: Date.now() });
@@ -124,9 +129,19 @@ export function runMockExercise(
   updateMedia('connecting');
   send({ eventType: 'agent.event', payload: { agent: 'opinion', type: '监测启动', phase: '监测中', summary: '等待模拟火情帖' } });
   send({ eventType: 'agent.event', payload: { agent: 'location', type: '定位启动', phase: '等待线索', summary: '等待首批证据' } });
+  const handoff = (trigger: NonNullable<Session['handoff_trigger']>) => {
+    const prediction = session.prediction;
+    if (session.analysis_frozen || !prediction?.candidates.length) return;
+    demo.start(session.session_id, prediction.candidates, observeSimulatedWorld(worldFire), count);
+    const hit = prediction.candidates.find(candidate => candidate.poi_id === worldFire);
+    session = { ...session, analysis_frozen: true, handoff_trigger: trigger, evaluation: {
+      top1_hit: hit?.rank === 1, top3_hit: !!hit, target_rank: hit?.rank ?? null, distance_m: null,
+    } };
+    onSession(session);
+  };
   const unsubscribe = service.traffic.subscribe(seconds => {
     elapsed += seconds;
-    if (batch < mockEvidence.length && elapsed >= 2.5 * (batch + 1)) {
+    if (!session.analysis_frozen && batch < mockEvidence.length && elapsed >= 2.5 * (batch + 1)) {
       const evidence = mockEvidence[batch];
       evidence.forEach((id, i) => {
         const poi = localPois.find(poi => poi.poi_id === id)!;
@@ -142,16 +157,13 @@ export function runMockExercise(
       })), processed_count: processed, pending_count: 0, active_cluster_count: votes.size, cold_cluster_count: 0, status: 'mock' });
       session = { ...session, post_count: processed, processed_count: processed, batch_count: ++batch, prediction,
         batch_history: [...session.batch_history!, { batch_number: batch, processed_count: processed, ignored_count: 0, prediction }] };
-      if (batch === mockEvidence.length) {
-        const hit = prediction.candidates.find(candidate => candidate.poi_id === worldFire);
-        session = { ...session, analysis_frozen: true, evaluation: {
-          top1_hit: hit?.rank === 1, top3_hit: !!hit, target_rank: hit?.rank ?? null, distance_m: null,
-        } };
-      }
-      onSession(session);
+      const top1 = prediction.candidates[0]?.poi_id;
+      streak = top1 ? (top1 === leader ? streak + 1 : 1) : 0;
+      leader = top1;
+      if (streak === 6) handoff('stable_top1');
+      else onSession(session);
       send({ eventType: 'agent.event', payload: { agent: 'location', type: '候选更新',
         phase: session.analysis_frozen ? '定位完成' : '得到候选', summary: `第 ${batch} 批 · Top1 ${prediction.candidates[0].name}` } });
-      if (session.analysis_frozen) demo.start(session.session_id, prediction.candidates, observeSimulatedWorld(worldFire), count);
     }
     const incident = service.getSnapshot().incident;
     if (incident?.phase === 'extinguishing' && incident.plan?.dispatches.every(dispatch =>
@@ -165,5 +177,5 @@ export function runMockExercise(
     updateMedia('disconnected');
     unsubscribe();
   }, 'update');
-  return unsubscribe;
+  return { unsubscribe, handoff: () => handoff('manual') };
 }

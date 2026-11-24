@@ -78,7 +78,7 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
   const [notice, setNotice] = useState<DemoNotice>();
   const [simulation, setSimulation] = useState(() => createSimulation(source, setNotice));
   const [mockCount, setMockCount] = useState(4);
-  const disconnectExercise = useRef<() => void>(undefined);
+  const mockExercise = useRef<ReturnType<typeof runMockExercise>>(undefined);
   const { traffic, emergency, demo, dashboard } = simulation;
   const dashboardState = useSyncExternalStore(dashboard.subscribe, dashboard.getSnapshot);
   useEffect(() => {
@@ -96,7 +96,7 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
   useEffect(() => {
     if (dashboard.mode !== 'simulation') return;
     const unsubscribe = connectSimulatedResponders(dashboard, emergency);
-    return () => { unsubscribe(); disconnectExercise.current?.(); disconnectExercise.current = undefined; };
+    return () => { unsubscribe(); mockExercise.current?.unsubscribe(); mockExercise.current = undefined; };
   }, [dashboard, emergency]);
   useEffect(() => () => { generation.current++; }, []);
   useEffect(() => {
@@ -200,6 +200,16 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
   const top1 = candidates.find(c => c.rank === 1);
   const highlight: Candidate | null = candidates.find(c => c.rank === selectedRank) ?? null;
   useEffect(() => {
+    if (source !== 'bridge-demo' || !demoConnected || !session || session.status !== 'running' ||
+        !session.analysis_frozen || demo.hasStarted(session.session_id)) return;
+    try {
+      demo.start(session.session_id, session.prediction?.candidates ?? [], observeSimulatedWorld(session.ground_truth.poi_id));
+    } catch (error) {
+      setError(errorMessage(error));
+    }
+  }, [source, demoConnected, demo, session]);
+
+  useEffect(() => {
     if (standalone || !streaming || changing || !sessionId) return;
     const id = sessionId;
     const revision = generation.current;
@@ -219,9 +229,9 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
   async function run(confirmed = false) {
     if (!session || session.status !== 'prepared' || inFlight.current) return;
     if (standalone) {
-      if (!demo || disconnectExercise.current) return;
+      if (!demo || mockExercise.current) return;
       setMapPaused(false);
-      disconnectExercise.current = runMockExercise(session, mockCount, dashboard, emergency, demo, setSession,
+      mockExercise.current = runMockExercise(session, mockCount, dashboard, emergency, demo, setSession,
         post => opinionFeed.receivePost(session.session_id, post));
       return;
     }
@@ -231,7 +241,7 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
     const revision = generation.current;
     const id = session.session_id;
     try {
-      const current = await api.run(id, confirmed, mapPaused);
+      const current = await api.run(id, confirmed, mapPaused, source === 'bridge-demo' && !!demo);
       if (generation.current === revision) setSession(current);
     } catch (err) {
       if (generation.current === revision) {
@@ -290,14 +300,18 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
 
   async function emergencyAction(action: 'handoff' | 'stop') {
     if (!sessionId || !demo || inFlight.current) return;
+    if (standalone) {
+      if (action === 'handoff') mockExercise.current?.handoff();
+      else demo.confirmExtinction();
+      return;
+    }
     inFlight.current = true;
     ++generation.current;
     setChanging(true);
     try {
       const current = await api[action](sessionId);
       setSession(current);
-      if (action === 'handoff') demo.start(sessionId, current.prediction?.candidates ?? [], observeSimulatedWorld(current.ground_truth.poi_id));
-      else demo.confirmExtinction();
+      if (action === 'stop') demo.confirmExtinction();
     } finally {
       setChanging(false);
       inFlight.current = false;
@@ -356,9 +370,10 @@ function Workspace({ source, onSourceChange }: { source: WorkspaceSource; onSour
           <OpinionPanel feed={opinionFeed} source={standalone ? '演练火情帖' : 'SocialNet 火情初筛'} {...opinionStatus} />
           <LocationPanel session={session} running={running} selectedRank={selectedRank} onSelect={setSelectedRank} agent={dashboardState.agents.location} />
           <EmergencyPanel service={emergency} dashboard={dashboardState} automatic={demoConnected && demoIncident} demoControls={
-            source === 'bridge-demo' && demoConnected && <EmergencyDemoControls demo={demo} active={activeIncident} pending={emergencyState.pending || busy}
+            demoConnected && <EmergencyDemoControls demo={demo} active={activeIncident} pending={emergencyState.pending || busy}
               onHandoff={() => emergencyAction('handoff')} onExtinguish={() => emergencyAction('stop')}
-              handoff={streaming && top1 ? { sessionId: session.session_id, candidates } : undefined} />} />
+              handoff={streaming && top1 ? { sessionId: session.session_id, candidates,
+                done: session.analysis_frozen, trigger: session.handoff_trigger } : undefined} />} />
           <DispatchLog entries={dashboardState.log} />
         </aside>
       </div>

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import type { Candidate, FireSceneSeverity } from '../types';
+import type { Candidate, FireSceneSeverity, Session } from '../types';
 import { severityLabels } from '../utils/emergency';
 import type { EmergencyDemo } from '../utils/emergencyDemo';
 
 type Props = {
   demo: EmergencyDemo;
-  handoff?: { sessionId: string; candidates: readonly Candidate[] };
+  handoff?: { sessionId: string; candidates: readonly Candidate[]; done?: boolean; trigger?: Session['handoff_trigger'] };
   active: boolean;
   pending: boolean;
   onHandoff: () => Promise<void>;
@@ -32,7 +32,10 @@ export default function EmergencyDemoControls({ demo, handoff, active, pending, 
         onClick={() => perform(() => { demo.applySettings(draft); setApplied(draft); })}>确认设置</button>
     </div>
     <p role="status">已生效：{severityLabels[applied]}{dirty ? ' · 有待确认修改' : ''}</p>
-    {handoff && !active && !demo.hasStarted(handoff.sessionId) ? <>
+    {handoff?.done ? <>
+      <button type="button" className="primary-button" disabled>移交应急处置</button>
+      <p>{handoff.trigger === 'stable_top1' ? '连续 6 批 Top1 一致，已自动移交' : '已移交应急处置'}</p>
+    </> : handoff && !active && !demo.hasStarted(handoff.sessionId) ? <>
       <p>按候选排名巡查，演练调度目标为 {handoff.candidates.find(candidate => candidate.rank === 1)?.name}。</p>
       <button type="button" className="primary-button" disabled={dirty || pending}
         onClick={() => void perform(onHandoff)}>移交应急处置</button>

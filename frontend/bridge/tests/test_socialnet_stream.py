@@ -12,10 +12,33 @@ from fire_locator.config import Settings
 from fire_locator.engine import FireLocalizer
 from fire_locator.models import Post
 from frontend.bridge import server
+from frontend.bridge.socialnet import StreamRun
 from socialnet.app import post_source
 from socialnet.app.models import ChatMessage
 from socialnet.app.post_archive import PostArchives
 from socialnet.app.simulation import SimulationEngine
+
+
+def test_auto_handoff_counts_six_consecutive_leaders_after_changes(tmp_path):
+    service = server.SessionService(tmp_path)
+    stream = service.streams["scenario"] = StreamRun()
+    session = {
+        "session_id": "scenario", "auto_handoff": True, "analysis_frozen": False,
+        "paused": False, "error": None, "batch_history": [],
+    }
+    leaders = ["T-NE-01"] * 5 + ["T-SW-01"] * 2 + [None] + ["T-SW-01"] * 6
+    try:
+        for number, leader in enumerate(leaders, 1):
+            candidates = [{"poi_id": leader, "rank": 1}] if leader else []
+            session["batch_history"].append({"batch_number": number, "prediction": {"candidates": candidates}})
+            with service.lock:
+                service._auto_handoff_locked(session)
+            assert session["analysis_frozen"] == (number == 14)
+        assert session["handoff_trigger"] == "stable_top1"
+        assert stream.analysis_stopped.is_set()
+    finally:
+        service.streams.clear()
+        service.shutdown()
 
 
 def test_cancelled_localization_batch_does_not_begin_embedding(tmp_path, monkeypatch):
@@ -37,7 +60,7 @@ def test_cancelled_localization_batch_does_not_begin_embedding(tmp_path, monkeyp
 
 
 def test_socialnet_stream_freezes_at_handoff_and_stops_at_extinction(tmp_path, monkeypatch):
-    monkeypatch.setenv("SIMULATION_INTERVAL_SECONDS", "0.20")
+    monkeypatch.setenv("POST_SOURCE_PUBLISH_SECONDS", "0.20")
     monkeypatch.setattr(server, "POLL_SECONDS", 0.025)
     fires = []
     interrupted_tick = Event()
@@ -88,8 +111,10 @@ def test_socialnet_stream_freezes_at_handoff_and_stops_at_extinction(tmp_path, m
         def prepare(tank):
             return ui.post("/api/scenarios/prepare", json={"source": "socialnet", "target_poi_id": tank}).json()
 
-        def start(run, *, paused=False):
-            return ui.post("/api/localization/run", json={"session_id": run, "confirm_paid_api": True, "paused": paused})
+        def start(run, *, paused=False, auto_handoff=False):
+            return ui.post("/api/localization/run", json={
+                "session_id": run, "confirm_paid_api": True, "paused": paused, "auto_handoff": auto_handoff,
+            })
 
         ready = prepare("T-NE-01")
         run = ready["session_id"]
@@ -127,6 +152,7 @@ def test_socialnet_stream_freezes_at_handoff_and_stops_at_extinction(tmp_path, m
         assert {path.name for path in (bridge_root / run).iterdir()} == {"session.json"}
         frozen = ui.post(path + "/handoff").json()
         assert frozen["analysis_frozen"]
+        assert frozen["handoff_trigger"] == "manual"
         later = wait_for(read_posts, lambda p: p["post_count"] > frozen["post_count"])
         assert all("买菜" not in p["text"] for p in later["posts"])
         assert read_session()["prediction"] == frozen["prediction"]
@@ -167,3 +193,16 @@ def test_socialnet_stream_freezes_at_handoff_and_stops_at_extinction(tmp_path, m
         assert ui.put(f"/api/localization/{other}/pause", json={"paused": True}).status_code == 200
         assert ui.post(f"/api/localization/{other}/reset").status_code == 201
         assert source.get(other_upstream).status_code == 404
+
+        automatic = prepare("T-NE-01")["session_id"]
+        auto_path = f"/api/localization/{automatic}"
+        assert start(automatic, auto_handoff=True).status_code == 202
+        auto = wait_for(lambda: ui.get(auto_path).json(), lambda s: s["analysis_frozen"])
+        assert auto["handoff_trigger"] == "stable_top1"
+        assert auto["batch_count"] == 6
+        leaders = {batch["prediction"]["candidates"][0]["poi_id"] for batch in auto["batch_history"]}
+        assert len(leaders) == 1
+        assert ui.post(auto_path + "/handoff").json()["handoff_trigger"] == "stable_top1"
+        wait_for(lambda: ui.get(auto_path + "/posts").json(), lambda s: s["post_count"] > auto["post_count"])
+        assert ui.get(auto_path).json()["batch_count"] == 6
+        assert ui.post(auto_path + "/stop").json()["status"] == "completed"

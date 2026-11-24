@@ -31,8 +31,9 @@ async function socialNetFixture(page: Page, includeFire = true) {
       expect(source).toBe('socialnet');
       session = prepare(target_poi_id);
     } else if (path === '/localization/run') {
-      const { paused = false, ...body } = route.request().postDataJSON();
+      const { paused = false, auto_handoff, ...body } = route.request().postDataJSON();
       expect(body).toEqual({ session_id: session.session_id, confirm_paid_api: true });
+      expect(auto_handoff ?? false).toBe(new URL(page.url()).searchParams.get('workspace') === 'bridge-demo');
       actions.push('start:' + session.target_poi_id);
       session.status = 'running';
       session.paused = paused;
@@ -54,7 +55,9 @@ async function socialNetFixture(page: Page, includeFire = true) {
     }
     return route.fulfill({ json: session });
   });
-  return { actions, add(...items: string[]) {
+  return { actions, autoHandoff() {
+    Object.assign(session, { analysis_frozen: true, handoff_trigger: 'stable_top1', processed_count: 18, batch_count: 6 });
+  }, add(...items: string[]) {
     for (const text of items) posts.push({ id: 'post-' + (posts.length + 1), text });
     session.post_count = posts.length;
     if (posts.length >= 3 && !session.analysis_frozen) {
@@ -64,6 +67,22 @@ async function socialNetFixture(page: Page, includeFire = true) {
     }
   } };
 }
+
+test('SocialNet automatic handoff starts patrol once and disables manual handoff', async ({ page }) => {
+  const mock = await socialNetFixture(page);
+  await page.goto('/?workspace=bridge-demo');
+  await expect(start(page)).toBeEnabled();
+  await startConfirmed(page);
+  mock.add('看见火光', '附近有烟雾', '请尽快检查');
+  await expect(page.getByRole('button', { name: '移交应急处置' })).toBeEnabled();
+  mock.autoHandoff();
+  await expect(page.getByText('连续 6 批 Top1 一致，已自动移交')).toBeVisible();
+  await expect(page.getByRole('button', { name: '移交应急处置' })).toBeDisabled();
+  await expect(page.locator('[data-recon-stage=assigned]')).toHaveCount(3);
+  await advance(page, 200);
+  await expect(page.getByTestId('emergency-plan')).toBeVisible();
+  expect(mock.actions).toEqual(['start:T-SW-01']);
+});
 
 const start = (page: Page) => page.getByRole('button', { name: '开始仿真', exact: true });
 const current = (page: Page) => page.locator('.opinion-entry-current strong');
