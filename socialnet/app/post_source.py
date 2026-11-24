@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from collections import deque
 from contextlib import asynccontextmanager, suppress
@@ -18,6 +19,9 @@ from .simulation import SimulationEngine
 
 
 logger = logging.getLogger(__name__)
+PUBLISH_SECONDS = 10
+MAX_PUBLISH_POSTS = 5
+PREPARED_POST_TARGET = 2 * MAX_PUBLISH_POSTS
 
 
 class StartRun(BaseModel):
@@ -36,6 +40,8 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
         archives = PostArchives(Path(__file__).resolve().parents[1] / "runtime" / "post_runs")
     lock = asyncio.Lock()
     posts = deque(maxlen=1024)
+    unpublished = deque()
+    has_room = asyncio.Event()
     discarded_through = 0
     archived_through = 0
     run: StartRun | None = None
@@ -43,10 +49,13 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
     paused = False
     engine: SimulationEngine | None = None
     worker: asyncio.Task | None = None
+    publisher: asyncio.Task | None = None
+    publish_interval = PUBLISH_SECONDS
 
     async def generate(source: SimulationEngine, archive: PostArchive):
-        nonlocal discarded_through, archived_through
+        nonlocal archived_through
         while source.running:
+            await has_room.wait()
             await source.tick()
             if not source.running:
                 return
@@ -58,12 +67,26 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
             for record in source.discovery_pending:
                 if "fire" not in record.categories:
                     continue
+                unpublished.append({"sequence": record.sequence, "id": record.message_id,
+                                    "text": record.content, "simulation_minute": record.simulation_minute,
+                                    "timestamp": record.timestamp, "location_poi_id": origins[record.message_id]})
+            if len(unpublished) >= PREPARED_POST_TARGET:
+                has_room.clear()
+            # Yield even when nobody observed the fire or the model returned immediately.
+            await asyncio.sleep(0.1)
+
+    async def publish():
+        nonlocal discarded_through
+        while engine.running:
+            await asyncio.sleep(publish_interval)
+            if not engine.running:
+                return
+            for _ in range(min(MAX_PUBLISH_POSTS, len(unpublished))):
                 if len(posts) == posts.maxlen:
                     discarded_through = posts[0]["sequence"]
-                posts.append({"sequence": record.sequence, "id": record.message_id,
-                              "text": record.content, "simulation_minute": record.simulation_minute,
-                              "timestamp": record.timestamp, "location_poi_id": origins[record.message_id]})
-            await asyncio.sleep(float(os.getenv("SIMULATION_INTERVAL_SECONDS", "3")))
+                posts.append(unpublished.popleft())
+            if len(unpublished) < PREPARED_POST_TARGET:
+                has_room.set()
 
     async def run_generator(source: SimulationEngine, archive: PostArchive):
         try:
@@ -79,18 +102,28 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
             source.generation_error = GenerationIssue(code="internal_error", message="帖子源生成失败")
 
     async def stop():
-        nonlocal worker
+        nonlocal worker, publisher
         if engine is not None:
             engine.running = False
-        if worker is not None:
-            worker.cancel()
+        tasks = [task for task in (worker, publisher) if task is not None]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
             with suppress(asyncio.CancelledError):
-                await worker
-            worker = None
+                await task
+        worker = publisher = None
+
+    def start_workers():
+        nonlocal worker, publisher
+        worker = asyncio.create_task(run_generator(engine, archive))
+        publisher = asyncio.create_task(publish())
 
     @asynccontextmanager
     async def lifespan(_app):
-        nonlocal engine
+        nonlocal engine, publish_interval
+        publish_interval = float(os.getenv("POST_SOURCE_PUBLISH_SECONDS", str(PUBLISH_SECONDS)))
+        if not math.isfinite(publish_interval) or publish_interval <= 0:
+            raise ValueError("POST_SOURCE_PUBLISH_SECONDS must be positive and finite")
         # Build resident model clients once before readiness. Reset the simulation state between runs.
         engine = engine_factory(fire_policy=FirePolicy(base_probability=0), posts_only=True)
         try:
@@ -106,7 +139,7 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
 
     @api.post("/api/post-source/runs")
     async def start(command: StartRun):
-        nonlocal run, archive, worker, discarded_through, archived_through, paused
+        nonlocal run, archive, discarded_through, archived_through, paused
         async with lock:
             if engine is None:
                 raise HTTPException(503, "SocialNet 帖子源尚未就绪")
@@ -114,6 +147,7 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
                 return {"run_id": run.run_id}
             if engine.running or paused:
                 raise HTTPException(409, "SocialNet 正在为另一轮仿真生成帖子")
+            await stop()
             engine.seed = command.seed
             engine.reset()
             try:
@@ -129,13 +163,15 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
                 engine.running = False
                 raise HTTPException(507, "SocialNet 无法创建帖子存档，请检查磁盘空间和目录权限") from None
             posts.clear()
+            unpublished.clear()
+            has_room.set()
             discarded_through = 0
             archived_through = 0
             run = command
             paused = command.paused
             engine.running = not paused
             if not paused:
-                worker = asyncio.create_task(run_generator(engine, archive))
+                start_workers()
             return {"run_id": run.run_id}
 
     @api.get("/api/post-source/runs/{run_id}/posts")
@@ -149,7 +185,7 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
 
     @api.put("/api/post-source/runs/{run_id}/pause")
     async def set_pause(run_id: str, command: PauseRun):
-        nonlocal paused, worker
+        nonlocal paused
         async with lock:
             if run is None or run.run_id != run_id or engine is None or archive is None:
                 raise HTTPException(404, "SocialNet 仿真轮次不存在")
@@ -164,7 +200,7 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
                     if not engine.running:
                         raise HTTPException(503, "SocialNet 居民模型配置不可用，无法继续发帖")
                     paused = False
-                    worker = asyncio.create_task(run_generator(engine, archive))
+                    start_workers()
             return {"running": engine.running, "paused": paused}
 
     @api.post("/api/post-source/runs/{run_id}/stop")
@@ -179,6 +215,7 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
                     archive = None
                     engine.reset()
                     posts.clear()
+                    unpublished.clear()
                     discarded_through = 0
             return {"running": False}
 

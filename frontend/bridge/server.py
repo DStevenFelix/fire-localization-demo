@@ -36,6 +36,7 @@ RUNTIME_ROOT = PROJECT_ROOT / "runtime" / "frontend"
 SESSION_ID = re.compile(r"^[0-9a-f]{32}$")
 DATA_FILES = ("fire_sandbox_spatial_model.json", "map_config.json", "map_original.png")
 DEMO_POST_COUNT = 100
+STABLE_TOP1_BATCHES = 6
 SPATIAL_FILES = ('city_scene.json', 'poi_catalog.json', 'poi_hierarchy.json',
                  'fire_resources.json', 'runtime-manifest.json', 'handoff_schema.json')
 
@@ -63,6 +64,7 @@ class RunRequest(BaseModel):
     session_id: str
     confirm_paid_api: bool = Field(default=False, strict=True)
     paused: bool = Field(default=False, strict=True)
+    auto_handoff: bool = Field(default=False, strict=True)
 
 
 class PauseRequest(BaseModel):
@@ -255,7 +257,8 @@ class SessionService:
             try:
                 self.socialnet.start(snapshot, paused=request.paused)
                 with self.lock:
-                    session = self.sessions[session_id] | {"status": "running", "started_at": now(), "paused": request.paused}
+                    session = self.sessions[session_id] | {"status": "running", "started_at": now(), "paused": request.paused,
+                                                           "auto_handoff": request.auto_handoff}
                     self._persist(session)
                     self.sessions[session_id] = session
                     stream = self.streams[session_id] = StreamRun()
@@ -361,6 +364,7 @@ class SessionService:
                 session.update(**progress, evaluation=self._evaluate(prediction, session["ground_truth"]))
                 session["batch_history"] = [*session["batch_history"][-59:],
                     {"batch_number": progress["batch_count"], **{key: progress[key] for key in ("prediction", "processed_count", "ignored_count")}}]
+                self._auto_handoff_locked(session)
                 self._persist(session)
         except CancelledError:
             return
@@ -400,14 +404,30 @@ class SessionService:
         else:
             close_engine()
 
+    def _handoff_locked(self, session: dict, trigger: str):
+        if session["analysis_frozen"]:
+            return
+        session.update(analysis_frozen=True, handoff_trigger=trigger)
+        self._end_analysis(self.streams[session["session_id"]])
+
+    def _auto_handoff_locked(self, session: dict):
+        if not session.get("auto_handoff") or session["analysis_frozen"] or session["paused"] or session["error"]:
+            return
+        recent = session["batch_history"][-STABLE_TOP1_BATCHES:]
+        if len(recent) < STABLE_TOP1_BATCHES:
+            return
+        leaders = [next((c["poi_id"] for c in batch["prediction"]["candidates"] if c["rank"] == 1), None)
+                   for batch in recent]
+        if leaders[0] and all(leader == leaders[0] for leader in leaders):
+            self._handoff_locked(session, "stable_top1")
+
     def handoff(self, session_id: str) -> dict:
         with self.lock:
             session = self._get_locked(session_id)
             if session.get("source") != "socialnet" or session["status"] != "running" or not (
                     session.get("prediction") or {}).get("candidates"):
                 raise HTTPException(409, "至少有一个定位候选且仿真在运行时才能移交")
-            session["analysis_frozen"] = True
-            self._end_analysis(self.streams[session_id])
+            self._handoff_locked(session, "manual")
             self._persist(session)
             return self.get(session_id)
 
@@ -420,6 +440,7 @@ class SessionService:
             with self.lock:
                 current = self.sessions[session_id]
                 current["paused"] = paused
+                self._auto_handoff_locked(current)
                 self._persist(current)
                 return self.get(session_id)
 
