@@ -8,7 +8,7 @@
 
 city-full地图、106栋扩展建筑几何、道路、行人网络、POI与前端展示已经完成。空间数据中的消防站预留地和3个车辆资源仍为reserved；前端另有四车两机的演练仿真和真实消息接入契约，见[前端联动契约](frontend/web/DASHBOARD_INPUT_CONTRACT.md)。
 
-## 2. 启动工程
+## 2. 启动工程1
 
 安装步骤见根README：创建.venv、安装requirements.txt、在frontend/web运行npm ci。分别执行frontend/start-bridge.ps1和frontend/start-web.ps1，访问 http://127.0.0.1:5173；Bridge为8080。Node≥22.12、Python≥3.11。可用FIRE_PYTHON指定解释器。完整启动（含SocialNet帖子源）在仓库根目录运行 `.\start.ps1`；分别执行两个脚本时不启动帖子源，且start-bridge.ps1需要先设置FIRE_PYTHON。
 
