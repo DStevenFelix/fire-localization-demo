@@ -28,8 +28,8 @@ export const api = {
   prepare: (target_poi_id: string, mode: Mode, seed: number, signal?: AbortSignal) => request<Session>('/scenarios/prepare', {
     method: 'POST', body: JSON.stringify({ target_poi_id, mode, seed, source: 'socialnet' }), signal,
   }).then(normalizeSession),
-  run: (session_id: string, confirm_paid_api = false, paused = false) => request<Session>('/localization/run', {
-    method: 'POST', body: JSON.stringify({ session_id, confirm_paid_api, ...(paused && { paused }) }),
+  run: (session_id: string, confirm_paid_api = false, paused = false, auto_handoff = false) => request<Session>('/localization/run', {
+    method: 'POST', body: JSON.stringify({ session_id, confirm_paid_api, ...(paused && { paused }), ...(auto_handoff && { auto_handoff }) }),
   }).then(normalizeSession),
   session: (id: string) => request<Session>(`/localization/${encodeURIComponent(id)}`).then(normalizeSession),
   posts: (id: string, signal?: AbortSignal) => request<SessionPosts>(`/localization/${encodeURIComponent(id)}/posts`, { signal }),
