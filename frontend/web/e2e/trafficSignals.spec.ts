@@ -15,7 +15,7 @@ async function ready(page: Page) {
     expect(observed).not.toBe(body);
     await route.fulfill({ response, body: observed });
   });
-  await page.goto('/');
+  await page.goto('/?workspace=bridge-demo');
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
@@ -99,7 +99,7 @@ test('default hidden signals, real traffic control, live details, all red, recov
   await ready(page);
   await expect(page.locator('[data-layer="traffic-signals"]')).toHaveCount(0);
   await expect(page.locator('[data-layer="vehicles"] [data-actor]')).toHaveCount(27);
-  await expect(page.locator('[data-fire-truck]')).toHaveCount(3);
+  await expect(page.locator('[data-fire-truck]')).toHaveCount(4);
   const initial = await page.evaluate(() => window.trafficSimulation.cars.map(c => c.pose.point));
   await page.evaluate(() => window.trafficSimulation.tick(12));
   expect(await page.evaluate(initial => window.trafficSimulation.cars.some((c, i) =>
@@ -187,10 +187,10 @@ test('city business demonstration drives the real simulation and all three synch
     sim.trucks.forEach(truck => sim.signals.setEmergencyAccess(truck.id, true));
     sim.setIncident([39.717988, 33.984756], 3);
     let responseSeconds = 0;
-    while (responseSeconds < 180 && !sim.trucks.every(t => t.status === 'arrived')) { sim.tick(.1); responseSeconds += .1; }
+    while (responseSeconds < 180 && sim.trucks.filter(t => t.status === 'arrived').length !== 3) { sim.tick(.1); responseSeconds += .1; }
     return { responseSeconds, statuses: sim.trucks.map(t => t.status) };
   });
-  expect(result.statuses).toEqual(['arrived', 'arrived', 'arrived']);
+  expect(result.statuses.sort()).toEqual(['arrived', 'arrived', 'arrived', 'idle']);
   await expect(page.locator('[data-fire-truck][data-status="arrived"]')).toHaveCount(3);
   await page.screenshot({ path: `${screenshots}/traffic-emergency-passage.png`, fullPage: true });
   const recovery = await page.evaluate(() => {
@@ -201,7 +201,7 @@ test('city business demonstration drives the real simulation and all three synch
     while (returnSeconds < 900 && !sim.trucks.every(t => t.status === 'idle')) { sim.tick(.1); returnSeconds += .1; }
     return { returnSeconds, statuses: sim.trucks.map(t => t.status), carsResumed: sim.cars.some((c, i) => Math.hypot(c.pose.point[0] - stopped[i][0], c.pose.point[1] - stopped[i][1]) > .2) };
   });
-  expect(recovery.statuses).toEqual(['idle', 'idle', 'idle']); expect(recovery.carsResumed).toBe(true);
-  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(3);
+  expect(recovery.statuses).toEqual(['idle', 'idle', 'idle', 'idle']); expect(recovery.carsResumed).toBe(true);
+  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(4);
   await writeFile(`${screenshots}/traffic-demonstration.json`, JSON.stringify({ response: result, recovery }, null, 2));
 });

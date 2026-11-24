@@ -22,6 +22,11 @@ export function cityToScene(point: { readonly x: number; readonly y: number }, h
   return localToScene([point.x - original_map_placement.offset[0], point.y - original_map_placement.offset[1]], height);
 }
 
+export function tankAtCityPosition(point: { readonly x: number; readonly y: number }) {
+  const x = point.x - original_map_placement.offset[0], y = point.y - original_map_placement.offset[1];
+  return sceneTanks.find(({ shape }) => Math.hypot((x - shape.center[0]) / shape.radius_x, (y - shape.center[1]) / shape.radius_y) <= 1)?.id;
+}
+
 const stationCenter = cityToScene({ x: (drone_station.center[0] + fire_station_reserve.center[0]) / 2,
   y: (drone_station.center[1] + fire_station_reserve.center[1]) / 2 });
 const stationHalfWidth = Math.abs(drone_station.center[0] - fire_station_reserve.center[0]) / 2 + 4;

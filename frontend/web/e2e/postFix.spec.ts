@@ -36,7 +36,7 @@ async function ready(page: Page) {
     expect(observed).not.toBe(body);
     await route.fulfill({ response, body: observed });
   });
-  await page.goto('/');
+  await page.goto('/?workspace=bridge-demo');
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
@@ -63,7 +63,7 @@ async function measureFrames(page: Page, label: string, count: number) {
     expect([svg.x, svg.y, svg.heading, svg.altitude, svg.status]).toEqual([d.position.x, d.position.y, d.heading, d.altitude, d.status]);
     expect(input.position).toEqual(d.position);
     const points = f.paths.find(p => p.id === d.id)!.points!;
-    expect(points.split(' ').filter(Boolean).length).toBe(d.path?.length ?? 0);
+    expect(points.split(' ').filter(Boolean).length).toBe(d.status === 'returning' ? 0 : d.path?.length ?? 0);
     if (d.path) {
       const distance = Math.min(...d.path.slice(1).map((end, i) => {
         const start = d.path![i], dx = end.x - start.x, dy = end.y - start.y;
@@ -99,7 +99,7 @@ test('F1 eight formal selections, correct groups and disposed old roots', async 
     results.push({ normal: tank.id, frame });
   }
   for (const tank of tanks) {
-    await page.reload();
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
@@ -170,7 +170,12 @@ test('F2 F3 real routes and identical frames through flight, telemetry, return a
   await page.screenshot({ path: `${output}/fire-trucks-extinguishing.png`, fullPage: true });
   await page.evaluate(() => window.emergencyTest.emit({ type: 'fire.extinguished' }));
   await expect(page.locator('[data-drone][data-status="returning"]')).toHaveCount(2);
-  samples.push(await measureFrames(page, 'returning', 25));
+  const returning = await measureFrames(page, 'returning', 25);
+  for (const drone of returning.frames[0].drones) {
+    expect(drone.path?.length).toBeGreaterThanOrEqual(2);
+    expect(returning.frames.at(-1)!.drones.find(actor => actor.id === drone.id)?.position).not.toEqual(drone.position);
+  }
+  samples.push(returning);
   await page.screenshot({ path: `${output}/fire-trucks-and-drones-returning.png`, fullPage: true });
   await page.evaluate(async () => {
     const path = '/src/utils/emergency.ts', service: EmergencyService = (await import(path)).getEmergencyService();
@@ -219,7 +224,7 @@ test('F4 missing or partial observation blocks dispatch, all assigned observatio
   });
   expect(denied.missing.accepted).toBe(false); expect(denied.partial.accepted).toBe(false);
   expect(denied.commands).toEqual([]); expect(denied.mode).toBe('normal');
-  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(3);
+  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(4);
   await expect(page.getByRole('button', { name: '确认并执行方案', exact: true })).toHaveCount(0);
   await page.screenshot({ path: `${output}/f4-observation-blocked.png`, fullPage: true });
   await page.evaluate(() => {

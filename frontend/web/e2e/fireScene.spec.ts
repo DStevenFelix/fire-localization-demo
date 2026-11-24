@@ -15,7 +15,7 @@ const screenshots = process.env.FIRE_ACCEPTANCE_DIR ? `${process.env.FIRE_ACCEPT
 const sceneTanks: { id: string }[] = JSON.parse(readFileSync(new URL('../../../fire_poi/fire_sandbox_spatial_model.json', import.meta.url), 'utf8')).pois.filter((poi: { entity_type: string }) => poi.entity_type === 'Tank');
 
 async function ready(page: Page) {
-  await page.goto('/');
+  await page.goto('/?workspace=bridge-demo');
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-texture', 'ready');
@@ -69,12 +69,11 @@ test('eight live scenarios, unchanged map geometry, 3D controls and responsive l
   await expect(scene).toHaveAttribute('data-target-id', 'T-SW-01');
   await page.getByRole('region', { name: '三维火场展示', exact: true }).screenshot({ path: `${screenshots}/fire-scene-default.png` });
   const mapBox = await page.locator('.map-canvas').boundingBox();
-  // Layout dimensions are quantized to 1/64 of a CSS pixel.
-  expect(Math.abs(mapBox!.height - mapBox!.width * 1050 / 1313)).toBeLessThanOrEqual(1 / 64);
-  expect(await page.locator('.map-canvas').evaluate(element => getComputedStyle(element).aspectRatio)).toBe('1313 / 1050');
+  const originalBox = (await page.locator('[data-layer="original-map"]').boundingBox())!;
+  expect(originalBox.width / originalBox.height).toBeCloseTo(1313 / 1050, 5);
   const initialView = await page.getByTestId('sandbox-svg').getAttribute('viewBox');
   for (const tank of sceneTanks) {
-    await page.reload();
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: '仿真设置', exact: true }).click();
     await page.getByLabel('火情场景').selectOption(tank.id);
@@ -116,7 +115,7 @@ test('eight live scenarios, unchanged map geometry, 3D controls and responsive l
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 1920, height: 1080 }, { width: 1366, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await expect.poll(() => canvas.evaluate(element => Math.abs(element.getBoundingClientRect().width / element.getBoundingClientRect().height - (innerWidth <= 540 ? 4 / 3 : 16 / 9)))).toBeLessThan(.001);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
     const dimensions = await canvas.evaluate((element: HTMLCanvasElement) => {
       const box = element.getBoundingClientRect(), parent = element.parentElement!.getBoundingClientRect();
       return { width: box.width, height: box.height, parentWidth: parent.width, parentHeight: parent.height,
@@ -172,8 +171,8 @@ test('real SVG truck positions reach the 3D view without moving the fire to an i
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-status', 'burning');
 });
 
-test('component lifecycle cancels frames, disconnects resize, releases WebGL, and supports controlled states', async ({ page }) => {
-  await page.context().grantPermissions(['local-network-access'], { origin: 'http://127.0.0.1:5173' });
+test('component lifecycle cancels frames, disconnects resize, releases WebGL, and supports controlled states', async ({ page, baseURL }) => {
+  await page.context().grantPermissions(['local-network-access'], { origin: baseURL });
   await page.addInitScript(() => {
     const active = new Map<number, string>();
     const originalFrame = requestAnimationFrame.bind(window);
@@ -204,7 +203,7 @@ test('component lifecycle cancels frames, disconnects resize, releases WebGL, an
     } });
   });
   await page.route('**/scene-harness', async route => {
-    const response = await route.fetch({ url: 'http://127.0.0.1:5173/' });
+    const response = await route.fetch({ url: new URL('/', route.request().url()).href });
     // 替换入口时移除 main 的时间戳，统一测试模块 URL，避免创建两个 React 根。
     await route.fulfill({ response, body: (await response.text()).replace(/\/src\/main\.tsx(?:\?[^"\s]*)?/, '/e2e/sceneHarness.tsx') });
   });
@@ -234,9 +233,9 @@ test('component lifecycle cancels frames, disconnects resize, releases WebGL, an
   expect(counters.contextsLost).toBeGreaterThanOrEqual(2); // StrictMode mount/cleanup, then actual unmount.
 });
 
-test('visual levels use the actual severity control, animate smoothly and show controlled extinction', async ({ page }) => {
+test('visual levels use the actual severity control, animate smoothly and show controlled extinction', async ({ page, baseURL }) => {
   test.setTimeout(90000);
-  await page.context().grantPermissions(['local-network-access'], { origin: 'http://127.0.0.1:5173' });
+  await page.context().grantPermissions(['local-network-access'], { origin: baseURL });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -284,7 +283,7 @@ test('visual levels use the actual severity control, animate smoothly and show c
   }));
   await test.info().attach('large-fire-frame-intervals', { body: JSON.stringify(frameTimes), contentType: 'application/json' });
   await page.route('**/scene-harness', async route => {
-    const response = await route.fetch({ url: 'http://127.0.0.1:5173/' });
+    const response = await route.fetch({ url: new URL('/', route.request().url()).href });
     await route.fulfill({ response, body: (await response.text()).replace(/\/src\/main\.tsx(?:\?[^"\s]*)?/, '/e2e/sceneHarness.tsx') });
   });
   await page.goto('/scene-harness');

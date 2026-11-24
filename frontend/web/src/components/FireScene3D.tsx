@@ -24,7 +24,7 @@ export default function FireScene3D(props: FireScene3DProps) {
     try { renderer = new WebGLRenderer({ antialias: true, alpha: false }); }
     catch { setError('三维显示不可用，请检查浏览器 WebGL 支持。'); return; }
     const scene = new Scene();
-    scene.background = new Color('#142333');
+    scene.background = new Color(getComputedStyle(element).getPropertyValue('--gis-subtle').trim());
     const camera = new PerspectiveCamera(42, 1, 1, 5000);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -131,14 +131,18 @@ export default function FireScene3D(props: FireScene3DProps) {
   }, []);
 
   return <div className="fire-scene-viewport">
-    <div className="fire-scene-canvas" ref={container} data-testid="fire-scene-canvas" data-target-id={props.targetId ?? ''} data-status={props.status} data-view={view} />
-    <div className="fire-scene-view-controls" role="group" aria-label="三维场景视区">
-      <button type="button" aria-pressed={view === 'fire'} onClick={() => setView('fire')}>火场</button>
-      <button type="button" aria-pressed={view === 'station'} onClick={() => setView('station')}>无人机站</button>
+    <div className="fire-scene-toolbar">
+      <div className="fire-scene-view-controls" role="group" aria-label="三维场景视区">
+        <button type="button" aria-pressed={view === 'fire'} onClick={() => setView('fire')}>火场</button>
+        <button type="button" aria-pressed={view === 'station'} onClick={() => setView('station')}>无人机站</button>
+      </div>
+      <button type="button" className="fire-scene-reset" aria-label="复位三维视角" disabled={!props.targetId || !!error} onClick={() => reset.current()}><RotateCcw size={13} />复位视角</button>
     </div>
-    {!props.targetId && !error && <div className="fire-scene-message">等待火情场景准备</div>}
-    {error && <div className="fire-scene-message" role="status">{error}</div>}
-    <button type="button" className="fire-scene-reset" aria-label="复位三维视角" disabled={!props.targetId || !!error} onClick={() => reset.current()}><RotateCcw size={13} />复位视角</button>
-    <span className="fire-scene-hint">拖动旋转 · 滚轮缩放</span>
+    <div className="fire-scene-frame">
+      <div className="fire-scene-canvas" ref={container} data-testid="fire-scene-canvas" data-target-id={props.targetId ?? ''} data-status={props.status} data-view={view} />
+      {!props.targetId && !error && <div className="fire-scene-message">等待火情场景准备</div>}
+      {error && <div className="fire-scene-message" role="status">{error}</div>}
+      {props.targetId && !error && <span className="fire-scene-hint">拖动旋转 · 滚轮缩放</span>}
+    </div>
   </div>;
 }

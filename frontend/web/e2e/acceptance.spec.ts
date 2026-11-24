@@ -40,7 +40,7 @@ async function ready(page: Page) {
     expect(observed).not.toBe(body);
     await route.fulfill({ response, body: observed });
   });
-  await page.goto('/');
+  await page.goto('/?workspace=bridge-demo');
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
@@ -249,7 +249,7 @@ test('normal traffic, shared station and complete incident use the actual busine
   await screenshot(page, '07-extinguished');
   const returnAudit = await auditTraffic(page, 2);
   const returning = await synchronizedDrones(page);
-  expect(returning.every(d => d.status === 'returning' && d.route && d.sceneError < 1e-9)).toBe(true);
+  expect(returning.every(d => d.status === 'returning' && d.route === '' && d.sceneError < 1e-9)).toBe(true);
   expect(returnAudit.signals.every(s => !s.emergencyPriority)).toBe(true);
   await screenshot(page, '08-traffic-restored-returning');
   const recovery = await auditTraffic(page, 900, false, 'home');

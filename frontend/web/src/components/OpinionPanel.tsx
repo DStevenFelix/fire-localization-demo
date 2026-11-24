@@ -1,5 +1,5 @@
-import { useId, useSyncExternalStore, type ReactNode } from 'react';
-import { Activity, Settings } from 'lucide-react';
+import { useId, useSyncExternalStore } from 'react';
+import { Activity } from 'lucide-react';
 import type { OpinionPost } from '../types';
 import type { OpinionFeed } from '../utils/opinionFeed';
 import { poiRegistry } from '../utils/poiRegistry';
@@ -11,20 +11,17 @@ type Props = {
   scanning?: boolean;
   receivedTotal?: number;
   error?: string;
-  onOpenSettings: () => void;
-  children: ReactNode;
 };
 
 const signalPositions = [[36, 41], [78, 31], [88, 65], [52, 87], [34, 64], [72, 81]];
 
-export default function OpinionPanel({ feed, source, status, scanning = status === '播放中', receivedTotal, error, onOpenSettings, children }: Props) {
+export default function OpinionPanel({ feed, source, status, scanning = status === '播放中', receivedTotal, error }: Props) {
   const { current, previous, shown } = useSyncExternalStore(feed.subscribe, feed.getSnapshot);
 
   return <section className="control-card opinion-card" aria-labelledby="opinion-title">
     <div className="card-heading">
       <div className="opinion-heading"><Activity size={17} /><div>
         <h2 id="opinion-title">舆情监测 Agent</h2>
-        <span className="opinion-english" lang="en">PUBLIC OPINION MONITORING</span>
       </div></div>
     </div>
     <div className="control-body opinion-body opinion-radar-body">
@@ -38,17 +35,12 @@ export default function OpinionPanel({ feed, source, status, scanning = status =
           <div className="opinion-caption">
             <span>累计收到 {receivedTotal ?? 0} 条</span>
           </div>
-          <p className="opinion-radar-note">有新帖优先展示，空档循环近期帖子</p>
         </div>
       </div>
       <div className="opinion-viewport" role="region" aria-label="当前帖子">
         {previous && <PostEntry key={shown - 1} post={previous} outgoing />}
         {current ? <PostEntry key={shown} post={current} /> :
           <p className="opinion-placeholder">{error ?? '等待本轮帖子展示'}</p>}
-      </div>
-      <div className="opinion-radar-controls">
-        {children}
-        <button type="button" className="opinion-settings" aria-haspopup="dialog" onClick={onOpenSettings}><Settings size={14} />仿真设置</button>
       </div>
     </div>
   </section>;

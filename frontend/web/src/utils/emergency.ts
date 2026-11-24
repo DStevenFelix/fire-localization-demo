@@ -75,6 +75,17 @@ export class EmergencyService {
   getDrone(id: string) { return this.state.drones.find(d => d.id === id); }
   isConnectedTo(adapter: EmergencyAdapter) { return this.adapter === adapter; }
   getSceneActors() { return this.state.drones.map(d => ({ ...d, kind: 'drone' as const })); }
+  updateSimulatedRecon(drone: DroneSnapshot) {
+    if (!this.adapter?.simulatedFleet || (this.state.incident && this.state.incident.phase !== 'completed'))
+      throw new Error('候选侦查只能在模拟火点确认前执行');
+    this.updateDroneMotion(drone, drone.path);
+  }
+  private updateDroneMotion(drone: DroneSnapshot, route: DroneSnapshot['path']) {
+    const path = route?.map(point => ({ ...point }));
+    if (path) this.motion.set(drone.id, { path, index: 1 });
+    else this.motion.delete(drone.id);
+    this.publish({ drones: this.state.drones.map(d => d.id === drone.id ? { ...drone, position: { ...drone.position }, path } : d) });
+  }
   private publish(patch: Partial<EmergencySnapshot>, notify = true) {
     this.state = { ...this.state, ...patch };
     if (notify) this.listeners.forEach(listener => listener());
@@ -157,9 +168,7 @@ export class EmergencyService {
       if (reassigned && (current.confirmed || this.state.pending)) throw new Error('方案执行期间不能重新派遣侦察任务');
       if (reassigned) this.assignments.set(event.drone.id, { dispatchedAt: event.occurredAt });
       const path = ['idle', 'charging'].includes(event.drone.status) ? undefined : event.drone.path;
-      if (path) this.motion.set(event.drone.id, { path, index: 1 });
-      if (!path) this.motion.delete(event.drone.id);
-      this.publish({ drones: this.state.drones.map(d => d.id === event.drone.id ? { ...event.drone, position: { ...event.drone.position }, path: path?.map(p => ({ ...p })) } : d) });
+      this.updateDroneMotion(event.drone, path);
       const ids = assigned ? [...new Set([...current.droneIds, event.drone.id])] : current.droneIds;
       this.incident({ droneIds: ids, ...(reassigned ? { observedIds: current.observedIds.filter(id => id !== event.drone.id),
         assessment: undefined, plan: undefined, fireStatus: 'burning' as const } : {}), ...((assigned || current.droneIds.includes(event.drone.id)) && !current.confirmed && (!current.assessment || reassigned) ?
@@ -219,7 +228,13 @@ export class EmergencyService {
       if (current.plan?.id === event.plan.id) return;
       this.incident({ plan: structuredClone(event.plan), phase: 'awaiting_confirmation', error: undefined, cancelled: false }); return;
     }
-    if (event.type === 'operation.failed') { this.fail(event.message, event.operation); return; }
+    if (event.type === 'operation.failed') {
+      if (event.operation === 'extinguish' && current.fireStatus === 'extinguishing') {
+        current.plan?.dispatches.forEach(dispatch => this.traffic.setExternalWater(dispatch.vehicleId, false));
+        this.incident({ fireStatus: 'burning' });
+      }
+      this.fail(event.message, event.operation); return;
+    }
     if (!current.confirmed) throw new Error('方案尚未确认，消防车任务和灭火事件不会执行');
     if (event.type === 'fire.extinguished') {
       if (current.fireStatus === 'extinguished') return;

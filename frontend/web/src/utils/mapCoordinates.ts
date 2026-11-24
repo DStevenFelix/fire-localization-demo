@@ -36,7 +36,7 @@ export const IMAGE_SIZE = { width: mapConfig.source.width_px, height: mapConfig.
 export const WORLD_SIZE = { width: mapConfig.coordinate_system.extent[2], height: mapConfig.coordinate_system.extent[3] };
 // SVG image coordinates describe outer edges [0,W]×[0,H]. Source pixel centers
 // use [0,W-1]×[0,H-1]; converting between conventions cancels the W-1 factor.
-// The whole uncropped image represents the 30×25 map. 1 simulation unit = 1 m.
+// The uncropped image represents 30×25 simulation units. Physical metres require calibration.
 export const DEFAULT_CALIBRATION: Calibration = { left: 0, top: 0, width: IMAGE_SIZE.width, height: IMAGE_SIZE.height };
 
 export function isValidCalibration(value: Calibration): boolean {

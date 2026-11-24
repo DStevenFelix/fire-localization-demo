@@ -64,7 +64,7 @@ export function TrafficSignalDetails({ signals, id, close }: { signals: TrafficS
       <p>{state.hardware.connected ? '实机同步' : '信号机离线 · 保留最后灯色'}</p>
       <dl>{state.hardware.groups.map(({ color, countdown }, index) =>
         <div key={index}><dt>{signalDirections[Math.floor(index / 4)]}进口 · {signalMovements[index % 4]}</dt>
-          <dd data-state={color} style={{ color: colors[color] }}>{signalColorLabels[color]}{state.hardware!.connected && countdown > 0 ? ` · ${countdown} 秒` : ''}</dd></div>)}</dl>
+          <dd data-state={color}>{signalColorLabels[color]}{state.hardware!.connected && countdown > 0 ? ` · ${countdown} 秒` : ''}</dd></div>)}</dl>
     </> : <>
       <p>{signals.getMode() === 'emergency_lockdown' ? '应急全红管制' : state.emergencyPriority ? '消防沿线信号优先' : '正常运行'} · {state.phase === 'all_red' ? '全红清空' : state.phase === 'vehicle' ? '机动车通行' : '行人过街'}</p>
       <dl>{intersection.groups.filter(g => g.kind === 'vehicle').map(group => {

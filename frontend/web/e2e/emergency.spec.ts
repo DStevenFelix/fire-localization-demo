@@ -19,7 +19,7 @@ async function ready(page: Page) {
       renderer.render(scene, camera);`);
     expect(observed).not.toBe(body); await route.fulfill({ response, body: observed });
   });
-  await page.goto('/');
+  await page.goto('/?workspace=bridge-demo');
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('fire-scene-canvas')).toHaveAttribute('data-rendered', 'true');
   await page.getByRole('button', { name: '全局暂停', exact: true }).click();
@@ -67,7 +67,7 @@ test('complete external emergency lifecycle, synchronized drones, confirmation, 
   await page.getByRole('region', { name: '三维火场展示', exact: true }).screenshot({ path: `${screenshots}/03-drones-3d-large-fire.png` });
   await expect(page.getByTestId('emergency-plan')).toContainText('2 辆消防车');
   await expect(page.getByTestId('emergency-plan')).toContainText('EXT-FIRE-VEHICLE-');
-  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(3);
+  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(4);
   await snapshot(page, '04-plan-awaiting-confirmation');
   await page.getByRole('button', { name: '确认并执行方案', exact: true }).click();
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'fire_trucks_dispatched');
@@ -103,7 +103,7 @@ test('complete external emergency lifecycle, synchronized drones, confirmation, 
   await advance(page, 900);
   await page.evaluate(() => window.emergencyTest.dockDrones());
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'completed');
-  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(3);
+  await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(4);
   await snapshot(page, '11-completed');
   const commands = await page.evaluate(() => window.emergencyTest.commands.map(c => ({ type: c.type, commandId: c.commandId })));
   const phases = await page.evaluate(() => window.emergencyTest.phases);
@@ -123,7 +123,7 @@ test('cancellation and delayed or malformed external events preserve a usable re
   await page.getByRole('button', { name: '取消执行', exact: true }).click();
   await expect(page.getByRole('region', { name: '应急联动指挥' })).toContainText('方案已取消');
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'assessment_completed');
-  await advance(page, 20); await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(3);
+  await advance(page, 20); await expect(page.locator('[data-fire-truck][data-status="idle"]')).toHaveCount(4);
   expect(await page.evaluate(() => window.emergencyTest.commands)).toHaveLength(0);
   await page.evaluate(() => window.emergencyTest.raw({ type: 'drone.update', drone: { position: { x: NaN } } }));
   await expect(page.getByRole('region', { name: '应急联动指挥' }).getByRole('alert')).toContainText('应急数据格式无效');

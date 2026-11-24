@@ -3,7 +3,7 @@ import config from '../src/config/emergency.json';
 import type { EmergencyAdapter, EmergencyCommand, EmergencyEvent, EmergencyPlan, FireSceneSeverity } from '../src/types';
 import type { EmergencyService } from '../src/utils/emergency';
 import { poiRegistry } from '../src/utils/poiRegistry';
-import { roadPieces } from '../src/utils/roadNetwork';
+import { mockParkingPieces, roadPieces } from '../src/utils/roadNetwork';
 import { TrafficSimulation } from '../src/utils/trafficSimulation';
 
 type Payload<T> = T extends EmergencyEvent ? Omit<T, 'messageId' | 'incidentId' | 'occurredAt'> : never;
@@ -54,7 +54,7 @@ export function createEmergencyMock(service: EmergencyService, incidentId = 'TES
     }
     const poi = poiRegistry.get(service.getSnapshot().incident?.targetPoiId ?? 'T-SW-01')!, goal: [number, number] = [poi.center[0] + 30, poi.center[1] + 25];
     // Fixture planner uses the old algorithm in a separate simulator; it cannot dispatch the app's fleet.
-    const planner = new TrafficSimulation(undefined, undefined, service.traffic.pedestrians.actors.length > 0);
+    const planner = new TrafficSimulation(undefined, undefined, service.traffic.pedestrians.actors.length > 0, service.traffic.truckHomes);
     planner.pedestrians.actors.forEach(actor => {
       const crossing = actor.route.segments[actor.index].crosswalk;
       if (crossing) planner.signals.release(planner.signals.getCrosswalkControl(crossing)!.intersection.id, actor.id);
@@ -71,7 +71,7 @@ export function createEmergencyMock(service: EmergencyService, incidentId = 'TES
       if (segment.crosswalk && actor.distance > 1e-8) planner.signals.occupy(planner.signals.getCrosswalkControl(segment.crosswalk)!.intersection.id, actor.id, 'pedestrian', segment.crosswalk);
     });
     planner.setIncident(goal, count as FireSceneSeverity);
-    const ids = new Map([...roadPieces].map(([id, piece]) => [piece, id]));
+    const ids = new Map([...roadPieces, ...mockParkingPieces].map(([id, piece]) => [piece, id]));
     const selected = planner.trucks.filter(t => t.status === 'en-route' || t.status === 'arrived').sort((a, b) =>
       a.path.slice(0, -1).reduce((sum, p) => sum + p.length, a.stop) - b.path.slice(0, -1).reduce((sum, p) => sum + p.length, b.stop));
     const journeys = new Map(selected.map(t => [t.id, [t.cursor.piece]]));

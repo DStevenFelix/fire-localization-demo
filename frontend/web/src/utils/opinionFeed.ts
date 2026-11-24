@@ -35,7 +35,7 @@ export function createOpinionFeed(sessionId: string | undefined) {
 
 export type OpinionFeed = ReturnType<typeof createOpinionFeed>;
 
-export function useSocialNetPosts(sessionId: string | undefined, running: boolean, paused: boolean, feed: OpinionFeed) {
+export function useSocialNetPosts(sessionId: string | undefined, running: boolean, paused: boolean, feed: OpinionFeed, onReceived?: (sessionId: string, post: OpinionPost) => void) {
   const [failure, setFailure] = useState<{ id: string; message: string }>();
   const [received, setReceived] = useState<{ id: string; total: number }>();
   const queue = useMemo(() => ({ recent: [] as readonly OpinionPost[], fresh: [] as OpinionPost[], total: 0, next: 0 }), [sessionId]);
@@ -50,10 +50,12 @@ export function useSocialNetPosts(sessionId: string | undefined, running: boolea
         const data = await api.posts(sessionId!, controller.signal);
         if (controller.signal.aborted || data.session_id !== sessionId) return;
         if (data.post_count > queue.total) {
-          queue.fresh = [...queue.fresh, ...data.posts.slice(-Math.min(data.post_count - queue.total, data.posts.length))].slice(-60);
+          const newPosts = data.posts.slice(-Math.min(data.post_count - queue.total, data.posts.length));
+          queue.fresh = [...queue.fresh, ...newPosts].slice(-60);
           queue.recent = data.posts;
           queue.total = data.post_count;
           setReceived({ id: sessionId!, total: queue.total });
+          newPosts.forEach(post => onReceived?.(sessionId!, post));
         }
         setFailure(undefined);
       } catch (error) {
@@ -68,7 +70,7 @@ export function useSocialNetPosts(sessionId: string | undefined, running: boolea
       controller.abort();
       window.clearTimeout(requestTimer);
     };
-  }, [sessionId, running, queue]);
+  }, [sessionId, running, queue, onReceived]);
 
   useEffect(() => {
     if (!sessionId || !running || paused) return;

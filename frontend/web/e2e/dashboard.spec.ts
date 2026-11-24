@@ -6,7 +6,7 @@ import { startWithPrediction } from './predictionFixture';
 
 async function ready(page: Page) {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('/');
+  await page.goto('/?workspace=bridge-demo');
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await expect(page.getByTestId('truth-marker')).toBeVisible();
   await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText('0 批 · 0 / 0 条', { exact: true })).toBeVisible();
@@ -24,15 +24,19 @@ async function verifyOverlay(page: Page, withPrediction = true) {
       const box = element.getBoundingClientRect();
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     };
-    return { aspect: image.width / image.height, truth: center(truth), poi: center(poi),
-      prediction: prediction ? center(prediction) : null, predictedPoi: predictedPoi ? center(predictedPoi) : null };
+    const coordinates = (element: Element | null) => element && ['cx', 'cy'].map(name => Number(element.getAttribute(name)));
+    return { aspect: image.width / image.height, truth: center(truth), poi: center(poi), truthSvg: coordinates(truth), poiSvg: coordinates(poi),
+      prediction: prediction ? center(prediction) : null, predictedPoi: predictedPoi ? center(predictedPoi) : null,
+      predictionSvg: coordinates(prediction ?? null), predictedPoiSvg: coordinates(predictedPoi) };
   });
   expect(measured.aspect).toBeCloseTo(1313 / 1050, 4);
-  expect(measured.truth.x).toBeCloseTo(measured.poi.x, 4);
-  expect(measured.truth.y).toBeCloseTo(measured.poi.y, 4);
+  expect(measured.truthSvg).toEqual(measured.poiSvg);
+  expect(measured.truth.x).toBeCloseTo(measured.poi.x, 3);
+  expect(measured.truth.y).toBeCloseTo(measured.poi.y, 3);
   if (withPrediction) {
-    expect(measured.prediction!.x).toBeCloseTo(measured.predictedPoi!.x, 4);
-    expect(measured.prediction!.y).toBeCloseTo(measured.predictedPoi!.y, 4);
+    expect(measured.predictionSvg).toEqual(measured.predictedPoiSvg);
+    expect(measured.prediction!.x).toBeCloseTo(measured.predictedPoi!.x, 3);
+    expect(measured.prediction!.y).toBeCloseTo(measured.predictedPoi!.y, 3);
   }
 }
 
@@ -64,6 +68,9 @@ test('streaming prediction, measured map, layers, zoom, reset and refresh', asyn
   await expect(page.getByTestId('evidence-marker').first()).toBeVisible();
   await expect(page.locator('.candidate-row')).toHaveCount(3);
   await page.getByRole('button', { name: '移交应急处置' }).click();
+  await expect(page.getByTestId('emergency-phase')).toHaveText('无人机巡查候选');
+  await expect(page.locator('[data-recon-stage=assigned]')).toHaveCount(3);
+  await expect(page.getByTestId('emergency-plan')).toHaveCount(0);
   await expect(page.getByTestId('prediction-marker')).toBeVisible();
   await expect(page.getByRole('region', { name: '火情沙盘地图', exact: true }).getByText('1 批 · 3 / 3 条', { exact: true })).toBeVisible();
   await expect(page.getByTestId('truth-marker').locator('text')).toHaveText('Ground Truth');
@@ -87,17 +94,17 @@ test('streaming prediction, measured map, layers, zoom, reset and refresh', asyn
   await page.setViewportSize({ width: 1366, height: 900 });
   await verifyOverlay(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'drone_dispatched');
   await page.getByRole('button', { name: '全局重置' }).click();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
   await expect(page.getByTestId('emergency-phase')).toHaveAttribute('data-phase', 'idle');
   await expect(page.locator('[data-drone][data-status="idle"]')).toHaveCount(2);
+  await expect(page.locator('[data-drone-path][points=""], [data-truck-path][points=""]')).toHaveCount(6);
   await expect(page.getByRole('button', { name: '开始仿真', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '仿真设置', exact: true }).click();
   await page.getByLabel('火情场景').selectOption('T-SE-01');
   await page.getByRole('button', { name: '关闭仿真设置' }).click();
   await expect(page.getByTestId('truth-marker')).toHaveAttribute('data-poi-id', 'T-SE-01');
-  await page.reload();
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('truth-marker')).toBeVisible();
   await expect(page.getByTestId('prediction-marker')).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });

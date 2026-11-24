@@ -1,20 +1,24 @@
 import { roads, traffic_routes } from '../../../../city_scene/city_scene.json';
 import type { CityPosition, FireSceneSeverity, FireTruckDispatch, FireTruckRoute, VehicleSceneSnapshot } from '../types';
 import config from '../config/trafficControl.json';
+import emergencyConfig from '../config/emergency.json';
 import { TrafficSignalController } from './trafficSignalController';
 import { PedestrianSimulation } from './pedestrianSimulation';
 import { approaches, ARRIVAL_RADIUS, avenueLanes, distance, garage, originalLoop, pose,
-  followsOnSameLane, garageEntries, inTankZone, isFireStationOnly, isGarageAccess, isRightTurn, oppositeLane, roadPieces, routeTo, routeToLane, streetLoop,
+  followsOnSameLane, garageEntries, inTankZone, isFireStationOnly, isGarageAccess, isParkingDeparture, isParkingEntry, isRightTurn, mockParkingPieces, oppositeLane, roadPieces, routeTo, routeToLane, streetLoop,
   type Approach, type Cursor, type Piece, type Point, type Pose, type RoadPlan } from './roadNetwork';
 
 export type ResetMode = 'garage' | 'roads';
 export type Severity = FireSceneSeverity;
 export type TruckStatus = 'idle' | 'en-route' | 'arrived' | 'unreachable' | 'returning' | 'return-waiting';
+type FleetHome = { home: Cursor; returnTo: Cursor; departureHold?: number };
+const historicalHomes: FleetHome[] = garage.map((bay, index) => ({ home: { piece: bay, distance: 0 },
+  returnTo: { piece: garageEntries[index], distance: garageEntries[index].length } }));
 type Vehicle = {
   id: string; fire: boolean; cursor: Cursor; pose: Pose; speed: number;
   path: Piece[]; index: number; stop: number; status: TruckStatus; junction?: string;
   originalPath?: Piece[]; homePath?: Piece[]; waitingForSignal?: boolean;
-  bay?: Piece;
+  home?: FleetHome;
   external?: { target: Point; water: boolean };
   telemetry?: { updatedAt: number; ceiling: number };
   returnRetry?: number;
@@ -71,7 +75,7 @@ const RETURN_RETRY_SECONDS = 3;
 const RETURN_PRIORITY_DISTANCE = 2.5;
 const RETURN_EXIT_GREEN_WINDOWS = 2;
 export const carIds = configuredRoutes.map(r=>r.id);
-export const truckIds = garage.map((_,i)=>`EXT-FIRE-VEHICLE-0${i+1}`);
+export const truckIds = emergencyConfig.trucks.map(truck => truck.id);
 
 function cursorOn(path: Piece[], length: number) {
   for(let i=0;i<path.length;i++) {
@@ -108,7 +112,7 @@ function passable(stopped: VehicleBody[]) {
 const DRIVEWAY_ENTRY = 1.05;
 
 function occupiedJunction({piece, distance}: Cursor) {
-  return garage.includes(piece) && distance <= DRIVEWAY_ENTRY ? undefined : piece.junction;
+  return isParkingDeparture(piece) && distance <= DRIVEWAY_ENTRY ? undefined : piece.junction;
 }
 export class TrafficSimulation {
   readonly cars: Vehicle[]=[];
@@ -125,7 +129,7 @@ export class TrafficSimulation {
   private updates = new Set<(seconds: number) => void>();
   private vehicleOccupancies = new Map<string, string>();
   private returnQueue = new Map<Vehicle, ReturnApproach & { greenWindows: number; green: boolean }>();
-  constructor(private random=Math.random, readonly signals = new TrafficSignalController(), pedestriansEnabled = config.pedestriansEnabled) {
+  constructor(private random=Math.random, readonly signals = new TrafficSignalController(), pedestriansEnabled = config.pedestriansEnabled, readonly truckHomes: readonly FleetHome[] = historicalHomes) {
     this.pedestrians = new PedestrianSimulation(signals, pedestriansEnabled);
     if (config.vehicles.emergencyFleetAuthorized) truckIds.forEach(id => signals.setEmergencyAccess(id, true));
     this.reset('garage');
@@ -146,12 +150,13 @@ export class TrafficSimulation {
   }
   get all() {return [...this.cars,...this.trucks];}
   get sceneSnapshot(): readonly VehicleSceneSnapshot[] {
-    return this.trucks.map(vehicle => ({
-      id: vehicle.id, kind: 'fireTruck',
-      position: { x: vehicle.pose.point[0], y: vehicle.pose.point[1] },
-      heading: vehicle.pose.angle, status: vehicle.external?.water ? 'extinguishing' : vehicle.status,
-      waterTarget: this.waterTarget(vehicle),
-    }));
+    return this.trucks.map(vehicle => {
+      const waterTarget = this.waterTarget(vehicle);
+      const working = waterTarget && (vehicle.external || this.simulatedFleet);
+      return { id: vehicle.id, kind: 'fireTruck',
+        position: { x: vehicle.pose.point[0], y: vehicle.pose.point[1] },
+        heading: vehicle.pose.angle, status: working ? 'extinguishing' : vehicle.status, waterTarget };
+    });
   }
   waterTarget(vehicle: Vehicle): CityPosition | undefined {
     if (vehicle.status !== 'arrived') return;
@@ -162,7 +167,7 @@ export class TrafficSimulation {
   }
   validateExternalRoute(vehicleId: string, route: FireTruckRoute, target?: CityPosition) {
     const truck = this.trucks.find(t => t.id === vehicleId);
-    const pieces = route.pieceIds.map(id => roadPieces.get(id));
+    const pieces = route.pieceIds.map(id => roadPieces.get(id) ?? (truck?.home?.departureHold ? mockParkingPieces.get(id) : undefined));
     if (!truck || !pieces.length || pieces.some(p => !p) || pieces[0] !== truck.cursor.piece ||
       pieces.some((p, i) => i > 0 && !pieces[i - 1]!.next.includes(p!)) ||
       !Number.isFinite(route.stop) || route.stop < 0 || route.stop > pieces.at(-1)!.length ||
@@ -223,16 +228,17 @@ export class TrafficSimulation {
     this.returnQueue.clear();
     this.trucks=[];
     const eligible=avenueLanes.filter(p=>p.length>2.1), length=eligible.reduce((n,p)=>n+p.length-1.9,0);
-    for(let i=0;i<garage.length;i++) {
-      const parked=actor(truckIds[i],true,[garage[i]],FIRE_TRUCK_SPEED,0);
-      parked.bay=garage[i];
+    for(let i=0;i<this.truckHomes.length;i++) {
+      const home = this.truckHomes[i];
+      const parked=actor(truckIds[i],true,[home.home.piece],FIRE_TRUCK_SPEED,home.home.distance);
+      parked.home=home;
       if(mode==='garage') {this.trucks.push(parked); continue;}
       const initial=this.random()*length;
       for(let attempt=0;attempt<Math.ceil(length/.25);attempt++) {
         let s=(initial+attempt*.271)%length;
         const lane=eligible.find(p=>{if(s<p.length-1.9)return true; s-=p.length-1.9;return false;})!;
         const truck=actor(truckIds[i],true,[lane],FIRE_TRUCK_SPEED,.95+s);
-        truck.bay=parked.bay;
+        truck.home=home;
         if(this.all.every(other=>!conflicts(truck,other))) {this.trucks.push(truck);break;}
       }
     }
@@ -263,15 +269,15 @@ export class TrafficSimulation {
     const first = ranked.slice(0, count);
     if (count >= ranked.length || ranked.filter(truck => truck.status === 'arrived').length <= count) return first;
     const ready = ranked.filter(truck => truck.status === 'arrived');
-    const candidates = count === 1 ? ready.map(truck => [truck]) :
-      ready.flatMap((truck, index) => ready.slice(index + 1).map(other => [truck, other]));
-    // There are at most three trucks. Prefer the nearest responders whose parked positions let the others leave.
+    const candidates = ready.reduce<Vehicle[][]>((sets, truck) => [...sets, ...sets.filter(set => set.length < count).map(set => [...set, truck])], [[]])
+      .filter(set => set.length === count);
+    // Prefer nearby responders whose arrival positions let the others leave.
     let best = first;
     let mostAbleToLeave = -1;
     for (const selected of candidates) {
       const parked = selected.filter(truck => truck.status === 'arrived');
       const canLeave = ranked.filter(truck => !selected.includes(truck) &&
-        (truck.cursor.piece === truck.bay && truck.cursor.distance === 0 || !!this.returnPlan(truck, parked))).length;
+        (truck.cursor.piece === truck.home!.home.piece && truck.cursor.distance === truck.home!.home.distance || !!this.returnPlan(truck, parked))).length;
       if (canLeave > mostAbleToLeave) {
         mostAbleToLeave = canLeave;
         best = selected;
@@ -325,10 +331,10 @@ export class TrafficSimulation {
 
   private park(truck: Vehicle) {
     if (truck.junction) this.signals.release(truck.junction, truck.id);
-    truck.cursor = { piece: truck.bay!, distance: 0 };
-    truck.path = [truck.bay!];
+    truck.cursor = { ...truck.home!.home };
+    truck.path = [truck.cursor.piece];
     truck.index = 0;
-    truck.stop = 0;
+    truck.stop = truck.cursor.distance;
     truck.status = 'idle';
     truck.junction = undefined;
     truck.waitingForSignal = false;
@@ -338,13 +344,12 @@ export class TrafficSimulation {
   }
 
   private returnPlan(truck: Vehicle, parked: readonly Vehicle[]) {
-    const entry = garageEntries[garage.indexOf(truck.bay!)];
-    return routeTo(truck.cursor, { piece: entry, distance: entry.length }, parked.length ? passable([...parked]) : undefined);
+    return routeTo(truck.cursor, truck.home!.returnTo, parked.length ? passable([...parked]) : undefined);
   }
 
   private planReturn(truck: Vehicle) {
-    const bay = truck.bay!;
-    if (truck.cursor.piece === bay && truck.cursor.distance === 0) {
+    const home = truck.home!.home;
+    if (truck.cursor.piece === home.piece && truck.cursor.distance === home.distance) {
       this.park(truck);
       return;
     }
@@ -616,8 +621,12 @@ export class TrafficSimulation {
       if (step <= 1e-8) return;
     }
     let {piece:p,distance:d}=vehicle.cursor;
-    const inGarage=vehicle.fire&&garage.includes(p);
-    if(inGarage&&vehicle.status==='en-route'&&this.garageOrder.find(t=>t.status==='en-route'&&garage.includes(t.cursor.piece))!==vehicle)return;
+    const inGarage=vehicle.fire&&isParkingDeparture(p);
+    if (inGarage && vehicle.status === 'en-route' && this.garageOrder.find(truck => truck.status === 'en-route' && isParkingDeparture(truck.cursor.piece)) !== vehicle) {
+      // Separate stalls may advance within their straight section. The shared aisle admits one departure at a time.
+      step = Math.min(step, (vehicle.home!.departureHold ?? 0) - d);
+      if (step <= 0) return;
+    }
     let index=vehicle.index, junction=vehicle.junction;
     const final=vehicle.fire&&index===vehicle.path.length-1;
     const limit=final?vehicle.stop:p.length;
@@ -676,7 +685,7 @@ export class TrafficSimulation {
       if(exit&&others.some(v=>v!==vehicle&&v.cursor.piece===exit&&v.cursor.distance<2.25))return;
       junction=approach;
     }
-    const shiftToReverse = vehicle.fire && d < limit && d + step >= limit && upcoming && garageEntries.includes(upcoming);
+    const shiftToReverse = vehicle.fire && d < limit && d + step >= limit && upcoming && isParkingEntry(upcoming);
     d = shiftToReverse ? limit : d + step;
     if(d>limit) {
       if(final)d=limit;
@@ -691,7 +700,7 @@ export class TrafficSimulation {
     const endOfReturn = vehicle.status === 'returning' && index === vehicle.path.length - 1;
     if (endOfReturn) d = Math.min(d, vehicle.stop);
     const cursor={piece:p,distance:d}, nextPose=pose(cursor);
-    if (vehicle.fire && garageEntries.includes(p)) nextPose.angle += Math.PI;
+    if (vehicle.fire && isParkingEntry(p)) nextPose.angle += Math.PI;
     if(others.some(v=>v!==vehicle&&conflicts({fire:vehicle.fire,pose:nextPose},v)))return;
     if (junction && p.road && p.from && this.signals.sharesClearanceZone(junction, p.from)) {
       if (d >= this.signals.exitClearance(p, p.from, body(vehicle.fire)[0]) || (endOfReturn && d >= vehicle.stop)) {
@@ -708,7 +717,7 @@ export class TrafficSimulation {
       this.orderStops(vehicle);
       if(index===vehicle.path.length-1&&d>=vehicle.stop-1e-6)vehicle.status='arrived';
     } else if (endOfReturn && d >= vehicle.stop) {
-      if (p === garageEntries[garage.indexOf(vehicle.bay!)]) {
+      if (p === vehicle.home!.returnTo.piece && Math.abs(d - vehicle.home!.returnTo.distance) < 1e-6) {
         this.park(vehicle);
         if (this.goal && (this.simulatedFleet?.has(vehicle.id) ?? true)) this.dispatch();
       }

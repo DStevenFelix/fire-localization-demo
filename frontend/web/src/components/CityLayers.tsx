@@ -5,6 +5,7 @@ import type { TrafficSimulation } from '../utils/trafficSimulation';
 import roadsLayer from '../../../../city_scene/assets/sand-table-roads.png';
 import buildingsLayer from '../../../../city_scene/assets/sand-table-buildings.png';
 import scene from '../../../../city_scene/city_scene.json';
+import emergencyConfig from '../config/emergency.json';
 import { SCENE_SIZE } from '../utils/mapCoordinates';
 import { sceneToPixel } from '../utils/mapCoordinates';
 
@@ -53,7 +54,27 @@ export const CityRoads = memo(function CityRoads() {
     })}
   </g>;
 });
-export const CityBuildings = memo(function CityBuildings(){return <image href={buildingsLayer} {...SCENE_SIZE} data-layer="buildings" data-material="physical-miniatures" pointerEvents="none"/>;});
+export const CityBuildings = memo(function CityBuildings({ mockParking = false }: { mockParking?: boolean }) {
+  return <g data-layer="buildings" data-material="physical-miniatures" pointerEvents="none">
+    <image href={buildingsLayer} {...SCENE_SIZE} />
+    {mockParking && <g data-fire-station="EXT-P-FIRE">
+      <title>消防站 · 四个仿真泊位</title>
+      <polygon points={geometryPoints(scene.fire_station_reserve.geometry)} fill="url(#sand-asphalt)" stroke="#dbdfcd" strokeWidth="2" />
+      {emergencyConfig.trucks.map((truck, index) => {
+        const [x, y] = truck.mockBay;
+        const p = point([x - .52, y + 1.03]), q = point([x + .52, y - 1.05]);
+        return <g key={truck.id} data-fire-bay={truck.id} data-x={x} data-y={y}>
+          <rect x={p.x} y={p.y} width={q.x - p.x} height={q.y - p.y} rx="2" fill="#283b3f" stroke="#f0e5b9" strokeWidth="2" />
+          <text x={(p.x + q.x) / 2} y={q.y - 3} textAnchor="middle" fontSize="13" fill="#f0e5b9">{index + 1}</text>
+        </g>;
+      })}
+      <g transform={`translate(${point([20, 17.94]).x} ${point([20, 17.94]).y})`}>
+        <rect x="-83" y="-10" width="166" height="21" rx="3" fill="#243a40" />
+        <text textAnchor="middle" y="4" fontSize="13" fill="#f1e8c4">消防站 · 四个仿真泊位</text>
+      </g>
+    </g>}
+  </g>;
+});
 export const CityPois = memo(function CityPois({select}:{select:(name:string)=>void}) {
   const information=(p:typeof poiCatalog[number])=>`${p.name} · ${p.id} · 父级 ${poiCatalog.find(parent=>parent.id===p.parent_id)?.name??'城市公共空间'}${p.parent_id?` (${p.parent_id})`:''} · CITY90x75 (${p.center.map(v=>v.toFixed(3)).join(', ')})`;
   return <g data-layer="city-pois">{poiCatalog.map(p=>{const c=point(p.center);return <g key={p.id} data-city-poi={p.id} data-poi-type={p.type} role="button" tabIndex={0} aria-label={p.name} onClick={()=>select(information(p))} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')select(information(p));}}>

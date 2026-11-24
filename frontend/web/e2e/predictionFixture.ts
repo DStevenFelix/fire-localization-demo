@@ -7,8 +7,8 @@ export async function startWithPrediction(page: Page, transform: (session: Sessi
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/run')) {
       const { session_id: id, paused = false } = route.request().postDataJSON();
-      const session: Session = await (await page.request.get('/api/localization/' + id)).json();
-      const { scenarios }: { scenarios: Poi[] } = await (await page.request.get('/api/scenarios')).json();
+      const session: Session = await (await page.request.get('/api/localization/' + id, { headers: { Connection: 'close' } })).json();
+      const { scenarios }: { scenarios: Poi[] } = await (await page.request.get('/api/scenarios', { headers: { Connection: 'close' } })).json();
       const otherTanks = scenarios.filter(poi => poi.poi_id !== session.target_poi_id);
       const candidates: Candidate[] = [session.ground_truth, ...otherTanks.slice(0, 2)]
         .map((poi, i) => ({ ...poi, rank: i + 1, votes: 3 - i, confidence: 1, score: 3 - i, relative_score: (3 - i) / 6 }));

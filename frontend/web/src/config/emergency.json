@@ -1,6 +1,14 @@
 {
   "requestTimeoutMs": 15000,
   "displaySpeedUnitsPerSecond": 2.4,
+  "reconDwellSeconds": 1.5,
+  "mockSuppressionSeconds": 8,
+  "trucks": [
+    { "id": "EXT-FIRE-VEHICLE-01", "standby": { "x": 27.2, "y": 27 }, "mockBay": [18.05, 15.65] },
+    { "id": "EXT-FIRE-VEHICLE-02", "standby": { "x": 62.8, "y": 27 }, "mockBay": [19.35, 15.65] },
+    { "id": "EXT-FIRE-VEHICLE-03", "standby": { "x": 27.2, "y": 48 }, "mockBay": [20.65, 15.65] },
+    { "id": "EXT-FIRE-VEHICLE-04", "standby": { "x": 62.8, "y": 48 }, "mockBay": [21.95, 15.65] }
+  ],
   "drones": [
     {
       "id": "DRONE-01",

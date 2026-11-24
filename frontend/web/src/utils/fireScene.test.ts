@@ -83,14 +83,17 @@ test('snapshot is detached; live simulation positions and status feed both views
 test.each(sceneTanks.map(p => p.id))('%s shows all three arriving trucks from the existing simulation at their actual positions', id => {
   const sim = new TrafficSimulation(() => .5);
   const data = getFireScene(id)!;
-  sim.setIncident([data.target.center[0] + 30, data.target.center[1] + 25], 3);
+  sim.applySimulatedFleet([data.target.center[0] + 30, data.target.center[1] + 25], sim.trucks.map(truck => truck.id));
   Array.from({ length: 1600 }).some(() => {
     sim.tick(.05);
     return sim.trucks.every(truck => truck.status === 'arrived');
   });
   expect(sim.sceneSnapshot.map(truck => truck.status)).toEqual(['arrived', 'arrived', 'arrived']);
+  expect(sim.sceneSnapshot.every(truck => !truck.waterTarget)).toBe(true);
+  sim.trucks.forEach(truck => sim.setExternalWater(truck.id, true));
+  expect(sim.sceneSnapshot.map(truck => truck.status)).toEqual(['extinguishing', 'extinguishing', 'extinguishing']);
   const scene = buildFireScene(data, new Texture());
-  scene.update('burning', sim.sceneSnapshot, 1, 100);
+  scene.update('extinguishing', sim.sceneSnapshot, 1, 100);
   sim.sceneSnapshot.map(arrived => {
     const model = scene.root.getObjectByName(arrived.id)!;
     expect(model.visible, JSON.stringify({ position: arrived.position, bounds: data.bounds })).toBe(true);
@@ -105,11 +108,17 @@ test.each(sceneTanks.map(p => p.id))('%s shows all three arriving trucks from th
 test('actors enter and leave the scene; water aims at the simulation goal; drones require an input snapshot', () => {
   const scene = buildFireScene(getFireScene('T-SW-01')!, new Texture());
   expect(scene.root.getObjectByName('actors')!.children).toHaveLength(0);
-  const actor: SceneActorSnapshot = { id: 'test-truck', kind: 'fireTruck', position: { x: 40, y: 33 }, heading: .5, status: 'arrived', waterTarget: { x: 50, y: 34 } };
+  const actor: SceneActorSnapshot = { id: 'test-truck', kind: 'fireTruck', position: { x: 40, y: 33 }, heading: .5, status: 'arrived', waterTarget: { x: 40, y: 34 } };
   scene.update('burning', [actor], 1, 1);
   const model = scene.root.getObjectByName(actor.id)!;
   expect(model.visible).toBe(true);
   const water = model.getObjectByName('water')!;
+  expect(water.visible).toBe(false);
+  const outside = { ...actor, status: 'extinguishing', position: { x: 65, y: 60 } };
+  scene.update('extinguishing', [outside], 1, 1);
+  expect(model.visible).toBe(true);
+  expect(model.position.toArray()).toEqual(Object.values(cityToScene(outside.position)));
+  expect(model.children[0].children[0].visible).toBe(false);
   expect(water.visible).toBe(true);
   const end = new Vector3(0, .5, 0).applyMatrix4(water.matrix.clone().compose(water.position, water.quaternion, water.scale)).add(model.position);
   expect(end.x).toBeCloseTo(cityToScene(actor.waterTarget!).x, 6);

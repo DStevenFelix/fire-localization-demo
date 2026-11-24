@@ -231,20 +231,33 @@ export function buildFireScene(data: FireSceneData, texture: Texture) {
         if (!actorModels.has(actor.id)) { actorModels.set(actor.id, model); actors.add(model.root); }
         model.root.name = actor.id;
         const p = cityToScene(actor.position, actor.kind === 'drone' ? actor.altitude ?? 90 : 0);
-        model.root.visible = isInsideScene(p, view === 'station' ? droneStationScene.bounds : data.bounds);
+        model.body.visible = isInsideScene(p, view === 'station' ? droneStationScene.bounds : data.bounds);
         model.root.position.set(p.x, p.y, p.z);
         // Nonuniform map scales apply after heading, matching the SVG transform.
         model.body.rotation.y = actor.heading;
         model.root.userData.status = actor.status;
         model.rotors.map(rotor => { rotor.rotation.y = time * 35; });
-        model.water.visible = actor.kind === 'fireTruck' && (actor.status === 'arrived' || actor.status === 'extinguishing') && !!actor.waterTarget && model.root.visible;
-        if (!model.water.visible || !actor.waterTarget) return;
-        const end = cityToScene(actor.waterTarget, 28);
-        const start = new Vector3(p.x, 13, p.z);
+        const end = actor.waterTarget && cityToScene(actor.waterTarget, 28);
+        model.water.visible = actor.kind === 'fireTruck' && actor.status === 'extinguishing' && status === 'extinguishing' &&
+          view === 'fire' && !!end && isInsideScene(end, data.bounds);
+        model.droplets.visible = model.water.visible;
+        model.root.visible = model.body.visible || model.water.visible;
+        if (!model.water.visible || !end) return;
+        // The model stays at its reported coordinates. Only the visible portion of the stream enters this local scene.
+        const entry = Math.max(0,
+          p.x < data.bounds.minX ? (data.bounds.minX - p.x) / (end.x - p.x) : p.x > data.bounds.maxX ? (data.bounds.maxX - p.x) / (end.x - p.x) : 0,
+          p.z < data.bounds.minZ ? (data.bounds.minZ - p.z) / (end.z - p.z) : p.z > data.bounds.maxZ ? (data.bounds.maxZ - p.z) / (end.z - p.z) : 0);
+        const start = new Vector3(p.x, 21, p.z).lerp(new Vector3(end.x, end.y, end.z), entry);
         const direction = new Vector3(end.x, end.y, end.z).sub(start);
-        model.water.position.copy(direction.clone().multiplyScalar(.5).add(new Vector3(0, 13, 0)));
+        const localStart = start.sub(new Vector3(p.x, p.y, p.z));
+        model.water.position.copy(localStart).addScaledVector(direction, .5);
         model.water.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), direction.clone().normalize());
         model.water.scale.y = direction.length();
+        model.droplets.children.forEach((drop, i) => {
+          const progress = (i / model.droplets.children.length + time * 1.65) % 1;
+          drop.position.copy(localStart).addScaledVector(direction, progress);
+          drop.scale.setScalar(2.8 + 2.4 * progress);
+        });
       });
     },
   };
@@ -266,12 +279,18 @@ export function createSceneActor(kind: SceneActorSnapshot['kind']) {
   if (kind === 'drone') body.position.y = 7;
   scaled.add(body);
   root.add(scaled);
-  const water = new Mesh(new CylinderGeometry(1, 1.7, 1, 6), new MeshBasicMaterial({ color: '#9adeff', transparent: true, opacity: .65 }));
+  const water = new Mesh(new CylinderGeometry(2.4, 1.6, 1, 8), new MeshBasicMaterial({ color: '#42bdf5', transparent: true, opacity: .9, depthWrite: false }));
   water.name = 'water';
   water.visible = false;
   root.add(water);
+  const droplets = new Group();
+  droplets.visible = false;
+  root.add(droplets);
   const rotors: Mesh<BufferGeometry, MeshStandardMaterial>[] = [];
   if (kind === 'fireTruck') {
+    const geometry = new SphereGeometry(1, 8, 6);
+    const material = new MeshBasicMaterial({ color: '#d6faff' });
+    for (let i = 0; i < 12; i++) droplets.add(new Mesh(geometry, material));
     const chassis = new Mesh(new BoxGeometry(1.66, 15, .57), new MeshStandardMaterial({ color: '#cc253d' }));
     chassis.position.y = 9;
     body.add(chassis);
@@ -292,7 +311,7 @@ export function createSceneActor(kind: SceneActorSnapshot['kind']) {
     const beacon = new Mesh(new BoxGeometry(.12, 3, .4), new MeshStandardMaterial({ color: '#67ccff', emissive: '#2477cc', emissiveIntensity: .8 }));
     beacon.position.set(.45, 26, 0);
     body.add(beacon);
-    return { root, body, water, rotors, kind };
+    return { root, body, water, droplets, rotors, kind };
   }
   const fuselage = new Mesh(new BoxGeometry(.42, 7, .32), new MeshStandardMaterial({ color: '#d9e9ec' }));
   body.add(fuselage);
@@ -306,7 +325,7 @@ export function createSceneActor(kind: SceneActorSnapshot['kind']) {
     rotors.push(rotor);
     body.add(rotor);
   }));
-  return { root, body, water, rotors, kind };
+  return { root, body, water, droplets, rotors, kind };
 }
 
 export function disposeSceneObject(root: Object3D) {

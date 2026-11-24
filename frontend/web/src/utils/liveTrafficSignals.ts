@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { nodes } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import { original_map_placement } from '../../../../city_scene/city_scene.json';
 import type { HardwareSignal, SignalColor } from '../types';
@@ -34,24 +33,38 @@ export const signalColorLabels: Record<SignalColor, string> = {
 
 export type HardwareSignals = Readonly<Record<string, HardwareSignal>>;
 
-export function useLiveTrafficSignals() {
-  const [signals, setSignals] = useState<HardwareSignals>({});
-  useEffect(() => {
-    const source = new EventSource('/api/traffic-signals/stream');
-    const disconnected = (previous: HardwareSignals) => Object.fromEntries(
-      Object.entries(previous).map(([id, state]) => [id, { ...state, connected: false }]));
-    source.onmessage = event => {
-      const { devices } = JSON.parse(event.data) as { devices: HardwareSignals };
-      setSignals(previous => {
-        const next = disconnected(previous);
-        for (const [ip, id] of Object.entries(deviceIntersections)) {
-          if (devices[ip]?.groups.length === 16) next[id] = devices[ip];
-        }
-        return next;
-      });
-    };
-    source.onerror = () => setSignals(disconnected);
-    return () => source.close();
-  }, []);
-  return signals;
+const signalColors = new Set(Object.keys(signalColorLabels));
+
+export function normalizeHardwareSignals(devices: unknown, previous: HardwareSignals): HardwareSignals {
+  if (!devices || typeof devices !== 'object' || Array.isArray(devices)) throw new RangeError('信号灯快照缺少设备表');
+  const next = Object.fromEntries(Object.entries(previous).map(([id, state]) => [id, { ...state, connected: false }]));
+  for (const [ip, id] of Object.entries(deviceIntersections)) {
+    if (!Object.hasOwn(devices, ip)) continue;
+    const value: unknown = (devices as Record<string, unknown>)[ip];
+    if (!value || typeof value !== 'object') throw new RangeError('信号灯设备格式无效');
+    const device = value as HardwareSignal;
+    if (typeof device.connected !== 'boolean' || !Array.isArray(device.groups) || device.groups.length !== 16 ||
+      device.groups.some(group => !group || !signalColors.has(group.color) || !Number.isFinite(group.countdown)))
+      throw new RangeError('信号灯分组状态无效');
+    next[id] = { connected: device.connected, groups: device.groups.map(group => ({ color: group.color, countdown: group.countdown })) };
+  }
+  return next;
+}
+
+export function subscribeLiveTrafficSignals(receive: (devices: unknown) => boolean, disconnect: () => void) {
+  const source = new EventSource('/api/traffic-signals/stream');
+  let lastUpdate: number | undefined;
+  source.onmessage = event => {
+    let devices: unknown;
+    try { devices = JSON.parse(event.data)?.devices; }
+    catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+    if (!receive(devices)) return;
+    window.clearTimeout(lastUpdate);
+    lastUpdate = window.setTimeout(disconnect, 10_000);
+  };
+  source.onerror = disconnect;
+  return () => {
+    window.clearTimeout(lastUpdate);
+    source.close();
+  };
 }

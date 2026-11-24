@@ -1,31 +1,49 @@
 import { useEffect, useRef } from 'react';
-import { IMAGE_SIZE, WORLD_SIZE } from '../utils/mapCoordinates';
+import { FULL_VIEW, IMAGE_SIZE, WORLD_SIZE } from '../utils/mapCoordinates';
 import { point } from './CityLayers';
 import { droneStatusLabels, type EmergencyService } from '../utils/emergency';
 import type { TrafficSimulation } from '../utils/trafficSimulation';
 import { drone_station } from '../../../../city_scene/fire_resources.json';
+import { responders, visibleDeviceRoute, type DashboardInput } from '../services/dashboardInput';
+import { deviceTitle, routePoints } from './VehicleLayer';
 
-export default function DroneLayer({ emergency, traffic }: { emergency: EmergencyService; traffic: TrafficSimulation }) {
+export default function DroneLayer({ emergency, traffic, dashboard, viewWidth }: {
+  emergency?: EmergencyService; traffic: TrafficSimulation; dashboard?: DashboardInput; viewWidth: number;
+}) {
   const root = useRef<SVGGElement>(null);
+  const roster = responders.filter(device => device.kind === 'drone');
   useEffect(() => {
     const nodes = new Map([...root.current!.querySelectorAll<SVGGElement>('[data-drone]')].map(node => [node.dataset.drone!, node]));
     const routes = new Map([...root.current!.querySelectorAll<SVGPolylineElement>('[data-drone-path]')].map(node => [node.dataset.dronePath!, node]));
-    const draw = () => emergency.getSnapshot().drones.forEach(drone => {
-      const route = routes.get(drone.id)!;
-      route.setAttribute('points', drone.path?.map(position => {
-        const p = point([position.x, position.y]);
-        return `${p.x},${p.y}`;
-      }).join(' ') ?? '');
-      const node = nodes.get(drone.id)!, p = point([drone.position.x, drone.position.y]);
-      node.setAttribute('transform', `translate(${p.x} ${p.y}) scale(${IMAGE_SIZE.width / WORLD_SIZE.width} ${IMAGE_SIZE.height / WORLD_SIZE.height}) rotate(${-drone.heading * 180 / Math.PI})`);
-      node.dataset.x = String(drone.position.x); node.dataset.y = String(drone.position.y);
-      node.dataset.heading = String(drone.heading); node.dataset.altitude = String(drone.altitude); node.dataset.status = drone.status;
-      node.querySelector('title')!.textContent = `${drone.id} · ${droneStatusLabels[drone.status]}`;
-    });
+    const tracks = new Map([...root.current!.querySelectorAll<SVGPolylineElement>('[data-drone-track]')].map(node => [node.dataset.droneTrack!, node]));
+    const labels = new Map([...root.current!.querySelectorAll<SVGTextElement>('[data-drone-label]')].map(node => [node.dataset.droneLabel!, node]));
+    const draw = () => {
+      for (const id of nodes.keys()) {
+        const device = dashboard?.getSnapshot().devices[id];
+        const legacy = emergency?.getDrone(id);
+        const drone = device ?? legacy;
+        if (!drone) continue;
+        routes.get(id)!.setAttribute('points', routePoints(device ? visibleDeviceRoute(device) : legacy?.status !== 'returning' ? legacy?.path : undefined));
+        tracks.get(id)!.setAttribute('points', '');
+        const node = nodes.get(id)!, p = point([drone.position.x, drone.position.y]);
+        node.setAttribute('transform', `translate(${p.x} ${p.y}) scale(${IMAGE_SIZE.width / WORLD_SIZE.width} ${IMAGE_SIZE.height / WORLD_SIZE.height}) rotate(${-drone.heading * 180 / Math.PI})`);
+        labels.get(id)!.setAttribute('transform', `translate(${p.x} ${p.y})`);
+        node.dataset.x = String(drone.position.x); node.dataset.y = String(drone.position.y);
+        node.dataset.heading = String(drone.heading); node.dataset.altitude = String(drone.altitude ?? 0); node.dataset.status = drone.status;
+        if (device) {
+          node.dataset.location = device.locatedAt ? device.stale ? 'stale' : 'tracked' : 'virtual';
+          node.dataset.connection = device.connection;
+          node.dataset.task = device.task?.id ?? '';
+          node.dataset.altitudeMeters = String(device.altitudeMeters ?? '');
+          node.querySelector('title')!.textContent = deviceTitle(device);
+        } else if (legacy) node.querySelector('title')!.textContent = `${id} · ${droneStatusLabels[legacy.status]}`;
+      }
+    };
+    const unsubscribe = dashboard ? dashboard.subscribe(draw) : traffic.subscribe(draw);
+    const unwatch = dashboard ? undefined : emergency?.subscribe(draw);
     draw();
-    const unsubscribe = traffic.subscribe(draw), unwatch = emergency.subscribe(draw);
-    return () => { unsubscribe(); unwatch(); };
-  }, [emergency, traffic]);
+    return () => { unsubscribe(); unwatch?.(); };
+  }, [emergency, traffic, dashboard]);
   return <g ref={root} data-layer="drones" pointerEvents="none">
     <g data-drone-station={drone_station.poi_id} data-x={drone_station.center[0]} data-y={drone_station.center[1]}>
       <polygon points={drone_station.geometry.coordinates[0].map(p => { const q = point(p); return `${q.x},${q.y}`; }).join(' ')} fill="#254b51" stroke="#9cddcf" strokeWidth="2" />
@@ -35,16 +53,25 @@ export default function DroneLayer({ emergency, traffic }: { emergency: Emergenc
       </g>; })}
       <text x={point(drone_station.center).x} y={point(drone_station.center).y + 77} textAnchor="middle" fontSize="18" fill="#d5eee5" stroke="#183b43" paintOrder="stroke" strokeWidth="4">消防无人机站</text>
     </g>
-    <g data-layer="drone-routes" fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke">{emergency.getSnapshot().drones.map((drone, index) =>
-      <polyline key={drone.id} data-drone-path={drone.id} stroke={index === 0 ? '#75e0e3' : '#f6c974'} strokeDasharray={index === 0 ? undefined : '8 5'} vectorEffect="non-scaling-stroke" />)}</g>
-    {emergency.getSnapshot().drones.map(drone =>
-    <g key={drone.id} data-drone={drone.id}>
-      <title>{drone.id}</title>
-      <circle r=".72" fill="#0c3643" fillOpacity=".38" />
-      <path d="M-.45 -.45 .45 .45 M-.45 .45 .45 -.45" stroke="#082732" strokeWidth=".2" />
-      <path d="M-.45 -.45 .45 .45 M-.45 .45 .45 -.45" stroke="#98f3f0" strokeWidth=".09" />
-      {[-.45, .45].flatMap(x => [-.45, .45].map(y => <circle key={`${x}:${y}`} cx={x} cy={y} r=".22" fill="#133f4b" stroke="#b8ffff" strokeWidth=".06" />))}
-      <rect x="-.22" y="-.16" width=".44" height=".32" rx=".1" fill="#75e0e3" stroke="#0b3641" strokeWidth=".04" />
-      <path d="M.29 -.12 .48 0 .29 .12" fill="#fff0b8" />
-    </g>)}</g>;
+    <g data-layer="drone-routes">{roster.map((drone, index) => {
+      const color = index === 0 ? '#75e0e3' : '#f6c974';
+      return <g key={drone.id}>
+        <polyline data-drone-path={drone.id} className="device-route" stroke={color} />
+        <polyline data-drone-track={drone.id} className="device-track" stroke={color} />
+      </g>;
+    })}</g>
+    {roster.map((drone, index) => <g key={drone.id}>
+      <g data-drone={drone.id}>
+        <title>{drone.id}</title>
+        <circle r=".72" fill="#0c3643" fillOpacity=".38" />
+        <path d="M-.45 -.45 .45 .45 M-.45 .45 .45 -.45" stroke="#082732" strokeWidth=".2" />
+        <path d="M-.45 -.45 .45 .45 M-.45 .45 .45 -.45" stroke="#98f3f0" strokeWidth=".09" />
+        {[-.45, .45].flatMap(x => [-.45, .45].map(y => <circle key={`${x}:${y}`} cx={x} cy={y} r=".22" fill="#133f4b" stroke="#b8ffff" strokeWidth=".06" />))}
+        <rect x="-.22" y="-.16" width=".44" height=".32" rx=".1" fill="#75e0e3" stroke="#0b3641" strokeWidth=".04" />
+        <path d="M.29 -.12 .48 0 .29 .12" fill="#fff0b8" />
+      </g>
+      <text data-drone-label={drone.id} className="device-map-label" fontSize={44 * viewWidth / FULL_VIEW.width}
+        x={59 * viewWidth / FULL_VIEW.width} y={index === 0 ? 31 : -30} textAnchor="middle">D{index + 1}</text>
+    </g>)}
+  </g>;
 }

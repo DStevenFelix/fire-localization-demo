@@ -1,6 +1,7 @@
 import { edges, roads, fire_station_reserve as station, original_map_placement } from '../../../../city_scene/city_scene.json';
 import { edges as originalEdges, nodes as originalNodes } from '../../../../fire_poi/fire_sandbox_spatial_model.json';
 import { crossingNodes } from './trafficSignalGeometry';
+import emergencyConfig from '../config/emergency.json';
 
 export type Point = [number, number];
 export type Pose = { point: Point; angle: number };
@@ -106,23 +107,31 @@ export const stationExit = outgoing.get(key(access))!.find(p=>laneHeading.get(p)
 export const stationJunction = key(access);
 const stationArrivalLane = lanes.find(lane => lane.to === stationJunction && laneHeading.get(lane)![0] > 0)!;
 const drivewayTop: Point = [access[0], (station.access.entrance as Point)[1] + .65];
-const bayAisles: Point[][] = [];
-export const garage = station.parking_spaces.map((bay)=>{
-  const start=bay.center as Point, entry=station.access.entrance as Point;
+function parkingPath(start: Point, compact = false) {
+  const entry=station.access.entrance as Point;
   const side=Math.sign(start[0]-entry[0]), apronY=entry[1]+.12;
   // Clear the nose of a truck parked in the middle bay before joining the driveway.
   const merge: Point = [entry[0], entry[1] + .55];
   const join=stationExit.points[0];
+  const innerRadius = compact ? Math.min(.44, Math.abs(start[0] - entry[0]) * .4) : .44;
+  const outerRadius = compact ? Math.min(.55, Math.abs(start[0] - entry[0]) * .42) : .55;
   const apron:Point[]=side===0?[]:[
-    ...bend([start[0],apronY-.32],[start[0],apronY],[start[0]-side*.44,apronY]),
-    ...bend([entry[0]+side*.55,apronY],[entry[0],apronY],merge),
+    ...bend([start[0],apronY-.32],[start[0],apronY],[start[0]-side*innerRadius,apronY]),
+    ...bend([entry[0]+side*outerRadius,apronY],[entry[0],apronY],merge),
   ];
   const aisle = [start,...apron,side===0?entry:merge,drivewayTop];
-  bayAisles.push(aisle);
   const path=piece([...aisle,...bend(drivewayTop,[entry[0],join[1]],join).slice(1)],{junction:key(access)});
   path.next.push(stationExit);
-  return path;
-});
+  return { exit: path, entry: piece([...aisle].reverse(), { junction: stationJunction }) };
+}
+const historicalParking = station.parking_spaces.map(bay => parkingPath(bay.center as Point));
+export const garage = historicalParking.map(bay => bay.exit);
+export const garageEntries = historicalParking.map(bay => bay.entry);
+const mockParking = emergencyConfig.trucks.map(truck => parkingPath(truck.mockBay as Point, true));
+export const mockTruckHomes = mockParking.map(bay => ({ home: { piece: bay.exit, distance: 0 },
+  returnTo: { piece: bay.entry, distance: bay.entry.length }, departureHold: .3 }));
+export const isParkingDeparture = (road: Piece) => garage.includes(road) || mockParking.some(bay => bay.exit === road);
+export const isParkingEntry = (road: Piece) => garageEntries.includes(road) || mockParking.some(bay => bay.entry === road);
 // Drive forward into the apron and finish facing out before selecting reverse.
 const driveInStart = stationArrivalLane.points.at(-1)!;
 const outerTurn: Point = [drivewayTop[0] - .85, drivewayTop[1] + .30];
@@ -132,10 +141,9 @@ const driveIn = piece([
   ...bend(outerTurn, [outerTurn[0], innerTurn[1]], innerTurn).slice(1),
   ...bend(innerTurn, [drivewayTop[0], innerTurn[1]], drivewayTop).slice(1),
 ], { junction: stationJunction });
-export const garageEntries = bayAisles.map(aisle => piece([...aisle].reverse(), { junction: stationJunction }));
 stationArrivalLane.next.push(driveIn);
-driveIn.next.push(...garageEntries);
-export const isGarageAccess = (road: Piece) => road === driveIn || garageEntries.includes(road);
+driveIn.next.push(...garageEntries, ...mockParking.map(bay => bay.entry));
+export const isGarageAccess = (road: Piece) => road === driveIn || isParkingEntry(road);
 
 export function turnDirection(from: Piece, next: Piece | undefined) {
   if (!next) return 'straight';
@@ -156,6 +164,8 @@ export const roadPieces = new Map<string, Piece>([
   ['garage-access', driveIn],
   ...garageEntries.map((bay, i) => [`garage-entry:${i}`, bay] as const),
 ]);
+export const mockParkingPieces = new Map<string, Piece>(mockParking.flatMap((bay, index) =>
+  [[`mock-parking-exit:${index + 1}`, bay.exit] as const, [`mock-parking-entry:${index + 1}`, bay.entry] as const]));
 const incomingPieces = new Map<Piece, Piece[]>();
 for (const road of roadPieces.values()) {
   for (const next of road.next) incomingPieces.set(next, [...(incomingPieces.get(next) ?? []), road]);
@@ -168,7 +178,7 @@ for (const road of canReachStation) {
 export function getDispatchNetwork() {
   const ids = new Map([...roadPieces].map(([id, piece]) => [piece, id]));
   return [...roadPieces].map(([id, piece]) => ({ id, points: piece.points.map(p => ({ x: p[0], y: p[1] })),
-    length: piece.length, next: piece.next.map(next => ids.get(next)!), road: piece.road }));
+    length: piece.length, next: piece.next.flatMap(next => { const id = ids.get(next); return id ? [id] : []; }), road: piece.road }));
 }
 
 export type RoadPlan = { pieces: Piece[]; stop: number };
