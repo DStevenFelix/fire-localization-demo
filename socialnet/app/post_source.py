@@ -72,8 +72,7 @@ def create_app(engine_factory=SimulationEngine, *, archives: PostArchives | None
                                     "timestamp": record.timestamp, "location_poi_id": origins[record.message_id]})
             if len(unpublished) >= PREPARED_POST_TARGET:
                 has_room.clear()
-            # Yield even when nobody observed the fire or the model returned immediately.
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(float(os.getenv("SIMULATION_INTERVAL_SECONDS", "3")))
 
     async def publish():
         nonlocal discarded_through

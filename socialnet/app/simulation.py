@@ -41,7 +41,6 @@ class SimulationEngine:
     # 建立规范地图、居民及各自随机流；不同社区独立抽样，便于恢复与可重复测试。
     def __init__(self, seed: int = 7, fire_policy: FirePolicy | None = None, *, posts_only: bool = False) -> None:
         self.seed = seed
-        self.posts_only = posts_only
         self.random = random.Random(seed)
         self.fire_random = random.Random(seed)
         self.fire_policy = fire_policy or FirePolicy()
@@ -256,18 +255,6 @@ class SimulationEngine:
             history.append(message)
             messages.append(message)
             used.add(resident.id)
-
-        if self.posts_only:
-            if observed_fire is not None:
-                nearby = sorted(residents, key=lambda r: self._distance(r.position, observed_fire.position))
-                closest = self._distance(nearby[0].position, observed_fire.position)
-                observers = [r for r in nearby if self._distance(r.position, observed_fire.position) <= closest + 1.2]
-                for observer in rng.sample(observers, k=min(2, len(observers))):
-                    observation = self._observation(observer, observed_fire, rng)
-                    if observation:
-                        await emit(observer, "observation", "fire", observation=observation)
-                        break
-            return messages
 
         # 先安排生活话题，再在有火源时挑选较近居民尝试观察；无感知则仍谈日常。
         recent_speakers = {m.resident_id for m in history[-4:]}
