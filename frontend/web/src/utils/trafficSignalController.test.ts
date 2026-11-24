@@ -313,7 +313,9 @@ test('a fire truck obeys red on a signal-controlled return and brakes for a car 
   expect(truck.cursor.piece === exit).toBe(true);
 });
 
-test.each(['ordinary car', 'returning', 'en-route'] as const)('%s can turn right at red when the outlet is clear', status => {
+test.each([
+  ['ordinary car', false], ['returning', false], ['en-route', false], ['ordinary car', true],
+] as const)('%s obeys right-turn signals according to emergency status (hardware: %s)', (status, hardware) => {
   const sim = new TrafficSimulation();
   const lane = lanes.find(p => p.from === '3.000000,12.000000' && p.to === '15.000000,12.000000')!;
   const turn = lane.next.find(next => isRightTurn(lane, next) && !isFireStationOnly(next))!;
@@ -330,13 +332,30 @@ test.each(['ordinary car', 'returning', 'en-route'] as const)('%s can turn right
   blocker.path = [exit]; blocker.index = 0; blocker.speed = 0;
   blocker.cursor = { piece: exit, distance: .5 }; blocker.pose = pose(blocker.cursor);
 
-  expect(sim.signals.isVehicleGreen(lane)).toBe(false);
+  const junction = sim.signals.getLaneControl(lane)!.intersection.id;
+  const publishHardware = (right: SignalColor) => sim.signals.setHardwareSignals({ [junction]: {
+    connected: true,
+    groups: Array.from({ length: 16 }, (_, i) => ({ color: i === 9 ? 'green' : i === 10 ? right : 'red', countdown: 0 })),
+  } });
+  if (hardware) {
+    publishHardware('red'); // The west approach reports separate straight and right-turn groups.
+    expect(sim.signals.isVehicleGreen(lane)).toBe(true);
+  }
+  expect(sim.signals.isVehicleGreen(lane, turn)).toBe(false);
   sim.tick(.1);
   expect(vehicle.cursor.distance).toBe(stop);
   sim.cars.pop();
   sim.tick(.1);
-  expect(vehicle.cursor.distance).toBeGreaterThan(stop);
-  expect(sim.signals.isVehicleGreen(lane)).toBe(false);
+  if (status === 'en-route') {
+    expect(vehicle.cursor.distance).toBeGreaterThan(stop);
+    expect(sim.signals.isVehicleGreen(lane, turn)).toBe(false);
+  } else {
+    expect(vehicle.cursor.distance).toBe(stop);
+    expect(vehicle.waitingForSignal).toBe(true);
+    if (hardware) publishHardware('green');
+    until(() => sim.tick(.1), () => vehicle.cursor.distance > stop);
+    expect(sim.signals.isVehicleGreen(lane, turn)).toBe(true);
+  }
 });
 
 test.each([['en-route', false, true], ['returning', false, false], ['en-route', true, false]] as const)(

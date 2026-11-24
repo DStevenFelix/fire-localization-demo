@@ -54,7 +54,9 @@ def create_chat_model(temperature: float, *, agent_role: str = "resident"):
     dashscope = bool(dashscope_key and not openai_key)
     model = (os.getenv("DASHSCOPE_MODEL", "").strip() or "qwen-plus") if dashscope else (os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini")
     kwargs = dict(model=model, api_key=api_key, temperature=temperature, timeout=request_timeout_seconds(), max_retries=0)
-    if agent_role in ("monitor", "localizer"):
+    if agent_role == "resident" and model == "qwen3.8-flash":
+        kwargs["extra_body"] = {"enable_thinking": False}
+    elif agent_role in ("monitor", "localizer"):
         variable = "MONITOR_REASONING_EFFORT" if agent_role == "monitor" else "LOCALIZATION_REASONING_EFFORT"
         effort = os.getenv(variable, "").strip() or "low"
         if effort not in {"low", "medium", "xhigh", "default"}:

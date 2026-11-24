@@ -203,10 +203,10 @@ export class TrafficSignalController implements TrafficControlService {
     }
     return green(state.vehicles[entry.id]);
   }
-  returnPriorityPhase(lane: Piece): 'green' | 'preparing' | undefined {
+  returnPriorityPhase(lane: Piece, movement?: Piece): 'green' | 'preparing' | undefined {
     const control = controlledLanes.get(lane);
     if (this.mode !== 'normal' || !control) return;
-    if (this.isVehicleGreen(lane)) return 'green';
+    if (this.isVehicleGreen(lane, movement)) return 'green';
     if (this.hardware[control.intersection.id]) return;
 
     const { intersection, entry } = control;

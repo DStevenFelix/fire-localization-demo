@@ -23,6 +23,7 @@ def test_invalid_timeout_cannot_disable_deadline(monkeypatch, value):
 
 def test_model_factory_uses_configured_timeout_without_changing_model_or_retry(monkeypatch):
     import langchain_openai
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-only-never-used")
     monkeypatch.setenv("DASHSCOPE_MODEL", "qwen3.8-flash")
     monkeypatch.setenv("LLM_REQUEST_TIMEOUT_SECONDS", "180")
@@ -31,13 +32,15 @@ def test_model_factory_uses_configured_timeout_without_changing_model_or_retry(m
     llm.create_chat_model(.2)
     assert captured[0]["timeout"] == 180
     assert captured[0]["model"] == "qwen3.8-flash" and captured[0]["max_retries"] == 0
-    assert "reasoning_effort" not in captured[0] and "extra_body" not in captured[0]
+    assert "reasoning_effort" not in captured[0]
+    assert captured[0]["extra_body"] == {"enable_thinking": False}
 
 
 @pytest.mark.parametrize("effort,expected", [(None, "low"), ("", "low"), ("medium", "medium"),
                                            ("xhigh", "xhigh"), ("default", None)])
 def test_monitor_effort_is_configurable_and_never_changes_resident_options(monkeypatch, effort, expected):
     import langchain_openai
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-only-never-used")
     monkeypatch.setenv("DASHSCOPE_MODEL", "qwen3.8-flash")
     if effort is None:
@@ -49,7 +52,8 @@ def test_monitor_effort_is_configurable_and_never_changes_resident_options(monke
     llm.create_chat_model(.2, agent_role="monitor")
     llm.create_chat_model(.9)
     assert captured[0].get("reasoning_effort") == expected
-    assert "reasoning_effort" not in captured[1] and "extra_body" not in captured[1]
+    assert "extra_body" not in captured[0]
+    assert "reasoning_effort" not in captured[1] and captured[1]["extra_body"] == {"enable_thinking": False}
     assert captured[0]["model"] == captured[1]["model"] == "qwen3.8-flash"
     assert captured[0]["api_key"] == captured[1]["api_key"] == "test-only-never-used"
 

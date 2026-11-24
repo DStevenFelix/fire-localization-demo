@@ -5,7 +5,7 @@ import emergencyConfig from '../config/emergency.json';
 import { TrafficSignalController } from './trafficSignalController';
 import { PedestrianSimulation } from './pedestrianSimulation';
 import { approaches, ARRIVAL_RADIUS, avenueLanes, distance, garage, originalLoop, pose,
-  followsOnSameLane, garageEntries, inTankZone, isFireStationOnly, isGarageAccess, isParkingDeparture, isParkingEntry, isRightTurn, mockParkingPieces, oppositeLane, roadPieces, routeTo, routeToLane, streetLoop,
+  followsOnSameLane, garageEntries, inTankZone, isFireStationOnly, isGarageAccess, isParkingDeparture, isParkingEntry, mockParkingPieces, oppositeLane, roadPieces, routeTo, routeToLane, streetLoop,
   type Approach, type Cursor, type Piece, type Point, type Pose, type RoadPlan } from './roadNetwork';
 
 export type ResetMode = 'garage' | 'roads';
@@ -511,12 +511,11 @@ export class TrafficSimulation {
 
   private relieveCarQueue(car: Vehicle, dt: number, moved: boolean) {
     if (moved || !this.queuedAtFork(car)) { car.queueWait = 0; return; }
-    if (!this.signals.isVehicleGreen(car.cursor.piece)) return;
+    const next = this.next(car, car.index);
+    if (!next || !this.signals.isVehicleGreen(car.cursor.piece, next)) return;
     car.queueWait = (car.queueWait ?? 0) + dt;
     if (car.queueWait < QUEUE_DETOUR_SECONDS) return;
     car.queueWait = 0;
-    const next = this.next(car, car.index);
-    if (!next) return;
     const blocked = this.all.filter(vehicle => vehicle !== car &&
       (vehicle.status === 'arrived' || vehicle.cursor.distance < 2.25)).map(vehicle => vehicle.cursor.piece);
     this.divertAtJunction(car, next, blocked);
@@ -572,7 +571,7 @@ export class TrafficSimulation {
     };
     for (const [truck, approach] of this.returnQueue) {
       const { lane, junction } = approach;
-      const phase = this.signals.returnPriorityPhase(lane);
+      const phase = this.signals.returnPriorityPhase(lane, this.next(truck, truck.index));
       const green = phase === 'green';
       if (green && !approach.green) approach.greenWindows++;
       approach.green = green;
@@ -589,13 +588,14 @@ export class TrafficSimulation {
       // A full outlet has to drain through its next signal before the truck can enter.
       if (exit && holdExit) {
         const control = this.signals.getLaneControl(exit);
-        const outletPhase = this.signals.returnPriorityPhase(exit);
-        if (!control || !outletPhase || this.signals.sharesClearanceZone(junction, control.intersection.id)) continue;
+        if (!control || this.signals.sharesClearanceZone(junction, control.intersection.id)) continue;
         let head: Vehicle | undefined;
         for (const vehicle of others) {
           if (vehicle.cursor.piece === exit && (!head || vehicle.cursor.distance > head.cursor.distance)) head = vehicle;
         }
         if (!head || head.fire || head.speed <= 0) continue;
+        const outletPhase = this.signals.returnPriorityPhase(exit, this.next(head, head.index));
+        if (!outletPhase) continue;
         const stop = this.signals.stopDistance(exit, body(false)[0]);
         const downstream = control.intersection.id;
         if (head.cursor.distance >= stop - RETURN_PRIORITY_DISTANCE && head.cursor.distance <= stop + 1e-6 &&
@@ -638,15 +638,14 @@ export class TrafficSimulation {
       const stop = this.signals.stopDistance(p, body(vehicle.fire)[0]);
       if (d + step > stop) {
         // 进入停止线后保留通行承诺；切红时已经进入的对象继续清空，不在路中冻结。
-        const bypassSignal = ignoreSignal || (this.signals.getMode() !== 'emergency_lockdown' && isRightTurn(p, upcoming));
-        const allowed = vehicle.fire ? bypassSignal || this.signals.isVehicleGreen(p, upcoming) :
-          this.signals.canEnterVehicle(p, vehicle.id, false, bypassSignal, upcoming);
+        const allowed = vehicle.fire ? ignoreSignal || this.signals.isVehicleGreen(p, upcoming) :
+          this.signals.canEnterVehicle(p, vehicle.id, false, ignoreSignal, upcoming);
         const atEntry = d <= stop + 1e-6;
         const waitForSignal = atEntry && !allowed;
         const yieldToReturn = atEntry && allowed && !ignoreSignal && this.mustYieldAtEntry(vehicle, control.intersection.id, reservations.priorities);
         if (waitForSignal || yieldToReturn) {
           step = Math.max(0, stop - d);
-          vehicle.waitingForSignal = waitForSignal && !bypassSignal;
+          vehicle.waitingForSignal = waitForSignal && !ignoreSignal;
           if (step <= 1e-8) return yieldToReturn ? 'yield' : undefined;
         } else {
           if (vehicle.fire && this.signals.hasPedestrianInZone(control.intersection.id)) return;
